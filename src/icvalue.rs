@@ -29,6 +29,11 @@ impl From<BaseT> for ICValue {
         Self(other)
     }
 }
+impl From<ICValue> for BaseT {
+    fn from(value: ICValue) -> Self {
+        value.0
+    }
+}
 impl Deref for ICValue {
     type Target = BaseT;
     fn deref(&self) -> &Self::Target {
