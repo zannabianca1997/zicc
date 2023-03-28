@@ -124,27 +124,33 @@ impl Neg for ICValue {
 pub struct ICProgram(Box<[ICValue]>);
 
 impl ICProgram {
-    /// Returns an iterator over the program.
-    ///
-    /// The iterator yields all items from start to end.
+    /**
+    Returns an iterator over the program.
+
+    The iterator yields all items from start to end.
+    */
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = &ICValue> {
         self.0.iter()
     }
-    /// Returns an iterator that allows modifying each value.
-    ///
-    /// The iterator yields all items from start to end.
+    /**
+    Returns an iterator that allows modifying each value.
+
+    The iterator yields all items from start to end.
+    */
     #[inline]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ICValue> {
         self.0.iter_mut()
     }
-    /// Returns a reference to an element or subslice depending on the type of
-    /// index.
-    ///
-    /// - If given a position, returns a reference to the element at that
-    ///   position or `None` if out of bounds.
-    /// - If given a range, returns the subslice corresponding to that range,
-    ///   or `None` if out of bounds.
+    /**
+    Returns a reference to an element or subslice depending on the type of
+    index.
+
+    - If given a position, returns a reference to the element at that
+      position or `None` if out of bounds.
+    - If given a range, returns the subslice corresponding to that range,
+      or `None` if out of bounds.
+    */
     #[must_use]
     #[inline]
     pub const fn get<I>(&self, index: I) -> Option<&I::Output>
@@ -153,10 +159,12 @@ impl ICProgram {
     {
         self.0.get(index)
     }
-    /// Returns a mutable reference to an element or subslice depending on the
-    /// type of index (see [`get`]) or `None` if the index is out of bounds.
-    ///
-    /// [`get`]: slice::get
+    /**
+    Returns a mutable reference to an element or subslice depending on the
+    type of index (see [`get`]) or `None` if the index is out of bounds.
+
+    [`get`]: slice::get
+    */
     #[must_use]
     #[inline]
     pub const fn get_mut<I>(&mut self, index: I) -> Option<&mut I::Output>
