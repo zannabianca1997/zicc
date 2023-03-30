@@ -1,8 +1,8 @@
 //! Write and parse intcode programs
 
-use arrayvec::{ArrayString, ArrayVec};
+use arrayvec::ArrayString;
 use byteorder::{ReadBytesExt, WriteBytesExt};
-use either::Either::{self, Left, Right};
+use either::Either::{Left, Right};
 use std::{
     convert::identity,
     io::{self, Read, Write},
@@ -89,13 +89,6 @@ impl ICFormat {
     pub const fn binary(endianness: ByteOrder) -> Self {
         Self::Binary { endianness }
     }
-
-    fn into_either(self) -> Either<u8, ByteOrder> {
-        match self {
-            ICFormat::Ascii { sep } => Left(sep),
-            ICFormat::Binary { endianness } => Right(endianness),
-        }
-    }
 }
 impl const Default for ICFormat {
     fn default() -> Self {
@@ -119,22 +112,12 @@ pub enum ICReadError {
     ),
 }
 impl ICFormat {
-    /// Read the input stream until EOF into a Program
+    /// Read a input stream into a Program
     ///
     /// The implementation call `read` for every few bytes, if reading from file a `BufReader` is suggested
     pub fn read(&self, src: &mut impl Read) -> Result<ICProgram, ICReadError> {
-        self.streaming_read(src).collect()
-    }
-
-    /// Read the input stream into a iterator. EOF is mapped to end of the iterator
-    ///
-    /// The implementation call `read` for every few bytes, if reading from file a `BufReader` is suggested
-    pub fn streaming_read(
-        &self,
-        mut src: impl Read,
-    ) -> impl Iterator<Item = Result<ICValue, ICReadError>> {
         match *self {
-            ICFormat::Ascii { sep } => Left({
+            ICFormat::Ascii { sep } => {
                 #[derive(Debug, EnumDiscriminants)]
                 enum AsciiFmtFSM {
                     WaitForValue,
@@ -166,7 +149,7 @@ impl ICFormat {
                     .chain(once(None))
                     .scan(
                         AsciiFmtFSM::WaitForValue,
-                        move |current, byte| -> Option<Option<Result<ICValue, ICReadError>>> {
+                        |current, byte| -> Option<Option<Result<ICValue, ICReadError>>> {
                             match byte {
                                 Some(Ok(v)) if !v.is_ascii() => Some(Some(Err(NonAscii(v)))),
                                 Some(Ok(v)) => match (AsciiFmtFSMDiscriminants::from(&*current), v)
@@ -240,6 +223,7 @@ impl ICFormat {
                         },
                     )
                     .filter_map(identity) // Ignore the `None`s between a result and another
+<<<<<<< HEAD
             }),
             ICFormat::Binary { endianness } => Right({
                 repeat(())
@@ -286,21 +270,61 @@ impl ICFormat {
                         write!(&mut fmt, "{v}")
                             .expect("ICValue should always be writable in 25 bytes");
                         dest.write_all(fmt.as_slice()).map(|_| fmt.len())
+=======
+                    .collect()
+            }
+            ICFormat::Binary { endianness } => repeat(())
+                .map(|_| {
+                    match endianness {
+                        ByteOrder::BigEndian => src.read_i64::<byteorder::BigEndian>(),
+                        ByteOrder::LittleEndian => src.read_i64::<byteorder::LittleEndian>(),
+                        ByteOrder::NativeEndian => src.read_i64::<byteorder::NativeEndian>(),
+                        ByteOrder::NetworkEndian => src.read_i64::<byteorder::NetworkEndian>(),
+>>>>>>> parent of 762b4b9 (Added streaming read - write)
                     }
-                    Right(()) => dest.write_all(&[sep]).map(|_| 1),
+                    .map(|v| Some(ICValue(v)))
+                    .or_else(|err| match err.kind() {
+                        io::ErrorKind::UnexpectedEof => Ok(None),
+                        _ => Err(err.into()),
+                    })
+                    .transpose()
                 })
-            }),
-            ICFormat::Binary { endianness } => Right(src.map(move |v| {
-                match endianness {
-                    ByteOrder::BigEndian => dest.write_i64::<byteorder::BigEndian>(v.into()),
-                    ByteOrder::LittleEndian => dest.write_i64::<byteorder::LittleEndian>(v.into()),
-                    ByteOrder::NativeEndian => dest.write_i64::<byteorder::NativeEndian>(v.into()),
-                    ByteOrder::NetworkEndian => {
-                        dest.write_i64::<byteorder::NetworkEndian>(v.into())
+                .scan((), |_, item| item)
+                .collect(),
+        }
+    }
+
+    /// Write a program into a input stream
+    ///
+    /// The implementation call `write` for every few bytes, if reading from file a `BufWriter` is suggested
+    pub fn write(&self, prog: &ICProgram, dest: &mut impl Write) -> io::Result<()> {
+        match *self {
+            ICFormat::Ascii { sep } => {
+                for v in prog.iter().copied().map(Left).intersperse(Right(())) {
+                    match v {
+                        Left(v) => write!(dest, "{v}")?,
+                        Right(()) => write!(dest, "{}", sep as char)?,
                     }
                 }
-                .map(|_| (i64::BITS / 8) as usize)
-            })),
+                Ok(())
+            }
+            ICFormat::Binary { endianness } => {
+                for v in prog.iter().copied() {
+                    match endianness {
+                        ByteOrder::BigEndian => dest.write_i64::<byteorder::BigEndian>(v.into()),
+                        ByteOrder::LittleEndian => {
+                            dest.write_i64::<byteorder::LittleEndian>(v.into())
+                        }
+                        ByteOrder::NativeEndian => {
+                            dest.write_i64::<byteorder::NativeEndian>(v.into())
+                        }
+                        ByteOrder::NetworkEndian => {
+                            dest.write_i64::<byteorder::NetworkEndian>(v.into())
+                        }
+                    }?
+                }
+                Ok(())
+            }
         }
     }
 }
