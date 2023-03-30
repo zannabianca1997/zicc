@@ -1,12 +1,14 @@
 //!Types used to contain and manipulate intcode programs
 
 use std::{
-    fmt::{self, Debug},
+    fmt::{self, Debug, Display},
+    num::ParseIntError,
     ops::{
         Add, AddAssign, Deref, DerefMut, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Rem,
         RemAssign, Sub, SubAssign,
     },
     slice::SliceIndex,
+    str::FromStr,
 };
 
 /// The type used to contain a intcode value
@@ -14,11 +16,16 @@ type BaseT = i64;
 
 /// A single value in a intcode program
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ICValue(BaseT);
+pub struct ICValue(pub BaseT);
 
 impl Debug for ICValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+        <BaseT as Debug>::fmt(&self.0, f)
+    }
+}
+impl Display for ICValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        <BaseT as Display>::fmt(&self.0, f)
     }
 }
 impl Default for ICValue {
@@ -116,6 +123,13 @@ impl Neg for ICValue {
     type Output = Self;
     fn neg(self) -> Self::Output {
         Self(-self.0)
+    }
+}
+impl FromStr for ICValue {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map(Self)
     }
 }
 

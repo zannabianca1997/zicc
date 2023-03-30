@@ -2,3 +2,14 @@
 name = "zicc"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+arrayvec = "0.7.2"
+byteorder = "1.4.3"
+either = "1.8.1"
+strum = "0.24.1"
+strum_macros = "0.24.3"
+thiserror = "1.0.40"
+
+[dev-dependencies]
+rand = { version = "0.8.5", features = ["small_rng"] }
