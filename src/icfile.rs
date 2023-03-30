@@ -223,64 +223,15 @@ impl ICFormat {
                         },
                     )
                     .filter_map(identity) // Ignore the `None`s between a result and another
-<<<<<<< HEAD
-            }),
-            ICFormat::Binary { endianness } => Right({
-                repeat(())
-                    .map(move |_| {
-                        match endianness {
-                            ByteOrder::BigEndian => src.read_i64::<byteorder::BigEndian>(),
-                            ByteOrder::LittleEndian => src.read_i64::<byteorder::LittleEndian>(),
-                            ByteOrder::NativeEndian => src.read_i64::<byteorder::NativeEndian>(),
-                            ByteOrder::NetworkEndian => src.read_i64::<byteorder::NetworkEndian>(),
-                        }
-                        .map(|v| Some(ICValue(v)))
-                        .or_else(|err| match err.kind() {
-                            io::ErrorKind::UnexpectedEof => Ok(None),
-                            _ => Err(err.into()),
-                        })
-                        .transpose()
-                    })
-                    .scan((), |_, item| item)
-            }),
-        }
-    }
-
-    /// Write a program into a output stream
-    ///
-    /// The implementation call `write` for every few bytes, if reading from file a `BufWriter` is suggested
-    pub fn write(&self, prog: &ICProgram, mut dest: impl Write) -> io::Result<usize> {
-        self.streaming_write(prog.iter().copied(), dest)
-            .try_fold(0, |acc, r| r.map(|r| acc + r))
-    }
-
-    /// Write an iterator into a output stream. Yield the number of bytes for every value writed.
-    ///
-    /// The implementation call `write` for every few bytes, if reading from file a `BufWriter` is suggested
-    pub fn streaming_write(
-        &self,
-        src: impl Iterator<Item = ICValue>,
-        mut dest: impl Write,
-    ) -> impl Iterator<Item = io::Result<usize>> {
-        match *self {
-            ICFormat::Ascii { sep } => Left({
-                src.map(Left).intersperse(Right(())).map(move |v| match v {
-                    Left(v) => {
-                        let mut fmt: ArrayVec<u8, 25> = ArrayVec::new();
-                        write!(&mut fmt, "{v}")
-                            .expect("ICValue should always be writable in 25 bytes");
-                        dest.write_all(fmt.as_slice()).map(|_| fmt.len())
-=======
                     .collect()
             }
             ICFormat::Binary { endianness } => repeat(())
-                .map(|_| {
+                .map(move |_| {
                     match endianness {
                         ByteOrder::BigEndian => src.read_i64::<byteorder::BigEndian>(),
                         ByteOrder::LittleEndian => src.read_i64::<byteorder::LittleEndian>(),
                         ByteOrder::NativeEndian => src.read_i64::<byteorder::NativeEndian>(),
                         ByteOrder::NetworkEndian => src.read_i64::<byteorder::NetworkEndian>(),
->>>>>>> parent of 762b4b9 (Added streaming read - write)
                     }
                     .map(|v| Some(ICValue(v)))
                     .or_else(|err| match err.kind() {
@@ -294,7 +245,7 @@ impl ICFormat {
         }
     }
 
-    /// Write a program into a input stream
+    /// Write a program into a output stream
     ///
     /// The implementation call `write` for every few bytes, if reading from file a `BufWriter` is suggested
     pub fn write(&self, prog: &ICProgram, dest: &mut impl Write) -> io::Result<()> {

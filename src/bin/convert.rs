@@ -127,10 +127,11 @@ fn main() -> Result<(), Report<MainError>> {
     let prog = match input {
         Some(path) => {
             let mut file = File::open(&path).map_err(|err| MainError::InputOpen(path, err))?;
-            input_fmt.read(&mut file).map_err(MainError::from)?
+            input_fmt.read(&mut file)
         }
-        None => input_fmt.read(&mut stdin()).map_err(MainError::from)?,
-    };
+        None => input_fmt.read(&mut stdin()),
+    }
+    .map_err(MainError::from)?;
     // write the output program
     match output {
         Some(path) => {
