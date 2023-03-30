@@ -282,9 +282,6 @@ impl ICFormat {
 
 #[cfg(test)]
 mod test {
-    use std::assert_matches::assert_matches;
-
-    use rand::{rngs::SmallRng, Rng, SeedableRng};
     use strum::IntoEnumIterator;
 
     use crate::{ICProgram, ICValue};
