@@ -260,7 +260,6 @@ impl ICFormat {
                     .scan((), |_, item| item)
             }),
         }
-        .into_iter()
     }
 
     /// Write a program into a output stream
@@ -303,7 +302,6 @@ impl ICFormat {
                 .map(|_| (i64::BITS / 8) as usize)
             })),
         }
-        .into_iter()
     }
 }
 
