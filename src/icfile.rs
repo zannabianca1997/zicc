@@ -9,6 +9,7 @@ use std::{
     iter::{once, repeat},
     mem,
     num::ParseIntError,
+    str::FromStr,
 };
 use strum_macros::EnumDiscriminants;
 use thiserror::Error;
@@ -26,6 +27,29 @@ pub enum ByteOrder {
 impl const Default for ByteOrder {
     fn default() -> Self {
         Self::LittleEndian
+    }
+}
+#[derive(Debug, Error)]
+#[error("{0:?} is not a valid byteorder")]
+pub struct ParseByteOrderFromStringError(String);
+impl FromStr for ByteOrder {
+    type Err = ParseByteOrderFromStringError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_lowercase();
+        match s.as_ref() {
+            "little" | "littleendian" | "little_endian" | "little-endian" | "le" | "l" => {
+                Ok(Self::LittleEndian)
+            }
+            "big" | "bigendian" | "big_endian" | "big-endian" | "be" | "b" => Ok(Self::BigEndian),
+            "native" | "nativeendian" | "native_endian" | "native-endian" | "ne" | "n" => {
+                Ok(Self::NativeEndian)
+            }
+            "network" | "networkendian" | "network_endian" | "network-endian" | "net" => {
+                Ok(Self::NetworkEndian)
+            }
+            _ => Err(ParseByteOrderFromStringError(s)),
+        }
     }
 }
 
@@ -73,7 +97,7 @@ impl const Default for ICFormat {
 }
 
 #[derive(Debug, Error)]
-enum ICReadError {
+pub enum ICReadError {
     #[error(transparent)]
     IO(#[from] io::Error),
     #[error("Non ascii byte {0:x}")]
@@ -91,7 +115,7 @@ impl ICFormat {
     /// Read a input stream into a Program
     ///
     /// The implementation call `read` for every few bytes, if reading from file a `BufReader` is suggested
-    fn read(&self, src: &mut impl Read) -> Result<ICProgram, ICReadError> {
+    pub fn read(&self, src: &mut impl Read) -> Result<ICProgram, ICReadError> {
         match *self {
             ICFormat::Ascii { sep } => {
                 #[derive(Debug, EnumDiscriminants)]
@@ -224,7 +248,7 @@ impl ICFormat {
     /// Write a program into a input stream
     ///
     /// The implementation call `write` for every few bytes, if reading from file a `BufWriter` is suggested
-    fn write(&self, prog: &ICProgram, dest: &mut impl Write) -> io::Result<()> {
+    pub fn write(&self, prog: &ICProgram, dest: &mut impl Write) -> io::Result<()> {
         match *self {
             ICFormat::Ascii { sep } => {
                 for v in prog.iter().copied().map(Left).intersperse(Right(())) {
