@@ -8,4 +8,4 @@ mod intcode;
 pub use intcode::{ICProgram, ICValue};
 
 mod icfile;
-pub use icfile::{ByteOrder, ICFormat};
+pub use icfile::{ByteOrder, ICFormat, ICReadError, NewAsciiFormatError};
