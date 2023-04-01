@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
 };
 
-use smartstring::{Compact, SmartString};
+use lazy_regex::regex_captures;
 use thiserror::Error;
 
 use crate::identifier::{Identifier, InvalidIdentifierError};
@@ -126,7 +126,7 @@ impl<T: Display> Display for Labelled<T> {
         self.inner.fmt(f)
     }
 }
-impl<T> From<T> for Labelled<T> {
+impl<T: Labellable> From<T> for Labelled<T> {
     fn from(other: T) -> Self {
         Self {
             inner: other,
@@ -155,6 +155,26 @@ impl<T> AsMut<T> for Labelled<T> {
         &mut self.inner
     }
 }
+impl<T: FromStr> FromStr for Labelled<T> {
+    type Err = T::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Greedily split labels from the start of the string
+        let (_, labels, rest) = regex_captures!(
+            r"^((?:\s*(?:\.?[_a-zA-Z][_a-zA-Z0-9]*|[0-9]*)\s*:)*)(.*)$",
+            s
+        )
+        .unwrap();
+        // Parse the remainder, and label it accordingly
+        rest.parse::<T>().map(|inner| {
+            inner.labelled_multiple(
+                labels
+                    .split_terminator(':')
+                    .map(|v| v.trim().parse().unwrap()),
+            )
+        })
+    }
+}
 
 trait Labellable: Sized {
     fn labelled(self, lbl: Label) -> Labelled<Self> {
@@ -168,6 +188,8 @@ impl<T> Labellable for T {}
 
 #[cfg(test)]
 mod tests {
+    use crate::assembler::label::Labellable;
+
     use super::Label;
 
     #[test]
@@ -181,5 +203,10 @@ mod tests {
     #[test]
     fn unnamed_from_str() {
         assert_eq!("3".parse(), Ok(Label::Unnamed(3)))
+    }
+
+    #[test]
+    fn parse_labelled() {
+        assert_eq!("a:43".parse(), Ok(43.labelled("a".parse().unwrap())))
     }
 }
