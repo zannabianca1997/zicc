@@ -256,6 +256,41 @@ impl FromIterator<ICProgramFragment> for Result<ICProgramFragment, AppendError> 
             .map(Option::unwrap_or_default)
     }
 }
+impl From<Labelled<RlValue>> for ICProgramFragment {
+    fn from(value: Labelled<RlValue>) -> Self {
+        match value {
+            Labelled {
+                inner: RlValue::Absolute(v),
+                lbls,
+            } => Self {
+                content: vec![v],
+                labels: lbls.into_iter().map(|lbl| (lbl, 0)).collect(),
+                references: HashMap::new(),
+                relatives: HashSet::new(),
+            },
+            Labelled {
+                inner: RlValue::Reference { lbl, offset },
+                lbls,
+            } => {
+                if !lbls.contains(&lbl) {
+                    Self {
+                        content: vec![offset],
+                        labels: lbls.into_iter().map(|lbl| (lbl, 0)).collect(),
+                        references: HashMap::from([(0, lbl)]),
+                        relatives: HashSet::new(),
+                    }
+                } else {
+                    Self {
+                        content: vec![offset],
+                        labels: lbls.into_iter().map(|lbl| (lbl, 0)).collect(),
+                        references: HashMap::new(),
+                        relatives: HashSet::from([0]),
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// A single, relocatable memory location
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -264,6 +299,16 @@ pub enum RlValue {
     Absolute(ICValue),
     /// A label index, plus an offset
     Reference { lbl: Label, offset: ICValue },
+}
+
+impl RlValue {
+    pub fn try_into_absolute(self) -> Result<ICValue, Self> {
+        if let Self::Absolute(v) = self {
+            Ok(v)
+        } else {
+            Err(self)
+        }
+    }
 }
 impl From<ICValue> for RlValue {
     fn from(value: ICValue) -> Self {

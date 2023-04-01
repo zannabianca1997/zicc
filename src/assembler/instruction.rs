@@ -1,6 +1,6 @@
 //! Assembler instructions
 
-use std::mem;
+use std::{iter::once, mem};
 
 use arrayvec::ArrayVec;
 use either::Either::{self, Left, Right};
@@ -12,7 +12,10 @@ use thiserror::Error;
 
 use crate::ICValue;
 
-use super::{label::Labelled, relocatable::RlValue};
+use super::{
+    label::{Labellable, Labelled},
+    relocatable::{AppendError, ICProgramFragment, RlValue},
+};
 
 /// A param that can be written to
 #[derive(Debug, Clone, PartialEq, Eq, EnumDiscriminants)]
@@ -20,6 +23,14 @@ use super::{label::Labelled, relocatable::RlValue};
 pub enum WriteParam {
     Position(RlValue),
     Relative(ICValue),
+}
+impl WriteParam {
+    fn mode(&self) -> WriteMode {
+        match self {
+            WriteParam::Position(_) => WriteMode::Position,
+            WriteParam::Relative(_) => WriteMode::Relative,
+        }
+    }
 }
 
 impl TryFrom<(WriteMode, RlValue)> for WriteParam {
@@ -32,6 +43,14 @@ impl TryFrom<(WriteMode, RlValue)> for WriteParam {
             (WriteMode::Relative, RlValue::Reference { .. }) => {
                 Err(ReferenceInParamError::Relative)
             }
+        }
+    }
+}
+impl From<WriteParam> for RlValue {
+    fn from(value: WriteParam) -> Self {
+        match value {
+            WriteParam::Position(v) => v,
+            WriteParam::Relative(v) => RlValue::Absolute(v),
         }
     }
 }
@@ -63,6 +82,14 @@ impl TryFrom<ReadMode> for WriteMode {
         }
     }
 }
+impl From<WriteMode> for ICValue {
+    fn from(value: WriteMode) -> Self {
+        match value {
+            WriteMode::Position => ICValue(0),
+            WriteMode::Relative => ICValue(2),
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 #[error("Immediate mode cannot be written to")]
@@ -86,6 +113,15 @@ pub enum ReadParam {
     Position(RlValue),
     Immediate(ICValue),
     Relative(ICValue),
+}
+impl ReadParam {
+    fn mode(&self) -> ReadMode {
+        match self {
+            ReadParam::Position(_) => ReadMode::Position,
+            ReadParam::Immediate(_) => ReadMode::Immediate,
+            ReadParam::Relative(_) => ReadMode::Relative,
+        }
+    }
 }
 impl From<WriteParam> for ReadParam {
     fn from(value: WriteParam) -> Self {
@@ -119,6 +155,14 @@ impl TryFrom<(ReadMode, RlValue)> for ReadParam {
         }
     }
 }
+impl From<ReadParam> for RlValue {
+    fn from(value: ReadParam) -> Self {
+        match value {
+            ReadParam::Position(v) => v,
+            ReadParam::Immediate(v) | ReadParam::Relative(v) => RlValue::Absolute(v),
+        }
+    }
+}
 
 impl TryFrom<u8> for ReadMode {
     type Error = Either<UnrecognizedModeError, ImmediateModeInWriteParam>;
@@ -137,6 +181,15 @@ impl From<WriteMode> for ReadMode {
         match value {
             WriteMode::Position => Self::Position,
             WriteMode::Relative => Self::Relative,
+        }
+    }
+}
+impl From<ReadMode> for ICValue {
+    fn from(value: ReadMode) -> Self {
+        match value {
+            ReadMode::Position => ICValue(0),
+            ReadMode::Immediate => ICValue(1),
+            ReadMode::Relative => ICValue(2),
         }
     }
 }
@@ -172,9 +225,76 @@ pub enum Instruction {
     HALT,
 }
 
+#[derive(Debug, Error)]
+pub enum TakeInstructionError {
+    #[error(transparent)]
+    InvalidInstructionHeader(#[from] InvalidInstructionHeader),
+    #[error(transparent)]
+    ReferenceInParam(#[from] ReferenceInParamError),
+    #[error("Instruction was cut short")]
+    CutShort,
+}
+
+impl Instruction {
+    /// Build an instruction from assemblable code
+    pub fn from_assembly(
+        iter: &mut impl Iterator<Item = Labelled<RlValue>>,
+    ) -> Result<Labelled<Self>, TakeInstructionError> {
+        let Labelled {
+            inner: header,
+            lbls,
+        } = iter.next().ok_or(TakeInstructionError::CutShort)?;
+        let header = InstructionHeader::try_from(header)?;
+        let mut args: ArrayVec<_, 3> = iter.take(header.param_num()).collect();
+        if args.len() < header.param_num() {
+            return Err(TakeInstructionError::CutShort);
+        }
+        Ok(Labelled {
+            inner: header.build_instruction(args.as_mut())?,
+            lbls,
+        })
+    }
+
+    /// Generate assemblable code
+    pub fn generate(self) -> Result<ICProgramFragment, AppendError> {
+        Labelled::from(self).generate()
+    }
+}
+impl Labelled<Instruction> {
+    /// Generate assemblable code
+    pub fn generate(self) -> Result<ICProgramFragment, AppendError> {
+        let Labelled { inner: instr, lbls } = self;
+        let header: ICValue = InstructionHeader::from(&instr).into();
+        let mut params = ArrayVec::<Labelled<RlValue>, 3>::new();
+        use Instruction::*;
+        match instr {
+            ADD(a, b, c) | MUL(a, b, c) | SLT(a, b, c) | SEQ(a, b, c) => {
+                params.push(a.map(Into::into));
+                params.push(b.map(Into::into));
+                params.push(c.map(Into::into));
+            }
+            JZ(a, b) | JNZ(a, b) => {
+                params.push(a.map(Into::into));
+                params.push(b.map(Into::into));
+            }
+            INCB(a) | OUT(a) => params.push(a.map(Into::into)),
+            IN(a) => params.push(a.map(Into::into)),
+            HALT => (),
+        }
+
+        once(Labelled {
+            inner: RlValue::Absolute(header),
+            lbls,
+        })
+        .chain(params.into_iter())
+        .map(ICProgramFragment::from)
+        .collect()
+    }
+}
+
 /// The first value of an instruction
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InstructionHeader {
+enum InstructionHeader {
     ADD(ReadMode, ReadMode, WriteMode),
     MUL(ReadMode, ReadMode, WriteMode),
     IN(WriteMode),
@@ -189,7 +309,7 @@ pub enum InstructionHeader {
 impl InstructionHeader {
     /// Number of params needed
     fn param_num(&self) -> usize {
-        OpCode::from(*self).param_num()
+        OpCode::from(self).param_num()
     }
 
     /// Buil the instruction from the header.
@@ -277,9 +397,28 @@ impl InstructionHeader {
         })
     }
 }
+impl From<&Instruction> for InstructionHeader {
+    fn from(value: &Instruction) -> Self {
+        use InstructionHeader::*;
+        match value {
+            Instruction::ADD(a, b, c) => ADD(a.inner.mode(), b.inner.mode(), c.inner.mode()),
+            Instruction::MUL(a, b, c) => MUL(a.inner.mode(), b.inner.mode(), c.inner.mode()),
+            Instruction::IN(a) => IN(a.inner.mode()),
+            Instruction::OUT(a) => OUT(a.inner.mode()),
+            Instruction::JZ(a, b) => JZ(a.inner.mode(), b.inner.mode()),
+            Instruction::JNZ(a, b) => JNZ(a.inner.mode(), b.inner.mode()),
+            Instruction::SLT(a, b, c) => SLT(a.inner.mode(), b.inner.mode(), c.inner.mode()),
+            Instruction::SEQ(a, b, c) => SEQ(a.inner.mode(), b.inner.mode(), c.inner.mode()),
+            Instruction::INCB(a) => INCB(a.inner.mode()),
+            Instruction::HALT => HALT,
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum InvalidInstructionHeader {
+    #[error("Instruction header cannot be a relative value")]
+    IsRelative,
     #[error(transparent)]
     UnrecognizedOpCode(#[from] UnrecognizedOpCode),
     #[error(transparent)]
@@ -299,11 +438,13 @@ impl From<<ReadMode as TryFrom<u8>>::Error> for InvalidInstructionHeader {
         }
     }
 }
-impl TryFrom<ICValue> for InstructionHeader {
+impl TryFrom<RlValue> for InstructionHeader {
     type Error = InvalidInstructionHeader;
 
-    fn try_from(value: ICValue) -> Result<Self, Self::Error> {
+    fn try_from(value: RlValue) -> Result<Self, Self::Error> {
         use InvalidInstructionHeader::*;
+        let value = value.try_into_absolute().map_err(|_| IsRelative)?;
+
         let (opcode, modes) = {
             if value.0 < 0 {
                 return Err(NegativeInstructionHeader);
@@ -336,6 +477,32 @@ impl TryFrom<ICValue> for InstructionHeader {
         })
     }
 }
+impl From<InstructionHeader> for ICValue {
+    fn from(value: InstructionHeader) -> Self {
+        use InstructionHeader::*;
+        let opcode = ICValue::from(OpCode::from(&value) as i64);
+        let mut modes = ArrayVec::<ICValue, 3>::new();
+        match value {
+            ADD(a, b, c) | MUL(a, b, c) | SLT(a, b, c) | SEQ(a, b, c) => {
+                modes.push(a.into());
+                modes.push(b.into());
+                modes.push(c.into());
+            }
+            JZ(a, b) | JNZ(a, b) => {
+                modes.push(a.into());
+                modes.push(b.into());
+            }
+            INCB(a) | OUT(a) => modes.push(a.into()),
+            IN(a) => modes.push(a.into()),
+            HALT => (),
+        }
+        let mut res = ICValue(0);
+        for m in modes.into_iter().rev() {
+            res = res * ICValue(10) + m
+        }
+        res * ICValue(100) + opcode
+    }
+}
 
 /// A intcode opcode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
@@ -361,8 +528,8 @@ impl OpCode {
         }
     }
 }
-impl From<InstructionHeader> for OpCode {
-    fn from(value: InstructionHeader) -> Self {
+impl From<&InstructionHeader> for OpCode {
+    fn from(value: &InstructionHeader) -> Self {
         use InstructionHeader::*;
         match value {
             ADD(_, _, _) => Self::ADD,
@@ -401,5 +568,39 @@ impl TryFrom<u8> for OpCode {
             99 => Ok(HALT),
             _ => Err(UnrecognizedOpCode(value)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+
+    use crate::assembler::label::Labellable;
+    use crate::identifier::Identifier;
+
+    use super::super::label::Label;
+    use super::{ICValue, Instruction, ReadParam, RlValue, WriteParam};
+
+    #[test]
+    fn generate_add() {
+        let instr = Instruction::ADD(
+            ReadParam::Position(RlValue::Absolute(ICValue(3))).into(),
+            ReadParam::Immediate(ICValue(3)).labelled(Label::Global(
+                Identifier::new(Cow::Borrowed("def")).unwrap(),
+            )),
+            WriteParam::Relative(ICValue(3)).into(),
+        )
+        .labelled(Label::Global(
+            Identifier::new(Cow::Borrowed("abc")).unwrap(),
+        ));
+        let code: Vec<_> = instr
+            .generate()
+            .unwrap()
+            .emit()
+            .unwrap()
+            .into_iter()
+            .map(|v| v.0)
+            .collect();
+        assert_eq!(code, vec![21001, 3, 3, 3])
     }
 }

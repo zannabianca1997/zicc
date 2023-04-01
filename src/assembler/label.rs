@@ -216,7 +216,7 @@ impl<T: FromStr> FromStr for Labelled<T> {
     }
 }
 
-trait Labellable: Sized {
+pub trait Labellable: Sized {
     fn labelled(self, lbl: Label) -> Labelled<Self> {
         Labelled::new(self, lbl)
     }
