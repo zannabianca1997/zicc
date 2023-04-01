@@ -99,6 +99,15 @@ impl<T> Labelled<T> {
             lbls: self.lbls,
         }
     }
+    pub fn map<U, F>(self, f: F) -> Labelled<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        Labelled {
+            inner: f(self.inner),
+            lbls: self.lbls,
+        }
+    }
 }
 impl<T> Labelled<Labelled<T>> {
     /// Flatten double labelled elements
@@ -112,6 +121,30 @@ impl<T> Labelled<Labelled<T>> {
         } = self;
         lbls.extend(inner_lbls);
         Labelled { inner, lbls }
+    }
+}
+impl<T, E> Labelled<Result<T, E>> {
+    pub fn transpose(self) -> Result<Labelled<T>, E> {
+        match self {
+            Labelled {
+                inner: Ok(inner),
+                lbls,
+            } => Ok(Labelled { inner, lbls }),
+            Labelled {
+                inner: Err(err), ..
+            } => Err(err),
+        }
+    }
+}
+impl<T> Labelled<Option<T>> {
+    pub fn transpose(self) -> Option<Labelled<T>> {
+        match self {
+            Labelled {
+                inner: Some(inner),
+                lbls,
+            } => Some(Labelled { inner, lbls }),
+            Labelled { inner: None, .. } => None,
+        }
     }
 }
 
