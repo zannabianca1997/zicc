@@ -7,9 +7,8 @@ use std::{
 
 use thiserror::Error;
 
-use crate::{ICProgram, ICValue};
-
 use super::label::{Label, Labelled};
+use crate::{ICProgram, ICValue};
 
 /// An intcode program fragment that can be posizioned, and contains references to other fragments
 
@@ -213,6 +212,7 @@ impl ICProgramFragment {
     pub fn defined_labels(&self) -> impl Iterator<Item = &Label> {
         self.labels.keys()
     }
+
     /// Iter through the label referenced in this fragment
     ///
     /// They are in a unspecified order, and repetition are allowed
