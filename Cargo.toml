@@ -8,6 +8,8 @@ arrayvec = "0.7.2"
 byteorder = "1.4.3"
 clap = { version = "4.2.1", features = ["derive"] }
 either = "1.8.1"
+lazy-regex = "2.5.0"
+smartstring = "1.0.1"
 strum = "0.24.1"
 strum_macros = "0.24.3"
 thiserror = "1.0.40"
