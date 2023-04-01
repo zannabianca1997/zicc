@@ -208,6 +208,16 @@ impl FromIterator<ICValue> for ICProgram {
         Self(iter.into_iter().collect())
     }
 }
+impl From<Box<[ICValue]>> for ICProgram {
+    fn from(value: Box<[ICValue]>) -> Self {
+        Self(value)
+    }
+}
+impl From<Vec<ICValue>> for ICProgram {
+    fn from(value: Vec<ICValue>) -> Self {
+        Self(value.into_boxed_slice())
+    }
+}
 impl Deref for ICProgram {
     type Target = [ICValue];
     fn deref(&self) -> &Self::Target {

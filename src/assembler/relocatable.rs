@@ -7,7 +7,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::ICValue;
+use crate::{ICProgram, ICValue};
 
 use super::label::{Label, Labelled};
 
@@ -224,12 +224,28 @@ impl ICProgramFragment {
     pub fn remove_label(&mut self, lbl: &Label) -> Option<Label> {
         self.labels.remove_entry(lbl).map(|(lbl, _)| lbl)
     }
+
     /// Remove all labels matching a predicate
     pub fn remove_labels<P>(&mut self, mut predicate: P)
     where
         P: FnMut(&Label) -> bool,
     {
         self.labels.retain(|lbl, _| !predicate(lbl))
+    }
+
+    /// Check if the program is complete (no more free reference)
+    pub fn is_free(&self) -> bool {
+        self.referenced_labels().next().is_none()
+    }
+
+    /// Emit a complete program as a program
+    pub fn emit(self) -> Option<ICProgram> {
+        if self.is_free() {
+            // `relatives` are ok, cause now the start is finalized
+            Some(self.content.into())
+        } else {
+            None
+        }
     }
 }
 
