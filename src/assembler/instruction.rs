@@ -1,5 +1,7 @@
 //! Assembler instructions
 
+use std::mem;
+
 use arrayvec::ArrayVec;
 use either::Either::{self, Left, Right};
 use enum_primitive_derive::Primitive;
@@ -19,6 +21,21 @@ pub enum WriteParam {
     Position(RlValue),
     Relative(ICValue),
 }
+
+impl TryFrom<(WriteMode, RlValue)> for WriteParam {
+    type Error = ReferenceInParamError;
+
+    fn try_from(value: (WriteMode, RlValue)) -> Result<Self, Self::Error> {
+        match value {
+            (WriteMode::Position, v) => Ok(Self::Position(v)),
+            (WriteMode::Relative, RlValue::Absolute(v)) => Ok(Self::Relative(v)),
+            (WriteMode::Relative, RlValue::Reference { .. }) => {
+                Err(ReferenceInParamError::Relative)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 #[error("Unrecognized param mode {0}")]
 pub struct UnrecognizedModeError(u8);
@@ -75,6 +92,30 @@ impl From<WriteParam> for ReadParam {
         match value {
             WriteParam::Position(v) => Self::Position(v),
             WriteParam::Relative(v) => Self::Relative(v),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ReferenceInParamError {
+    #[error("Absolute references cannot be in immediate params")]
+    Immediate,
+    #[error("Absolute references cannot be in relative params")]
+    Relative,
+}
+
+impl TryFrom<(ReadMode, RlValue)> for ReadParam {
+    type Error = ReferenceInParamError;
+
+    fn try_from(value: (ReadMode, RlValue)) -> Result<Self, Self::Error> {
+        match value {
+            (ReadMode::Position, v) => Ok(Self::Position(v)),
+            (ReadMode::Immediate, RlValue::Absolute(v)) => Ok(Self::Relative(v)),
+            (ReadMode::Immediate, RlValue::Reference { .. }) => {
+                Err(ReferenceInParamError::Immediate)
+            }
+            (ReadMode::Relative, RlValue::Absolute(v)) => Ok(Self::Relative(v)),
+            (ReadMode::Relative, RlValue::Reference { .. }) => Err(ReferenceInParamError::Relative),
         }
     }
 }
@@ -145,6 +186,97 @@ pub enum InstructionHeader {
     INCB(ReadMode),
     HALT,
 }
+impl InstructionHeader {
+    /// Number of params needed
+    fn param_num(&self) -> usize {
+        OpCode::from(*self).param_num()
+    }
+
+    /// Buil the instruction from the header.
+    ///
+    /// # Panics
+    /// Panic if `params` is shorter than `param_num`
+    fn build_instruction(
+        self,
+        params: &mut [Labelled<RlValue>],
+    ) -> Result<Instruction, ReferenceInParamError> {
+        use Instruction::*;
+        Ok(match self {
+            InstructionHeader::ADD(a, b, c) => ADD(
+                mem::take(&mut params[0])
+                    .map(|v| (a, v).try_into())
+                    .transpose()?,
+                mem::take(&mut params[1])
+                    .map(|v| (b, v).try_into())
+                    .transpose()?,
+                mem::take(&mut params[2])
+                    .map(|v| (c, v).try_into())
+                    .transpose()?,
+            ),
+            InstructionHeader::MUL(a, b, c) => MUL(
+                mem::take(&mut params[0])
+                    .map(|v| (a, v).try_into())
+                    .transpose()?,
+                mem::take(&mut params[1])
+                    .map(|v| (b, v).try_into())
+                    .transpose()?,
+                mem::take(&mut params[2])
+                    .map(|v| (c, v).try_into())
+                    .transpose()?,
+            ),
+            InstructionHeader::IN(a) => IN(mem::take(&mut params[0])
+                .map(|v| (a, v).try_into())
+                .transpose()?),
+            InstructionHeader::OUT(a) => OUT(mem::take(&mut params[0])
+                .map(|v| (a, v).try_into())
+                .transpose()?),
+            InstructionHeader::JZ(a, b) => JZ(
+                mem::take(&mut params[0])
+                    .map(|v| (a, v).try_into())
+                    .transpose()?,
+                mem::take(&mut params[1])
+                    .map(|v| (b, v).try_into())
+                    .transpose()?,
+            ),
+            InstructionHeader::JNZ(a, b) => JNZ(
+                mem::take(&mut params[0])
+                    .map(|v| (a, v).try_into())
+                    .transpose()?,
+                mem::take(&mut params[1])
+                    .map(|v| (b, v).try_into())
+                    .transpose()?,
+            ),
+            InstructionHeader::SLT(a, b, c) => SLT(
+                mem::take(&mut params[0])
+                    .map(|v| (a, v).try_into())
+                    .transpose()?,
+                mem::take(&mut params[1])
+                    .map(|v| (b, v).try_into())
+                    .transpose()?,
+                mem::take(&mut params[2])
+                    .map(|v| (c, v).try_into())
+                    .transpose()?,
+            ),
+            InstructionHeader::SEQ(a, b, c) => SEQ(
+                mem::take(&mut params[0])
+                    .map(|v| (a, v).try_into())
+                    .transpose()?,
+                mem::take(&mut params[1])
+                    .map(|v| (b, v).try_into())
+                    .transpose()?,
+                mem::take(&mut params[2])
+                    .map(|v| (c, v).try_into())
+                    .transpose()?,
+            ),
+            InstructionHeader::INCB(a) => INCB(
+                mem::take(&mut params[0])
+                    .map(|v| (a, v).try_into())
+                    .transpose()?,
+            ),
+            InstructionHeader::HALT => HALT,
+        })
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum InvalidInstructionHeader {
@@ -167,7 +299,6 @@ impl From<<ReadMode as TryFrom<u8>>::Error> for InvalidInstructionHeader {
         }
     }
 }
-
 impl TryFrom<ICValue> for InstructionHeader {
     type Error = InvalidInstructionHeader;
 
@@ -227,6 +358,23 @@ impl OpCode {
             OpCode::JZ | OpCode::JNZ => 2,
             OpCode::IN | OpCode::OUT | OpCode::INCB => 1,
             OpCode::HALT => 0,
+        }
+    }
+}
+impl From<InstructionHeader> for OpCode {
+    fn from(value: InstructionHeader) -> Self {
+        use InstructionHeader::*;
+        match value {
+            ADD(_, _, _) => Self::ADD,
+            MUL(_, _, _) => Self::MUL,
+            IN(_) => Self::IN,
+            OUT(_) => Self::OUT,
+            JZ(_, _) => Self::JZ,
+            JNZ(_, _) => Self::JNZ,
+            SLT(_, _, _) => Self::SLT,
+            SEQ(_, _, _) => Self::SEQ,
+            INCB(_) => Self::INCB,
+            HALT => Self::HALT,
         }
     }
 }

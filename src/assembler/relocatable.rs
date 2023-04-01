@@ -278,6 +278,11 @@ impl From<Label> for RlValue {
         }
     }
 }
+impl Default for RlValue {
+    fn default() -> Self {
+        Self::Absolute(ICValue(0))
+    }
+}
 
 /*
 /// A reference to a single, relocatable memory location
