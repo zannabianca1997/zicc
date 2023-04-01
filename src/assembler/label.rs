@@ -92,6 +92,13 @@ impl<T> Labelled<T> {
     pub fn label(&mut self, value: Label) -> bool {
         self.lbls.insert(value)
     }
+
+    pub fn convert<U: From<T>>(self) -> Labelled<U> {
+        Labelled {
+            inner: self.inner.into(),
+            lbls: self.lbls,
+        }
+    }
 }
 impl<T> Labelled<Labelled<T>> {
     /// Flatten double labelled elements
