@@ -22,7 +22,7 @@ pub enum Label {
     /// Symbol visible only inside the compilation unit
     Local(Identifier),
     /// Unnamed label
-    Unnamed(usize),
+    Numeric(usize),
 }
 
 impl Display for Label {
@@ -30,7 +30,7 @@ impl Display for Label {
         match self {
             Label::Global(name) => write!(f, "{name}"),
             Label::Local(name) => write!(f, ".{name}"),
-            Label::Unnamed(id) => write!(f, "{id}"),
+            Label::Numeric(id) => write!(f, "{id}"),
         }
     }
 }
@@ -55,7 +55,7 @@ impl FromStr for Label {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(
             match s.chars().next().ok_or(InvalidLabelError::EmptyString)? {
-                ch if ch.is_ascii_digit() => Self::Unnamed(s.parse()?),
+                ch if ch.is_ascii_digit() => Self::Numeric(s.parse()?),
                 '.' => Self::Local(s[1..].parse()?),
                 _ => Self::Global(s.parse()?),
             },
@@ -242,7 +242,7 @@ mod tests {
     }
     #[test]
     fn unnamed_from_str() {
-        assert_eq!("3".parse(), Ok(Label::Unnamed(3)))
+        assert_eq!("3".parse(), Ok(Label::Numeric(3)))
     }
 
     #[test]
