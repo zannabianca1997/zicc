@@ -1,5 +1,5 @@
 file = _{ SOI ~ (line ~ NEWLINE)* ~ line? ~ EOI }
-line =  { labels ~ instruction? }
+line =  { labels ~ (instruction | directive)? }
 
 labels           =  { (label ~ ":")* }
 label            =  { number | local_identifier | identifier }
@@ -26,6 +26,13 @@ in_kw   = @{ ^"in" ~ WHITESPACE }
 incb_kw = @{ ^"incb" ~ WHITESPACE }
 halt_kw = @{ ^"halt" }
 
+directive = {
+    data_kw ~ labelled_value ~ (","? ~ labelled_value)*
+}
+
+data_kw = @{ ^"data" ~ WHITESPACE }
+
+labelled_value       = { labels ~ number_or_label_and_offset }
 labelled_read_param  = { labels ~ read_param }
 labelled_write_param = { labels ~ write_param }
 
@@ -39,15 +46,15 @@ write_param = {
   | relative_param
 }
 
-position_param  = { label_and_offset | number }
-immediate_param = {
-    "#" ~ (label_and_offset | number)
-}
-relative_param  = {
-    "@" ~ minus? ~ number
-}
+position_param  = { number_or_label_and_offset }
+immediate_param = { "#" ~ number_or_label_and_offset }
+relative_param  = { "@" ~ minus? ~ number }
 
-label_and_offset = {
+number_or_label_and_offset = _{
+    label_and_offset
+  | number
+}
+label_and_offset           =  {
     label ~ ((minus | plus) ~ number)?
 }
 
