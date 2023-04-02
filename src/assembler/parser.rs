@@ -47,24 +47,28 @@ pub type Result<T> = std::result::Result<T, ParseError>;
 pub fn parse(source: &str) -> Result<RawAssemblyFile> {
     // parse the text
     let parsed = AssemblyParser::parse(Rule::file, source)?;
+    // keep track of the label meeted
+    let mut meeted_labels = HashSet::new();
     // convert to memory rapresentation
     Ok(RawAssemblyFile(
-        parsed.map(parse_line).collect::<Result<_>>()?,
+        parsed
+            .map(|line| parse_line(line, &mut meeted_labels))
+            .collect::<Result<_>>()?,
     ))
 }
 
-fn parse_line(src: Pair<Rule>) -> Result<Line> {
+fn parse_line(src: Pair<Rule>, meeted_labels: &mut HashSet<Label>) -> Result<Line> {
     debug_assert_matches!(src.as_rule(), Rule::line);
     let mut src = src.into_inner();
     // Read labels
-    let labels = parse_labels(src.next().unwrap())?;
+    let labels = parse_labels(src.next().unwrap(), meeted_labels)?;
     // parse content
     let content = src
         .next()
         .map(|content| {
             match content.as_rule() {
-                Rule::instruction => Right(parse_instruction(content)),
-                Rule::directive => Left(parse_directive(content)),
+                Rule::instruction => Right(parse_instruction(content, meeted_labels)),
+                Rule::directive => Left(parse_directive(content, meeted_labels)),
                 _ => unreachable!(),
             }
             .factor_err()
@@ -74,21 +78,18 @@ fn parse_line(src: Pair<Rule>) -> Result<Line> {
     Ok(labels.map(|_| content))
 }
 
-fn parse_labels(src: Pair<Rule>) -> Result<Labelled<()>> {
+fn parse_labels(src: Pair<Rule>, meeted_labels: &mut HashSet<Label>) -> Result<Labelled<()>> {
     debug_assert_matches!(src.as_rule(), Rule::labels);
     // parse labels
-    let lbls = src
-        .into_inner()
-        .map(parse_label)
-        .try_fold(HashSet::new(), |mut set, lbl| {
-            let lbl = lbl?;
-            if set.contains(&lbl) {
-                Err(ParseError::RedefinitedLabel(lbl))
-            } else {
-                set.insert(lbl);
-                Ok(set)
-            }
-        })?;
+    let mut lbls = HashSet::new();
+    for lbl in src.into_inner() {
+        let lbl = parse_label(lbl)?;
+        if meeted_labels.contains(&lbl) {
+            return Err(ParseError::RedefinitedLabel(lbl));
+        }
+        meeted_labels.insert(lbl.clone());
+        lbls.insert(lbl);
+    }
     Ok(Labelled { inner: (), lbls })
 }
 
@@ -101,7 +102,7 @@ fn parse_label(src: Pair<Rule>) -> Result<Label> {
     })
 }
 
-fn parse_instruction(src: Pair<Rule>) -> Result<Instruction> {
+fn parse_instruction(src: Pair<Rule>, meeted_labels: &mut HashSet<Label>) -> Result<Instruction> {
     debug_assert_matches!(src.as_rule(), Rule::instruction);
     // split by type of arguments
     use Instruction::*;
@@ -109,9 +110,9 @@ fn parse_instruction(src: Pair<Rule>) -> Result<Instruction> {
     let kw = pairs.next().unwrap().as_rule();
     Ok(match kw {
         Rule::add_kw | Rule::mul_kw | Rule::seq_kw | Rule::slt_kw => {
-            let a = parse_labelled_read_param(pairs.next().unwrap())?;
-            let b = parse_labelled_read_param(pairs.next().unwrap())?;
-            let c = parse_labelled_write_param(pairs.next().unwrap())?;
+            let a = parse_labelled_read_param(pairs.next().unwrap(), meeted_labels)?;
+            let b = parse_labelled_read_param(pairs.next().unwrap(), meeted_labels)?;
+            let c = parse_labelled_write_param(pairs.next().unwrap(), meeted_labels)?;
             match kw {
                 Rule::add_kw => ADD(a, b, c),
                 Rule::mul_kw => MUL(a, b, c),
@@ -121,38 +122,53 @@ fn parse_instruction(src: Pair<Rule>) -> Result<Instruction> {
             }
         }
         Rule::jz_kw | Rule::jnz_kw => {
-            let a = parse_labelled_read_param(pairs.next().unwrap())?;
-            let b = parse_labelled_read_param(pairs.next().unwrap())?;
+            let a = parse_labelled_read_param(pairs.next().unwrap(), meeted_labels)?;
+            let b = parse_labelled_read_param(pairs.next().unwrap(), meeted_labels)?;
             match kw {
                 Rule::jz_kw => JZ(a, b),
                 Rule::jnz_kw => JNZ(a, b),
                 _ => unreachable!(),
             }
         }
-        Rule::out_kw => OUT(parse_labelled_read_param(pairs.next().unwrap())?),
-        Rule::incb_kw => INCB(parse_labelled_read_param(pairs.next().unwrap())?),
-        Rule::in_kw => IN(parse_labelled_write_param(pairs.next().unwrap())?),
+        Rule::out_kw => OUT(parse_labelled_read_param(
+            pairs.next().unwrap(),
+            meeted_labels,
+        )?),
+        Rule::incb_kw => INCB(parse_labelled_read_param(
+            pairs.next().unwrap(),
+            meeted_labels,
+        )?),
+        Rule::in_kw => IN(parse_labelled_write_param(
+            pairs.next().unwrap(),
+            meeted_labels,
+        )?),
         Rule::halt_kw => HALT,
         _ => unreachable!(),
     })
 }
 
-fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
+fn parse_directive(src: Pair<Rule>, meeted_labels: &mut HashSet<Label>) -> Result<Directive> {
     todo!()
 }
 
-fn parse_labelled_write_param(src: Pair<Rule>) -> Result<Labelled<WriteParam>> {
+fn parse_labelled_write_param(
+    src: Pair<Rule>,
+    meeted_labels: &mut HashSet<Label>,
+) -> Result<Labelled<WriteParam>> {
     debug_assert_matches!(src.as_rule(), Rule::labelled_write_param);
     let mut src = src.into_inner();
-    let labels = parse_labels(src.next().unwrap())?;
+    let labels = parse_labels(src.next().unwrap(), meeted_labels)?;
     let content = parse_write_param(src.next().unwrap())?;
     Ok(labels.map(|_| content))
 }
 
-fn parse_labelled_read_param(src: Pair<Rule>) -> Result<Labelled<ReadParam>> {
+fn parse_labelled_read_param(
+    src: Pair<Rule>,
+    meeted_labels: &mut HashSet<Label>,
+) -> Result<Labelled<ReadParam>> {
     debug_assert_matches!(src.as_rule(), Rule::labelled_read_param);
     let mut src = src.into_inner();
-    let labels = parse_labels(src.next().unwrap())?;
+    let labels = parse_labels(src.next().unwrap(), meeted_labels)?;
     let content = parse_read_param(src.next().unwrap())?;
     Ok(labels.map(|_| content))
 }
