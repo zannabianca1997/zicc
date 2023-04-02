@@ -111,7 +111,7 @@ impl TryFrom<ReadParam> for WriteParam {
 #[strum_discriminants(name(ReadMode))]
 pub enum ReadParam {
     Position(RlValue),
-    Immediate(ICValue),
+    Immediate(RlValue),
     Relative(ICValue),
 }
 impl ReadParam {
@@ -158,8 +158,8 @@ impl TryFrom<(ReadMode, RlValue)> for ReadParam {
 impl From<ReadParam> for RlValue {
     fn from(value: ReadParam) -> Self {
         match value {
-            ReadParam::Position(v) => v,
-            ReadParam::Immediate(v) | ReadParam::Relative(v) => RlValue::Absolute(v),
+            ReadParam::Position(v) | ReadParam::Immediate(v) => v,
+            ReadParam::Relative(v) => RlValue::Absolute(v),
         }
     }
 }
@@ -585,7 +585,7 @@ mod tests {
     fn generate_add() {
         let instr = Instruction::ADD(
             ReadParam::Position(RlValue::Absolute(ICValue(3))).into(),
-            ReadParam::Immediate(ICValue(3)).labelled(Label::Global(
+            ReadParam::Immediate(RlValue::Absolute(ICValue(3))).labelled(Label::Global(
                 Identifier::new(Cow::Borrowed("def")).unwrap(),
             )),
             WriteParam::Relative(ICValue(3)).into(),
