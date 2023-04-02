@@ -7,6 +7,7 @@
 #![feature(iterator_try_reduce)]
 #![feature(map_try_insert)]
 #![feature(map_entry_replace)]
+#![feature(error_reporter)]
 
 mod intcode;
 pub use intcode::{ICProgram, ICValue};

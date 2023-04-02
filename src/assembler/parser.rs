@@ -52,6 +52,7 @@ pub fn parse(source: &str) -> Result<RawAssemblyFile> {
     // convert to memory rapresentation
     Ok(RawAssemblyFile(
         parsed
+            .take_while(|line| matches!(line.as_rule(), Rule::line))
             .map(|line| parse_line(line, &mut meeted_labels))
             .collect::<Result<_>>()?,
     ))

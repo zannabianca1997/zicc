@@ -10,9 +10,11 @@ clap = { version = "4.2.1", features = ["derive"] }
 either = "1.8.1"
 enum-primitive-derive = "0.2.2"
 lazy-regex = "2.5.0"
+lazy_static = "1.4.0"
 num-traits = "0.2.15"
 pest = "2.5.7"
 pest_derive = "2.5.7"
+serde = { version = "1.0.159", features = ["derive"] }
 smartstring = "1.0.1"
 strum = "0.24.1"
 strum_macros = "0.24.3"
@@ -20,3 +22,4 @@ thiserror = "1.0.40"
 
 [dev-dependencies]
 rand = { version = "0.8.5", features = ["small_rng"] }
+serde_yaml = "0.9.19"

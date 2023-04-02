@@ -7,6 +7,8 @@ use either::Either::{self, Left, Right};
 use super::{directive::Directive, instruction::Instruction, label::Labelled};
 
 pub type Line = Labelled<Option<Either<Directive, Instruction>>>;
+
+#[derive(Debug, Clone)]
 pub struct RawAssemblyFile(pub(super) Vec<Line>);
 
 impl IntoIterator for RawAssemblyFile {

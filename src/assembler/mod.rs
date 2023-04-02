@@ -4,3 +4,6 @@ mod instruction;
 mod label;
 mod parser;
 mod relocatable;
+
+#[cfg(test)]
+mod tests;

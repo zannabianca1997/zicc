@@ -6,6 +6,7 @@ use std::fmt::Display;
 
 use super::{label::Labelled, relocatable::RlValue};
 
+#[derive(Debug, Clone)]
 pub enum Directive {
     DATA(Vec<Labelled<RlValue>>),
     ZEROS(usize),
