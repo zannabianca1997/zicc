@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-use either::Either::{self, Left, Right};
+use either::Either;
 
 use super::{directive::Directive, instruction::Instruction, label::Labelled};
 
