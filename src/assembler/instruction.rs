@@ -1,6 +1,6 @@
 //! Assembler instructions
 
-use std::{iter::once, mem};
+use std::{fmt::Display, iter::once, mem};
 
 use arrayvec::ArrayVec;
 use either::Either::{self, Left, Right};
@@ -32,7 +32,14 @@ impl WriteParam {
         }
     }
 }
-
+impl Display for WriteParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WriteParam::Position(v) => write!(f, "{v}"),
+            WriteParam::Relative(v) => write!(f, "@{v}"),
+        }
+    }
+}
 impl TryFrom<(WriteMode, RlValue)> for WriteParam {
     type Error = ReferenceInParamError;
 
@@ -120,6 +127,15 @@ impl ReadParam {
             ReadParam::Position(_) => ReadMode::Position,
             ReadParam::Immediate(_) => ReadMode::Immediate,
             ReadParam::Relative(_) => ReadMode::Relative,
+        }
+    }
+}
+impl Display for ReadParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReadParam::Position(v) => write!(f, "{v}"),
+            ReadParam::Immediate(v) => write!(f, "#{v}"),
+            ReadParam::Relative(v) => write!(f, "@{v}"),
         }
     }
 }
@@ -289,6 +305,34 @@ impl Labelled<Instruction> {
         .chain(params.into_iter())
         .map(ICProgramFragment::from)
         .collect()
+    }
+}
+impl Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match OpCode::from(self) {
+            OpCode::ADD => write!(f, "add"),
+            OpCode::MUL => write!(f, "mul"),
+            OpCode::IN => write!(f, "in"),
+            OpCode::OUT => write!(f, "out"),
+            OpCode::JZ => write!(f, "jz"),
+            OpCode::JNZ => write!(f, "jnz"),
+            OpCode::SLT => write!(f, "slt"),
+            OpCode::SEQ => write!(f, "seq"),
+            OpCode::INCB => write!(f, "incb"),
+            OpCode::HALT => write!(f, "halt"),
+        }?;
+        match self {
+            Instruction::ADD(a, b, c)
+            | Instruction::MUL(a, b, c)
+            | Instruction::SLT(a, b, c)
+            | Instruction::SEQ(a, b, c) => {
+                writeln!(f, " {a} {b} {c}")
+            }
+            Instruction::JZ(a, b) | Instruction::JNZ(a, b) => writeln!(f, " {a} {b}"),
+            Instruction::OUT(a) | Instruction::INCB(a) => writeln!(f, " {a}"),
+            Instruction::IN(a) => writeln!(f, " {a}"),
+            Instruction::HALT => Ok(()),
+        }
     }
 }
 
@@ -531,6 +575,23 @@ impl OpCode {
 impl From<&InstructionHeader> for OpCode {
     fn from(value: &InstructionHeader) -> Self {
         use InstructionHeader::*;
+        match value {
+            ADD(_, _, _) => Self::ADD,
+            MUL(_, _, _) => Self::MUL,
+            IN(_) => Self::IN,
+            OUT(_) => Self::OUT,
+            JZ(_, _) => Self::JZ,
+            JNZ(_, _) => Self::JNZ,
+            SLT(_, _, _) => Self::SLT,
+            SEQ(_, _, _) => Self::SEQ,
+            INCB(_) => Self::INCB,
+            HALT => Self::HALT,
+        }
+    }
+}
+impl From<&Instruction> for OpCode {
+    fn from(value: &Instruction) -> Self {
+        use Instruction::*;
         match value {
             ADD(_, _, _) => Self::ADD,
             MUL(_, _, _) => Self::MUL,

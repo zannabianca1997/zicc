@@ -2,7 +2,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    fmt::Debug,
+    fmt::{Debug, Display},
 };
 
 use thiserror::Error;
@@ -326,6 +326,20 @@ impl From<Label> for RlValue {
 impl Default for RlValue {
     fn default() -> Self {
         Self::Absolute(ICValue(0))
+    }
+}
+impl Display for RlValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RlValue::Absolute(v) => write!(f, "{v}"),
+            RlValue::Reference { lbl, offset } => {
+                if offset.0 != 0 {
+                    write!(f, "{lbl}{offset:+}")
+                } else {
+                    write!(f, "{lbl}")
+                }
+            }
+        }
     }
 }
 
