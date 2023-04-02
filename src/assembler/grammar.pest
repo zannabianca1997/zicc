@@ -2,9 +2,9 @@ file = _{ SOI ~ (line ~ NEWLINE)* ~ line? ~ EOI }
 line =  { labels ~ (instruction | directive)? }
 
 labels           =  { (label ~ ":")* }
-label            =  { number | local_identifier | identifier }
+label            = _{ number | local_identifier | identifier }
 number           = @{ ASCII_DIGIT+ }
-local_identifier = ${ "." ~ identifier }
+local_identifier = @{ "." ~ identifier }
 identifier       = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 instruction = {
@@ -15,14 +15,14 @@ instruction = {
   | halt_kw
 }
 
-add_kw  = @{ ^"add" ~ WHITESPACE }
-mul_kw  = @{ ^"mul" ~ WHITESPACE }
-seq_kw  = @{ ^"seq" ~ WHITESPACE }
-slt_kw  = @{ ^"slt" ~ WHITESPACE }
-jz_kw   = @{ ^"jz" ~ WHITESPACE }
-jnz_kw  = @{ ^"jnz" ~ WHITESPACE }
-out_kw  = @{ ^"out" ~ WHITESPACE }
-in_kw   = @{ ^"in" ~ WHITESPACE }
+add_kw  = @{ ^"add"  ~ WHITESPACE }
+mul_kw  = @{ ^"mul"  ~ WHITESPACE }
+seq_kw  = @{ ^"seq"  ~ WHITESPACE }
+slt_kw  = @{ ^"slt"  ~ WHITESPACE }
+jz_kw   = @{ ^"jz"   ~ WHITESPACE }
+jnz_kw  = @{ ^"jnz"  ~ WHITESPACE }
+out_kw  = @{ ^"out"  ~ WHITESPACE }
+in_kw   = @{ ^"in"   ~ WHITESPACE }
 incb_kw = @{ ^"incb" ~ WHITESPACE }
 halt_kw = @{ ^"halt" }
 
@@ -38,12 +38,12 @@ labelled_value       = { labels ~ number_or_label_and_offset }
 labelled_read_param  = { labels ~ read_param }
 labelled_write_param = { labels ~ write_param }
 
-read_param  = {
+read_param  = _{
     position_param
   | immediate_param
   | relative_param
 }
-write_param = {
+write_param = _{
     position_param
   | relative_param
 }
@@ -65,6 +65,6 @@ plus  = @{ "+" }
 
 WHITESPACE = _{ " " | "\t" }
 COMMENT    = _{
-    "/*" ~ (!"*/" ~ ANY)* ~ "*/"
-  | ";" ~ (!NEWLINE ~ ANY)*
+    // "/*" ~ (!"*/" ~ ANY)* ~ "*/" |
+	";" ~ (!NEWLINE ~ ANY)*
 }
