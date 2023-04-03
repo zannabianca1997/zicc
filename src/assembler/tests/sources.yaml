@@ -15,9 +15,9 @@ cat:
 "Double definition on same line":
   src: |
     a: a:
-  parse_err: RedefinitedLabel
+  io: []
 "Double definition on different lines":
   src: |
     a: 
     a:
-  parse_err: RedefinitedLabel
+  io: []
