@@ -248,7 +248,7 @@ pub enum TakeInstructionError {
     CutShort,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 #[error("Error in building instruction")]
 pub struct GenerateInstructionError(
     #[from]
@@ -325,11 +325,11 @@ impl Display for Instruction {
             | Instruction::MUL(a, b, c)
             | Instruction::SLT(a, b, c)
             | Instruction::SEQ(a, b, c) => {
-                writeln!(f, " {a} {b} {c}")
+                write!(f, " {a} {b} {c}")
             }
-            Instruction::JZ(a, b) | Instruction::JNZ(a, b) => writeln!(f, " {a} {b}"),
-            Instruction::OUT(a) | Instruction::INCB(a) => writeln!(f, " {a}"),
-            Instruction::IN(a) => writeln!(f, " {a}"),
+            Instruction::JZ(a, b) | Instruction::JNZ(a, b) => write!(f, " {a} {b}"),
+            Instruction::OUT(a) | Instruction::INCB(a) => write!(f, " {a}"),
+            Instruction::IN(a) => write!(f, " {a}"),
             Instruction::HALT => Ok(()),
         }
     }

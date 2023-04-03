@@ -1,0 +1,9 @@
+src: |
+  in $0
+  out $0:#0
+  halt
+io:
+  - inp: [13]
+    out: [13]
+  - inp: [42]
+    out: [42]

@@ -31,7 +31,7 @@ impl Display for Label {
         match self {
             Label::Global(name) => write!(f, "{name}"),
             Label::Local(name) => write!(f, ".{name}"),
-            Label::Numeric(id) => write!(f, "{id}"),
+            Label::Numeric(id) => write!(f, "${id}"),
         }
     }
 }
@@ -266,7 +266,7 @@ mod tests {
     }
     #[test]
     fn unnamed_from_str() {
-        assert_eq!("3".parse(), Ok(Label::Numeric(3)))
+        assert_eq!("$3".parse(), Ok(Label::Numeric(3)))
     }
 
     #[test]

@@ -1,0 +1,6 @@
+src: |
+  out #42
+  halt
+io:
+  - inp: []
+    out: [42]

@@ -13,10 +13,10 @@ use super::{
 
 pub type Line = Labelled<Option<Directive>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssemblyFile(pub(super) Vec<Line>);
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum AssembleError {
     #[error(transparent)]
     Expand(#[from] ExpandError),

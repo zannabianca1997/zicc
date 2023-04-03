@@ -33,7 +33,7 @@ pub struct ICProgramFragment {
     relatives: HashSet<usize>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum AppendError {
     #[error("Duplicate label definition {0}")]
     DuplicateLabelDefError(Label),

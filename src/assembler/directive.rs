@@ -13,7 +13,7 @@ use super::{
     relocatable::{ICProgramFragment, RlValue},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Directive {
     Instruction(Instruction),
     Labels(Labelled<()>),
@@ -21,7 +21,7 @@ pub enum Directive {
     ZEROS(usize),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum ExpandError {
     #[error("Error during instruction generator")]
     GenerateInstruction(
@@ -49,6 +49,16 @@ impl Directive {
 
 impl Display for Directive {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            Directive::Instruction(i) => write!(f, "{i}"),
+            Directive::Labels(lbls) => {
+                for lbl in lbls.lbls.iter() {
+                    write!(f, "{lbl}")?
+                }
+                Ok(())
+            }
+            Directive::DATA(_) => todo!(),
+            Directive::ZEROS(_) => todo!(),
+        }
     }
 }
