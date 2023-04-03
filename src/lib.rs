@@ -16,6 +16,8 @@ mod icfile;
 pub use icfile::{ByteOrder, ICFormat, ICReadError, NewAsciiFormatError};
 
 mod assembler;
+pub use assembler::{parse as parse_assembly, AssemblyFile, ICProgramFragment};
+
 mod identifier;
 
 pub mod machine;

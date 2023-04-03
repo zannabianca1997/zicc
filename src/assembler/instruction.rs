@@ -10,7 +10,7 @@ use thiserror::Error;
 use crate::ICValue;
 
 use super::{
-    label::{Labellable, Labelled},
+    label::Labelled,
     relocatable::{AppendError, ICProgramFragment, RlValue},
 };
 
