@@ -127,9 +127,7 @@ fn main_unreported() -> Result<(), MainError> {
         input_fmt,
         output,
         output_fmt,
-    } = Args::try_parse()
-        .map_err(MainError::from)
-        .and_then(|args| Setup::try_from(args).map_err(MainError::from))?;
+    } = Args::try_parse()?.try_into()?;
     // Read the input program
     let prog = match input {
         Some(path) => {
@@ -137,8 +135,7 @@ fn main_unreported() -> Result<(), MainError> {
             input_fmt.read(&mut file)
         }
         None => input_fmt.read(&mut stdin()),
-    }
-    .map_err(MainError::from)?;
+    }?;
     // write the output program
     match output {
         Some(path) => {
