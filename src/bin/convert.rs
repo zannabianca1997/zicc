@@ -1,4 +1,5 @@
 //! Convert a file from a intcode format to another
+
 #![feature(error_reporter)]
 
 use std::{
