@@ -3,7 +3,7 @@
 #![feature(error_reporter)]
 
 use std::{
-    error::{self, Report},
+    error::Report,
     fs::File,
     io::{self, stdin, stdout, BufWriter, Read, Write},
     num::ParseIntError,
@@ -12,7 +12,7 @@ use std::{
 
 use clap::{Parser, ValueEnum};
 use either::Either::{self, Left, Right};
-use lazy_regex::{regex, regex_find};
+use lazy_regex::regex;
 use thiserror::Error;
 use zicc::{
     machine::{ICMAchineInputErr, ICMachine, ICMachineData, ICRuntimeErr},

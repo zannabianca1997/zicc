@@ -1,18 +1,14 @@
 //! Parse an assembly file
 
 use std::{
-    assert_matches::{assert_matches, debug_assert_matches},
-    collections::HashSet,
-    num::ParseIntError,
-    ops::Neg,
+    assert_matches::debug_assert_matches, collections::HashSet, num::ParseIntError, ops::Neg,
 };
 
-use either::Either::{self, Left, Right};
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 use thiserror::Error;
 
-use crate::{assembler::label::Labellable, ICValue};
+use crate::ICValue;
 
 use super::{
     assembly_file::{AssemblyFile, Line},
