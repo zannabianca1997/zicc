@@ -110,7 +110,7 @@ fn test_emit(name: &str, TestCase { src, result }: &TestCase) {
 }
 
 // check that display is ok, and round trips
-fn test_display(name: &str, TestCase { src, result }: &TestCase) {
+fn test_display(_name: &str, TestCase { src, .. }: &TestCase) {
     if let Ok(a) = parse(src) {
         let displayed = a.to_string();
         let b = parse(&displayed);
