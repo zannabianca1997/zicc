@@ -1,13 +1,10 @@
 //! Assembler instructions
 
-use std::{fmt::Display, iter::once, mem};
+use std::{collections::HashSet, fmt::Display, iter::once, mem};
 
 use arrayvec::ArrayVec;
 use either::Either::{self, Left, Right};
-use enum_primitive_derive::Primitive;
-use strum_macros::{
-    Display, EnumDiscriminants, EnumMessage, EnumString, EnumVariantNames, ToString,
-};
+use strum_macros::{Display, EnumDiscriminants};
 use thiserror::Error;
 
 use crate::ICValue;
@@ -251,6 +248,14 @@ pub enum TakeInstructionError {
     CutShort,
 }
 
+#[derive(Debug, Error)]
+#[error("Error in building instruction")]
+pub struct GenerateInstructionError(
+    #[from]
+    #[source]
+    AppendError,
+);
+
 impl Instruction {
     /// Build an instruction from assemblable code
     pub fn from_assembly(
@@ -272,18 +277,11 @@ impl Instruction {
     }
 
     /// Generate assemblable code
-    pub fn generate(self) -> Result<ICProgramFragment, AppendError> {
-        Labelled::from(self).generate()
-    }
-}
-impl Labelled<Instruction> {
-    /// Generate assemblable code
-    pub fn generate(self) -> Result<ICProgramFragment, AppendError> {
-        let Labelled { inner: instr, lbls } = self;
-        let header: ICValue = InstructionHeader::from(&instr).into();
+    pub fn generate(self) -> Result<ICProgramFragment, GenerateInstructionError> {
+        let header: ICValue = InstructionHeader::from(&self).into();
         let mut params = ArrayVec::<Labelled<RlValue>, 3>::new();
         use Instruction::*;
-        match instr {
+        match self {
             ADD(a, b, c) | MUL(a, b, c) | SLT(a, b, c) | SEQ(a, b, c) => {
                 params.push(a.map(Into::into));
                 params.push(b.map(Into::into));
@@ -300,11 +298,12 @@ impl Labelled<Instruction> {
 
         once(Labelled {
             inner: RlValue::Absolute(header),
-            lbls,
+            lbls: HashSet::new(),
         })
         .chain(params.into_iter())
         .map(ICProgramFragment::from)
-        .collect()
+        .collect::<Result<_, _>>()
+        .map_err(Into::into)
     }
 }
 impl Display for Instruction {
@@ -650,10 +649,7 @@ mod tests {
                 Identifier::new(Cow::Borrowed("def")).unwrap(),
             )),
             WriteParam::Relative(ICValue(3)).into(),
-        )
-        .labelled(Label::Global(
-            Identifier::new(Cow::Borrowed("abc")).unwrap(),
-        ));
+        );
         let code: Vec<_> = instr
             .generate()
             .unwrap()

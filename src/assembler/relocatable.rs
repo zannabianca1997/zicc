@@ -200,6 +200,25 @@ impl ICProgramFragment {
         Ok(())
     }
 
+    /// Add labels at the end of the fragment
+    pub fn push_labels(&mut self, lbls: Labelled<()>) -> Result<(), AppendError> {
+        let Labelled { lbls, .. } = lbls;
+        // Check for collisions
+        if let Some(lbl) = lbls
+            .iter()
+            .filter(|lbl| self.labels.contains_key(lbl))
+            .next()
+        {
+            return Err(AppendError::DuplicateLabelDefError(lbl.clone()));
+        }
+        // Add labels
+        for lbl in lbls {
+            self.labels.insert(lbl, self.content.len());
+        }
+        self.debug_assert_invariants();
+        Ok(())
+    }
+
     /// Shrink the memory usage as much as possible
     pub fn shrink_to_fit(&mut self) {
         self.content.shrink_to_fit();

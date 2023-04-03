@@ -4,12 +4,47 @@
 
 use std::fmt::Display;
 
-use super::{label::Labelled, relocatable::RlValue};
+use either::Either::{self, Right};
+use thiserror::Error;
+
+use super::{
+    instruction::{GenerateInstructionError, Instruction},
+    label::Labelled,
+    relocatable::{ICProgramFragment, RlValue},
+};
 
 #[derive(Debug, Clone)]
 pub enum Directive {
+    Instruction(Instruction),
+    Labels(Labelled<()>),
     DATA(Vec<Labelled<RlValue>>),
     ZEROS(usize),
+}
+
+#[derive(Debug, Error)]
+pub enum ExpandError {
+    #[error("Error during instruction generator")]
+    GenerateInstruction(
+        #[from]
+        #[source]
+        GenerateInstructionError,
+    ),
+}
+
+impl Directive {
+    /// Expand this directive into code fragment, or other directives
+    pub fn expand(self) -> Result<Vec<Either<Self, ICProgramFragment>>, ExpandError> {
+        Ok(match self {
+            Directive::Instruction(instr) => vec![Right(instr.generate()?)],
+            Directive::DATA(_) => todo!(),
+            Directive::ZEROS(_) => todo!(),
+            Directive::Labels(lbls) => {
+                let mut fragment = ICProgramFragment::empty();
+                fragment.push_labels(lbls);
+                vec![Right(fragment)]
+            }
+        })
+    }
 }
 
 impl Display for Directive {

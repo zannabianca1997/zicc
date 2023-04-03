@@ -10,6 +10,7 @@ use std::{
     str::FromStr,
 };
 
+use either::Either::{self, Left, Right};
 use lazy_regex::regex_captures;
 use thiserror::Error;
 
@@ -108,6 +109,15 @@ impl<T> Labelled<T> {
             lbls: self.lbls,
         }
     }
+
+    pub fn split(self) -> (T, Labelled<()>) {
+        let Labelled { inner, lbls } = self;
+        (inner, Labelled { inner: (), lbls })
+    }
+
+    pub fn is_labelled(&self) -> bool {
+        !self.lbls.is_empty()
+    }
 }
 impl<T> Labelled<Labelled<T>> {
     /// Flatten double labelled elements
@@ -144,6 +154,20 @@ impl<T> Labelled<Option<T>> {
                 lbls,
             } => Some(Labelled { inner, lbls }),
             Labelled { inner: None, .. } => None,
+        }
+    }
+}
+impl<L, R> Labelled<Either<L, R>> {
+    pub fn transpose(self) -> Either<Labelled<L>, Labelled<R>> {
+        match self {
+            Labelled {
+                inner: Left(inner),
+                lbls,
+            } => Left(Labelled { inner, lbls }),
+            Labelled {
+                inner: Right(inner),
+                lbls,
+            } => Right(Labelled { inner, lbls }),
         }
     }
 }
