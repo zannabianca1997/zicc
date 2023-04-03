@@ -121,7 +121,7 @@ enum MainError {
     Output(#[source] io::Error),
 }
 
-fn main() -> Result<(), Report<MainError>> {
+fn main_unreported() -> Result<(), MainError> {
     let Setup {
         input,
         input_fmt,
@@ -152,4 +152,8 @@ fn main() -> Result<(), Report<MainError>> {
             .map_err(MainError::Output)?,
     };
     Ok(())
+}
+
+fn main() -> Result<(), Report<MainError>> {
+    main_unreported().map_err(|err| Report::from(err).pretty(true))
 }
