@@ -5,7 +5,10 @@ use std::{assert_matches::assert_matches, collections::HashMap, error::Report};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
-use crate::assembler::parser::ParseError;
+use crate::assembler::{
+    assembly_file::AssembleError, directive::ExpandError, instruction::GenerateInstructionError,
+    parser::ParseError, relocatable::AppendError,
+};
 
 use super::parser::parse;
 
@@ -25,9 +28,7 @@ enum AssemblyTestResult {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum ParseErrorSpec {
-    RedefinitedLabel,
-}
+enum ParseErrorSpec {}
 #[derive(Debug, Serialize, Deserialize)]
 enum AssembleErrorSpec {
     RedefinitedLabel,
@@ -52,16 +53,50 @@ fn test_parse() {
         match result {
             AssemblyTestResult::ParseErr { parse_err } => {
                 assert!(obtained.is_err(), "Test {name:?} shouldn't parse, but did.");
-                match parse_err {
-                    ParseErrorSpec::RedefinitedLabel => {
-                        assert_matches!(obtained.unwrap_err(), ParseError::RedefinitedLabel(_))
-                    }
-                }
+                match *parse_err {}
             }
             AssemblyTestResult::AssembleErr { .. } | AssemblyTestResult::Assembled { .. } => {
                 assert!(
                     obtained.is_ok(),
                     "Test {name:?} should parse, but did not: {}",
+                    Report::new(obtained.unwrap_err()).pretty(true)
+                )
+            }
+        }
+    }
+}
+
+#[test]
+fn test_assemble() {
+    for (name, TestCase { src, result }) in CASES.iter() {
+        if matches!(result, AssemblyTestResult::ParseErr { .. }) {
+            continue; // skip sources that should not parse
+        }
+        let obtained = parse(src)
+            .expect("Source not tagged as parse_error should parse")
+            .assemble();
+        match result {
+            AssemblyTestResult::ParseErr { .. } => unreachable!(),
+            AssemblyTestResult::AssembleErr { assemble_err } => {
+                assert!(
+                    obtained.is_err(),
+                    "Test {name:?} shouldn't assemble, but did."
+                );
+                match assemble_err {
+                    AssembleErrorSpec::RedefinitedLabel => {
+                        assert_matches!(
+                            obtained.unwrap_err(),
+                            AssembleError::Expand(ExpandError::GenerateInstruction(
+                                GenerateInstructionError(AppendError::DuplicateLabelDefError(_))
+                            )) | AssembleError::Append(AppendError::DuplicateLabelDefError(_))
+                        )
+                    }
+                }
+            }
+            AssemblyTestResult::Assembled { .. } => {
+                assert!(
+                    obtained.is_ok(),
+                    "Test {name:?} should assemble, but did not: {}",
                     Report::new(obtained.unwrap_err()).pretty(true)
                 )
             }

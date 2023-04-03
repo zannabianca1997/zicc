@@ -253,7 +253,7 @@ pub enum TakeInstructionError {
 pub struct GenerateInstructionError(
     #[from]
     #[source]
-    AppendError,
+    pub AppendError,
 );
 
 impl Instruction {

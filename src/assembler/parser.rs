@@ -34,8 +34,6 @@ pub enum ParseError {
         #[source]
         pest::error::Error<Rule>,
     ),
-    #[error("Label {0} is defined twice")]
-    RedefinitedLabel(Label),
     #[error("Numeric label is too long for usize")]
     NumLabelTooLong(#[source] ParseIntError),
     #[error("Numeric literal is too long for usize")]
