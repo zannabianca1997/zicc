@@ -19,19 +19,25 @@ struct Args {
     /// Input file. If absent, read from standard input
     #[arg(short, long)]
     input: Option<PathBuf>,
+    // Input file format
     #[arg(short = 'f', long)]
     input_fmt: Option<FormatDiscriminant>,
+    // If input is ascii, the separator used to split values
     #[arg(short = 's', long)]
     input_sep: Option<char>,
+    // If input is binary, the byte order
     #[arg(short = 'e', long)]
     input_endianness: Option<ByteOrder>,
-    /// Input file. If absent, write to standard output
+    /// Output file. If absent, write to standard output
     #[arg(short, long)]
     output: Option<PathBuf>,
+    // Output file format
     #[arg(short = 'F', long)]
     output_fmt: Option<FormatDiscriminant>,
+    // If output is ascii, the separator used to split values
     #[arg(short = 'S', long)]
     output_sep: Option<char>,
+    // If output is binary, the byte order
     #[arg(short = 'E', long)]
     output_endianness: Option<ByteOrder>,
 }
