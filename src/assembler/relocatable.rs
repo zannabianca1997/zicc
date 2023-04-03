@@ -128,7 +128,7 @@ impl ICProgramFragment {
             // Check that all indices are inside the content
             for (lbl, pos) in self.labels.iter() {
                 assert!(
-                    *pos < self.content.len(),
+                    *pos <= self.content.len(),
                     "Label {lbl} defined outside content"
                 )
             }
