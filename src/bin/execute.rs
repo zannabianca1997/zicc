@@ -3,7 +3,7 @@
 #![feature(error_reporter)]
 
 use std::{
-    error::Report,
+    error::{self, Report},
     fs::File,
     io::{self, stdin, stdout, BufWriter, Read, Write},
     num::ParseIntError,
@@ -116,14 +116,16 @@ enum MainError {
         ICReadError,
     ),
     #[error("Error in input")]
-    Input(#[source] Either<io::Error, ParseIntError>),
-    #[error("Error in output")]
-    Output(#[source] Either<io::Error, ByteOutOfRangeError>),
-    #[error("Error while giving input to the machine")]
-    MachineInput(
+    Input(
         #[source]
         #[from]
-        ICMAchineInputErr,
+        InputError,
+    ),
+    #[error("Error in output")]
+    Output(
+        #[source]
+        #[from]
+        Either<io::Error, ByteOutOfRangeError>,
     ),
     #[error("Error during runtime")]
     Runtime(
@@ -156,9 +158,9 @@ fn main_unreported() -> Result<(), MainError> {
     loop {
         match machine.run() {
             EmptyInput => {
-                for input in take_input(input_fmt).map_err(MainError::Input)? {
-                    machine.give_input(input).map_err(MainError::MachineInput)?
-                }
+                drain_output(&mut machine, output_fmt).map_err(MainError::Output)?;
+
+                take_input(&mut machine, input_fmt).map_err(MainError::Input)?
             }
             RuntimeErr(err) => return Err(err.into()),
             Halted => {
@@ -173,29 +175,50 @@ fn main() -> Result<(), Report<MainError>> {
     main_unreported().map_err(|err| Report::from(err).pretty(true))
 }
 
+#[derive(Debug, Error)]
+enum InputError {
+    #[error(transparent)]
+    IO(#[from] io::Error),
+    #[error(transparent)]
+    ParseInt(#[from] ParseIntError),
+    #[error(transparent)]
+    Machine(#[from] ICMAchineInputErr),
+}
+
 fn take_input(
+    machine: &mut ICMachineData,
     input_fmt: StreamFormatDiscriminant,
-) -> Result<Vec<i64>, Either<io::Error, ParseIntError>> {
+) -> Result<(), InputError> {
     match input_fmt {
         StreamFormatDiscriminant::Values => {
             // read until newline
             let mut line = String::new();
             match stdin().read_line(&mut line) {
-                Ok(0) => Err(Left(io::Error::from(io::ErrorKind::UnexpectedEof))),
+                Ok(0) => Err(InputError::IO(io::Error::from(
+                    io::ErrorKind::UnexpectedEof,
+                ))),
                 Ok(_) => regex!(r"-?\d+")
                     .find_iter(&line)
-                    .map(|v| v.as_str().parse().map_err(Right))
+                    .map(|v| {
+                        v.as_str()
+                            .parse()
+                            .map_err(InputError::ParseInt)
+                            .and_then(|v| machine.give_input(v).map_err(InputError::Machine))
+                    })
                     .collect(),
-                Err(err) => Err(Left(err)),
+                Err(err) => Err(InputError::IO(err)),
             }
         }
         StreamFormatDiscriminant::Bytes => {
             // read available input
             let mut buf = [0; 1024];
             match stdin().read(&mut buf) {
-                Ok(0) => Ok(vec![-1]),
-                Ok(n) => Ok(buf[..n].into_iter().map(|v| *v as _).collect()),
-                Err(err) => Err(Left(err)),
+                Ok(0) => machine.give_input(-1).map_err(InputError::Machine),
+                Ok(n) => buf[..n]
+                    .into_iter()
+                    .map(|v| machine.give_input(*v as _).map_err(InputError::Machine))
+                    .collect(),
+                Err(err) => Err(InputError::IO(err)),
             }
         }
     }
