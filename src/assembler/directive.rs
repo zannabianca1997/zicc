@@ -40,7 +40,9 @@ impl Directive {
             Directive::ZEROS(_) => todo!(),
             Directive::Labels(lbls) => {
                 let mut fragment = ICProgramFragment::empty();
-                fragment.push_labels(lbls);
+                fragment
+                    .push_labels(lbls)
+                    .expect("Adding labels to a empty fragmens should not panic");
                 vec![Right(fragment)]
             }
         })
