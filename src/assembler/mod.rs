@@ -5,8 +5,8 @@ mod label;
 mod parser;
 mod relocatable;
 
-pub use assembly_file::AssemblyFile;
-pub use parser::parse;
+pub use assembly_file::{AssembleError, AssemblyFile};
+pub use parser::{parse, ParseError};
 pub use relocatable::ICProgramFragment;
 
 #[cfg(test)]

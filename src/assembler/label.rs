@@ -26,6 +26,11 @@ pub enum Label {
     /// Unnamed label
     Numeric(usize),
 }
+impl Label {
+    pub fn is_global(&self) -> bool {
+        matches!(self, Label::Global(_))
+    }
+}
 
 impl Display for Label {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

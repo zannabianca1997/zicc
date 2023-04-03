@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 arrayvec = "0.7.2"
 byteorder = "1.4.3"
+ciborium = "0.2.0"
 clap = { version = "4.2.1", features = ["derive"] }
 either = "1.8.1"
 enum-primitive-derive = "0.2.2"
@@ -15,6 +16,7 @@ num-traits = "0.2.15"
 pest = "2.5.7"
 pest_derive = "2.5.7"
 serde = { version = "1.0.159", features = ["derive"] }
+serde_yaml = "0.9.19"
 smartstring = { version = "1.0.1", features = ["serde"] }
 strum = "0.24.1"
 strum_macros = "0.24.3"
