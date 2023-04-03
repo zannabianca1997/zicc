@@ -1,11 +1,11 @@
 src: |
-  in ch
-  add ch #1 check
-  loop: jz check:#0 #end
+  jz #0 #start
+  loop:
     out ch:#0
-    in ch
-  jz #0 #loop
-  end: halt
+    start: in ch
+    add ch #1 check
+  jnz check:#0 #loop
+  halt
 io:
   - inp: [1, 2, 3, 4, -1]
     out: [1, 2, 3, 4]

@@ -137,7 +137,7 @@ fn test_io(name: &str, TestCase { src, result }: &TestCase) {
             .emit()
             .expect("Sources should be a complete program");
         let program: Box<[_]> = program.into_iter().map(|v| v.0 as _).collect();
-        for IOExample { inp, out } in io.iter() {
+        for (n, IOExample { inp, out }) in io.iter().enumerate() {
             let mut machine = ICMachineData::new(program.as_ref());
             for i in inp.iter() {
                 machine
@@ -147,15 +147,18 @@ fn test_io(name: &str, TestCase { src, result }: &TestCase) {
             use crate::machine::ICMachineStopState::*;
             match machine.run() {
                 EmptyInput => {
-                    panic!("Machine for test {name} was not satisfied with the input")
+                    panic!("Machine for test {name} was not satisfied with the input {n}")
                 }
                 RuntimeErr(err) => {
-                    panic!("Machine for test {name} crashed at runtime: {}\n\nComplete parsed program:\n{}", err,parse(src).unwrap())
+                    panic!("Machine for test {name} with input {n} crashed at runtime: {}\n\nComplete parsed program:\n{}", err,parse(src).unwrap())
                 }
                 Halted => {
                     // collect output
                     let obtained = repeat(()).scan((), |(), ()| machine.get_output()).collect();
-                    assert_eq!(out, &obtained, "Output was not matching")
+                    assert_eq!(
+                        out, &obtained,
+                        "Output of machine {name} with input {n} was not matching"
+                    )
                 }
             }
         }

@@ -1,14 +1,14 @@
 src: |
   in $0
-  jz $0:#0 #one
+  jnz $0:#0 #one
   out #0
   halt
   one: out #1
   halt
 io:
   - inp: [0]
-    out: [1]
+    out: [0]
   - inp: [13]
-    out: [0]
+    out: [1]
   - inp: [42]
-    out: [0]
+    out: [1]
