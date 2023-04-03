@@ -1,3 +1,7 @@
+//! Implementation of a intcode machine
+//!
+//! This is kept indipendent from the rest of the crate, so it can be substituted with any equivalent implementation
+
 use std::collections::VecDeque;
 
 use thiserror::Error;
@@ -9,6 +13,8 @@ enum ICMachineStopState {
     RuntimeErr(ICRuntimeErr),
     Halted,
 }
+
+/// Possible errors during execution
 #[derive(Debug, PartialEq, Eq, Error)]
 enum ICRuntimeErr {
     #[error("{0} is not a valid opcode")]
@@ -105,15 +111,22 @@ impl ICMachineState {
 
 /// A intcode machine
 trait ICMachine {
+    /// The int type this machine work with
     type IntType;
+    /// The possible errors in giving input to this machine
     type InputErr;
 
+    /// Create a new intcode machine
     fn new(program: &[Self::IntType]) -> Self;
 
+    /// Give input to the machine
     fn give_input(&mut self, input: Self::IntType) -> Result<(), Self::InputErr>;
+    /// Get output from the machine
     fn get_output(&mut self) -> Option<Self::IntType>;
 
+    /// Run the machine until it need interaction
     fn run(&mut self) -> ICMachineStopState;
+    /// Step the machine forward
     fn step(&mut self) -> ICMachineState;
 }
 
