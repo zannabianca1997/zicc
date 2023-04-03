@@ -18,4 +18,4 @@ pub use icfile::{ByteOrder, ICFormat, ICReadError, NewAsciiFormatError};
 mod assembler;
 mod identifier;
 
-mod machine;
+pub mod machine;

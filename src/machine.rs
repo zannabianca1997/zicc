@@ -8,7 +8,7 @@ use thiserror::Error;
 
 /// Possible state in which a machine need interaction
 #[derive(Debug, PartialEq, Eq)]
-enum ICMachineStopState {
+pub enum ICMachineStopState {
     EmptyInput,
     RuntimeErr(ICRuntimeErr),
     Halted,
@@ -16,7 +16,7 @@ enum ICMachineStopState {
 
 /// Possible errors during execution
 #[derive(Debug, PartialEq, Eq, Error)]
-enum ICRuntimeErr {
+pub enum ICRuntimeErr {
     #[error("{0} is not a valid opcode")]
     InvalidOpcode(u8),
     #[error("{0} is not a valid param mode")]
@@ -97,7 +97,7 @@ impl ICOpCode {
 }
 
 /// Any state of a machine
-enum ICMachineState {
+pub enum ICMachineState {
     Stopped(ICMachineStopState),
     Running,
 }
@@ -110,7 +110,7 @@ impl ICMachineState {
 }
 
 /// A intcode machine
-trait ICMachine {
+pub trait ICMachine {
     /// The int type this machine work with
     type IntType;
     /// The possible errors in giving input to this machine
@@ -134,7 +134,7 @@ trait ICMachine {
 
 type ICMachineIntType = i64;
 
-struct ICMachineData {
+pub struct ICMachineData {
     memory: Vec<ICMachineIntType>,
 
     pc: usize,
@@ -206,8 +206,8 @@ impl ICMachineData {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum ICMAchineInputErr {}
+#[derive(Debug, PartialEq, Eq, Error)]
+pub enum ICMAchineInputErr {}
 
 impl ICMachine for ICMachineData {
     type IntType = ICMachineIntType;
