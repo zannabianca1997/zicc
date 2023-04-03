@@ -11,7 +11,7 @@ use std::{
 
 use clap::{Parser, ValueEnum};
 use thiserror::Error;
-use zicc::{ByteOrder, ICFormat, ICReadError, NewAsciiFormatError};
+use zicc::icfile::{ByteOrder, ICFormat, ICReadError, NewAsciiFormatError};
 
 /// Cli arguments
 #[derive(Debug, Parser)]

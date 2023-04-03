@@ -14,7 +14,7 @@ use std::{
 use strum_macros::EnumDiscriminants;
 use thiserror::Error;
 
-use crate::{ICProgram, ICValue};
+use crate::intcode::{ICProgram, ICValue};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(test, derive(strum_macros::EnumIter))]
@@ -284,7 +284,7 @@ impl ICFormat {
 mod test {
     use strum::IntoEnumIterator;
 
-    use crate::{ICProgram, ICValue};
+    use crate::intcode::{ICProgram, ICValue};
 
     use super::{ByteOrder, ICFormat, NewAsciiFormatError};
 

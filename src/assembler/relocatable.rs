@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::label::{Label, Labelled};
-use crate::{ICProgram, ICValue};
+use crate::intcode::{ICProgram, ICValue};
 
 /// An intcode program fragment that can be posizioned, and contains references to other fragments
 

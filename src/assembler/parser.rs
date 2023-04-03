@@ -8,7 +8,7 @@ use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 use thiserror::Error;
 
-use crate::ICValue;
+use crate::intcode::ICValue;
 
 use super::{
     assembly_file::{AssemblyFile, Line},

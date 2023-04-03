@@ -3,17 +3,16 @@
 #![feature(error_reporter)]
 
 use std::{
-    default,
     error::Report,
     fs::File,
-    io::{self, stdin, stdout, Read, Write},
+    io::{self, stdin, stdout, Read},
     path::PathBuf,
 };
 
 use clap::{Parser, ValueEnum};
-use either::Either::{self, Left, Right};
+use either::Either::{Left, Right};
 use thiserror::Error;
-use zicc::{parse_assembly, AssembleError, AssemblyParseError};
+use zicc::assembler::{parse, AssembleError, ParseError};
 
 /// Cli arguments
 #[derive(Debug, Parser)]
@@ -49,7 +48,7 @@ enum MainError {
     Parse(
         #[source]
         #[from]
-        AssemblyParseError,
+        ParseError,
     ),
     #[error("Error in assembling")]
     Assemble(
@@ -87,7 +86,7 @@ fn main_unreported() -> Result<(), MainError> {
         buf.into_boxed_str()
     };
     // parse file
-    let parsed = parse_assembly(&input)?;
+    let parsed = parse(&input)?;
     // assemble
     let mut assembled = parsed.assemble()?;
     if !dont_strip {

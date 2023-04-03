@@ -7,7 +7,7 @@ use either::Either::{self, Left, Right};
 use strum_macros::{Display, EnumDiscriminants};
 use thiserror::Error;
 
-use crate::ICValue;
+use crate::intcode::ICValue;
 
 use super::{
     label::Labelled,
