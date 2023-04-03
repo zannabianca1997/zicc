@@ -8,10 +8,11 @@ use std::{
 };
 
 use lazy_regex::regex_is_match;
+use serde::{Deserialize, Serialize};
 use smartstring::{Compact, SmartString};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Identifier(SmartString<Compact>);
 
 impl Identifier {

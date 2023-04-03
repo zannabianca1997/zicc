@@ -11,11 +11,13 @@ use std::{
     str::FromStr,
 };
 
+use serde::{Deserialize, Serialize};
+
 /// The type used to contain a intcode value
 type BaseT = i64;
 
 /// A single value in a intcode program
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ICValue(pub BaseT);
 
 impl Debug for ICValue {

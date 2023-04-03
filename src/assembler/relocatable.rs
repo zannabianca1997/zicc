@@ -5,6 +5,7 @@ use std::{
     fmt::{Debug, Display},
 };
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::label::{Label, Labelled};
@@ -18,7 +19,7 @@ Invariants:
  - `references` are external references. No value of that map is a key to `labels`
  - `relatives` elements and `references` keys are disjointed
 */
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ICProgramFragment {
     /// Content of the fragment
     content: Vec<ICValue>,

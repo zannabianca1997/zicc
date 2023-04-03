@@ -12,11 +12,12 @@ use std::{
 
 use either::Either::{self, Left, Right};
 use lazy_regex::regex_captures;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::identifier::{Identifier, InvalidIdentifierError};
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Label {
     /// Symbol visible outside the compilation unit
     Global(Identifier),
