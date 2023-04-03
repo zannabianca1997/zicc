@@ -166,7 +166,8 @@ fn test_io(name: &str, TestCase { src, result }: &TestCase) {
 }
 
 macro_rules! testcase {
-    ($name:ident, $path:literal) => {
+    ($($name:ident => $path:literal,)*) => {
+        $(
         mod $name {
             use super::{test_assemble, test_display, test_emit, test_io, test_parse, TestCase};
             use lazy_static::lazy_static;
@@ -197,10 +198,19 @@ macro_rules! testcase {
                 test_io(stringify!($name), &CASE)
             }
         }
+    )*
     };
 }
 
-testcase!(out, "sources/out.yaml");
-testcase!(in_out, "sources/in_out.yaml");
-testcase!(jz, "sources/jz.yaml");
-testcase!(cat, "sources/cat.yaml");
+testcase! {
+    out => "sources/out.yaml",
+    in_out=> "sources/in_out.yaml",
+    jz=> "sources/jz.yaml",
+    cat=> "sources/cat.yaml",
+    add=> "sources/add.yaml",
+    mul=> "sources/mul.yaml",
+    slt=> "sources/slt.yaml",
+    seq=> "sources/seq.yaml",
+    incb=> "sources/incb.yaml",
+    halt=> "sources/halt.yaml",
+}

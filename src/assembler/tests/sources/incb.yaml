@@ -1,0 +1,13 @@
+src: |
+  incb #target
+  out @0
+  incb #1
+  out @0
+  incb #1
+  out @0
+  halt
+
+  add target:1 2 3
+io:
+  - inp: []
+    out: [1, 2, 3]

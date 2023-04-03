@@ -1,0 +1,4 @@
+src: halt
+io:
+  - inp: []
+    out: []
