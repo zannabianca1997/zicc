@@ -42,17 +42,22 @@ pub enum AppendError {
 impl ICProgramFragment {
     /// Concatenate two program fragments
     pub fn join(self, other: Self) -> Result<Self, AppendError> {
+        let join_point = self.content.len();
+
         // early return if collision happens
-        if let Some(lbl) = other
+        if let Some((lbl, _)) = other
             .labels
-            .keys()
-            .filter(|lbl| self.labels.contains_key(lbl))
+            .iter()
+            .filter(|(lbl, pos1)| {
+                // no two labels point to the same position
+                self.labels
+                    .get(lbl)
+                    .is_some_and(|pos2| join_point + **pos1 != *pos2)
+            })
             .next()
         {
             return Err(AppendError::DuplicateLabelDefError(lbl.clone()));
         }
-
-        let join_point = self.content.len();
 
         // Merging contents
         let mut content = {
@@ -172,7 +177,12 @@ impl ICProgramFragment {
         // Check for collisions
         if let Some(lbl) = lbls
             .iter()
-            .filter(|lbl| self.labels.contains_key(lbl))
+            .filter(|lbl| {
+                // either the label is undefined, or point to the end of the content
+                self.labels
+                    .get(lbl)
+                    .is_some_and(|pos| *pos != self.content.len())
+            })
             .next()
         {
             return Err(AppendError::DuplicateLabelDefError(lbl.clone()));
@@ -206,7 +216,12 @@ impl ICProgramFragment {
         // Check for collisions
         if let Some(lbl) = lbls
             .iter()
-            .filter(|lbl| self.labels.contains_key(lbl))
+            .filter(|lbl| {
+                // either the label is undefined, or point to the end of the content
+                self.labels
+                    .get(lbl)
+                    .is_some_and(|pos| *pos != self.content.len())
+            })
             .next()
         {
             return Err(AppendError::DuplicateLabelDefError(lbl.clone()));
