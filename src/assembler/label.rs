@@ -56,7 +56,7 @@ impl FromStr for Label {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(
             match s.chars().next().ok_or(InvalidLabelError::EmptyString)? {
-                ch if ch.is_ascii_digit() => Self::Numeric(s.parse()?),
+                '$' => Self::Numeric(s[1..].parse()?),
                 '.' => Self::Local(s[1..].parse()?),
                 _ => Self::Global(s.parse()?),
             },
@@ -225,7 +225,7 @@ impl<T: FromStr> FromStr for Labelled<T> {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Greedily split labels from the start of the string
         let (_, labels, rest) = regex_captures!(
-            r"^((?:\s*(?:\.?[_a-zA-Z][_a-zA-Z0-9]*|[0-9]*)\s*:)*)(.*)$",
+            r"^((?:\s*(?:\.?[_a-zA-Z][_a-zA-Z0-9]*|\$[0-9]*)\s*:)*)(.*)$",
             s
         )
         .unwrap();

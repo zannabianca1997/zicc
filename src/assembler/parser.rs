@@ -84,7 +84,11 @@ fn parse_labels(src: Pair<Rule>) -> Result<Labelled<()>> {
 
 fn parse_label(src: Pair<Rule>) -> Result<Label> {
     Ok(match src.as_rule() {
-        Rule::number => Label::Numeric(src.as_str().parse().map_err(ParseError::NumLabelTooLong)?),
+        Rule::numeric => Label::Numeric(
+            src.as_str()[1..]
+                .parse()
+                .map_err(ParseError::NumLabelTooLong)?,
+        ),
         Rule::local_identifier => Label::Local(src.as_str()[1..].parse().unwrap()),
         Rule::identifier => Label::Global(src.as_str().parse().unwrap()),
         _ => unreachable!(),
