@@ -6,15 +6,14 @@ use std::{
     collections::HashSet,
     error::Report,
     fs::File,
-    io::{self, stdin, stdout, Read},
+    io::{self, stdout},
     path::PathBuf,
 };
 
 use clap::{Parser, ValueEnum};
-use either::Either::{Left, Right};
 use thiserror::Error;
 use zicc::{
-    assembler::{parse, AppendError, AssembleError, ICProgramFragment, Label, ParseError},
+    assembler::{AppendError, ICProgramFragment, Label},
     icfile::{ByteOrder, ICFormat, NewAsciiFormatError},
 };
 
