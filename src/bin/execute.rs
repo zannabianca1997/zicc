@@ -15,8 +15,8 @@ use either::Either::{self, Left, Right};
 use lazy_regex::regex;
 use thiserror::Error;
 use zicc::{
+    icfile::{ByteOrder, ICFormat, ICReadError, NewAsciiFormatError},
     machine::{ICMAchineInputErr, ICMachine, ICMachineData, ICRuntimeErr},
-    ByteOrder, ICFormat, ICReadError, NewAsciiFormatError,
 };
 
 /// Cli arguments
