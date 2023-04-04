@@ -1,0 +1,9 @@
+src: |
+  out middle-1
+  out middle
+  out middle+1
+  halt
+  data 1,middle:2,3
+io:
+  - inp: []
+    out: [1, 2, 3]
