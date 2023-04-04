@@ -9,6 +9,7 @@ use crate::{
         assembly_file::AssembleError, directive::ExpandError,
         instruction::GenerateInstructionError, relocatable::AppendError,
     },
+    intcode::ICValue,
     machine::{ICMachine, ICMachineData},
 };
 
@@ -24,9 +25,16 @@ struct TestCase {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 enum AssemblyTestResult {
-    ParseErr { parse_err: ParseErrorSpec },
-    AssembleErr { assemble_err: AssembleErrorSpec },
-    Assembled { io: Box<[IOExample]> },
+    ParseErr {
+        parse_err: ParseErrorSpec,
+    },
+    AssembleErr {
+        assemble_err: AssembleErrorSpec,
+    },
+    Assembled {
+        io: Option<Box<[IOExample]>>,
+        assembled: Option<Box<[ICValue]>>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -129,7 +137,7 @@ fn test_display(_name: &str, TestCase { src, .. }: &TestCase) {
 }
 
 fn test_io(name: &str, TestCase { src, result }: &TestCase) {
-    if let AssemblyTestResult::Assembled { io } = result {
+    if let AssemblyTestResult::Assembled { io: Some(io), .. } = result {
         let program = parse(src)
             .expect("Source not tagged as parse_error should parse")
             .assemble()
@@ -165,11 +173,31 @@ fn test_io(name: &str, TestCase { src, result }: &TestCase) {
     }
 }
 
+fn test_assembled(name: &str, TestCase { src, result }: &TestCase) {
+    if let AssemblyTestResult::Assembled {
+        assembled: Some(assembled),
+        ..
+    } = result
+    {
+        let program = parse(src)
+            .expect("Source not tagged as parse_error should parse")
+            .assemble()
+            .expect("Source not tagged as assemble_error should assemble")
+            .emit()
+            .expect("Sources should be a complete program");
+        assert_eq!(
+            program.as_ref(),
+            assembled.as_ref(),
+            "Program {name} did not compile to the given code"
+        )
+    }
+}
+
 macro_rules! testcase {
     ($($name:ident => $path:literal,)*) => {
         $(
         mod $name {
-            use super::{test_assemble, test_display, test_emit, test_io, test_parse, TestCase};
+            use super::{test_assemble, test_assembled, test_display, test_emit, test_io, test_parse, TestCase};
             use lazy_static::lazy_static;
 
             lazy_static! {
@@ -197,6 +225,10 @@ macro_rules! testcase {
             fn io() {
                 test_io(stringify!($name), &CASE)
             }
+            #[test]
+            fn assembled() {
+                test_assembled(stringify!($name), &CASE)
+            }
         }
     )*
     };
@@ -214,4 +246,6 @@ testcase! {
     incb=> "sources/incb.yaml",
     halt=> "sources/halt.yaml",
     data=> "sources/data.yaml",
+    data_2=> "sources/data_2.yaml",
+    zeros=> "sources/zeros.yaml",
 }
