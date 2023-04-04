@@ -31,7 +31,10 @@ directive = {
     data_kw ~ labelled_value ~ (","? ~ labelled_value)* |
 	  zeros_kw ~ number |
     jmp_kw ~ labelled_read_param | 
-    mov_kw ~ ( labelled_read_param ~ ","? ~ labelled_write_param ~ ( ","? ~ "1" )? | read_param ~ ","? ~ write_param ~  ","? ~ number )
+    mov_kw ~ ( 
+      read_param ~ ","? ~ write_param ~  ","? ~ !"1" ~ number 
+      | labelled_read_param ~ ","? ~ labelled_write_param ~ ( ","? ~ "1" )? 
+    )
 }
 
 data_kw  = @{ ^"data"  ~ WHITESPACE }

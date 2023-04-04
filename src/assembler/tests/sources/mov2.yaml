@@ -1,0 +1,13 @@
+src: |
+  in a
+  mov a b 1
+  out b
+  halt
+  data a: 0 b: 0
+io:
+  - inp: [1]
+    out: [1]
+  - inp: [-1]
+    out: [-1]
+  - inp: [32]
+    out: [32]

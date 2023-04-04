@@ -250,4 +250,7 @@ testcase! {
     zeros=> "sources/zeros.yaml",
     jmp=> "sources/jmp.yaml",
     offsets=> "sources/offsets.yaml",
+    mov=> "sources/mov.yaml",
+    mov2=> "sources/mov2.yaml",
+    movm=> "sources/movm.yaml",
 }

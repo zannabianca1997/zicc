@@ -150,6 +150,10 @@ fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
                 let a = parse_read_param(a)?;
                 let b = parse_write_param(b)?;
                 let len = len.as_str().parse().map_err(ParseError::LiteralTooLong)?;
+                debug_assert_ne!(
+                    len, 1,
+                    "`mov` len should not be produced as token if equal to 1"
+                );
                 MOVM(a, b, len)
             } else {
                 let a = parse_labelled_read_param(a)?;
