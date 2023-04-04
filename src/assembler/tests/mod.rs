@@ -213,4 +213,5 @@ testcase! {
     seq=> "sources/seq.yaml",
     incb=> "sources/incb.yaml",
     halt=> "sources/halt.yaml",
+    data=> "sources/data.yaml",
 }

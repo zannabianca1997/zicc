@@ -128,7 +128,23 @@ fn parse_instruction(src: Pair<Rule>) -> Result<Instruction> {
 }
 
 fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
-    todo!()
+    debug_assert_matches!(src.as_rule(), Rule::directive);
+    use Directive::*;
+    let mut pairs = src.into_inner();
+    let kw = pairs.next().unwrap().as_rule();
+    Ok(match kw {
+        Rule::data_kw => DATA(pairs.map(parse_labelled_value).collect::<Result<_>>()?),
+        Rule::zeros_kw => todo!(),
+        _ => unreachable!(),
+    })
+}
+
+fn parse_labelled_value(src: Pair<Rule>) -> Result<Labelled<RlValue>> {
+    debug_assert_matches!(src.as_rule(), Rule::labelled_value);
+    let mut src = src.into_inner();
+    let labels = parse_labels(src.next().unwrap())?;
+    let content = parse_number_or_label_and_offset(src.next().unwrap())?;
+    Ok(labels.map(|_| content))
 }
 
 fn parse_labelled_write_param(src: Pair<Rule>) -> Result<Labelled<WriteParam>> {

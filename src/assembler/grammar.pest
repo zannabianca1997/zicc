@@ -29,7 +29,7 @@ halt_kw = @{ ^"halt" }
 
 directive = {
     data_kw ~ labelled_value ~ (","? ~ labelled_value)* |
-	zeros_kw ~ number
+	  zeros_kw ~ number
 }
 
 data_kw  = @{ ^"data" ~ WHITESPACE }

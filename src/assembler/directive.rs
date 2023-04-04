@@ -11,6 +11,7 @@ use super::{
     instruction::{GenerateInstructionError, Instruction},
     label::Labelled,
     relocatable::{ICProgramFragment, RlValue},
+    AppendError,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +30,12 @@ pub enum ExpandError {
         #[source]
         GenerateInstructionError,
     ),
+    #[error("Error while joining multiple ")]
+    Joining(
+        #[from]
+        #[source]
+        AppendError,
+    ),
 }
 
 impl Directive {
@@ -36,7 +43,13 @@ impl Directive {
     pub fn expand(self) -> Result<Vec<Either<Self, ICProgramFragment>>, ExpandError> {
         Ok(match self {
             Directive::Instruction(instr) => vec![Right(instr.generate()?)],
-            Directive::DATA(_) => todo!(),
+            Directive::DATA(values) => vec![Right(values.into_iter().try_fold(
+                ICProgramFragment::empty(),
+                |mut fragment, value| -> Result<ICProgramFragment, AppendError> {
+                    fragment.push(value)?;
+                    Ok(fragment)
+                },
+            )?)],
             Directive::ZEROS(_) => todo!(),
             Directive::Labels(lbls) => {
                 let mut fragment = ICProgramFragment::empty();
@@ -55,11 +68,17 @@ impl Display for Directive {
             Directive::Instruction(i) => write!(f, "{i}"),
             Directive::Labels(lbls) => {
                 for lbl in lbls.lbls.iter() {
-                    write!(f, "{lbl}")?
+                    write!(f, "{lbl}:")?
                 }
                 Ok(())
             }
-            Directive::DATA(_) => todo!(),
+            Directive::DATA(values) => {
+                write!(f, "data")?;
+                for value in values {
+                    write!(f, " {value}")?
+                }
+                Ok(())
+            }
             Directive::ZEROS(_) => todo!(),
         }
     }
