@@ -143,6 +143,20 @@ fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
                 .map_err(ParseError::LiteralTooLong)?,
         ),
         Rule::jmp_kw => JMP(parse_labelled_read_param(pairs.next().unwrap())?),
+        Rule::mov_kw => {
+            let a = pairs.next().unwrap();
+            let b = pairs.next().unwrap();
+            if let Some(len) = pairs.next() {
+                let a = parse_read_param(a)?;
+                let b = parse_write_param(b)?;
+                let len = len.as_str().parse().map_err(ParseError::LiteralTooLong)?;
+                MOVM(a, b, len)
+            } else {
+                let a = parse_labelled_read_param(a)?;
+                let b = parse_labelled_write_param(b)?;
+                MOV(a, b)
+            }
+        }
         _ => unreachable!(),
     })
 }

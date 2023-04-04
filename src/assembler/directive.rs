@@ -2,7 +2,7 @@
 //!
 //! Assembly commands that do not translate to single instructions
 
-use std::fmt::Display;
+use std::{fmt::Display, mem::size_of};
 
 use either::Either::{self, Left, Right};
 use thiserror::Error;
@@ -10,7 +10,7 @@ use thiserror::Error;
 use crate::intcode::ICValue;
 
 use super::{
-    instruction::{GenerateInstructionError, Instruction, ReadParam},
+    instruction::{GenerateInstructionError, Instruction, ReadParam, WriteParam},
     label::Labelled,
     relocatable::{ICProgramFragment, RlValue},
     AppendError,
@@ -23,7 +23,11 @@ pub enum Directive {
     DATA(Vec<Labelled<RlValue>>),
     ZEROS(usize),
     JMP(Labelled<ReadParam>),
+    MOV(Labelled<ReadParam>, Labelled<WriteParam>),
+    MOVM(ReadParam, WriteParam, usize),
 }
+
+// const s: usize = size_of::<Directive>();
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ExpandError {
@@ -68,6 +72,25 @@ impl Directive {
                     dest,
                 )))]
             }
+            Directive::MOV(a, b) => {
+                vec![Left(Directive::Instruction(Instruction::ADD(
+                    a,
+                    ReadParam::Immediate(ICValue(0).into()).into(),
+                    b,
+                )))]
+            }
+            Directive::MOVM(a, b, len) => {
+                let mut res = Vec::with_capacity(len);
+                for i in 0..len {
+                    res.push(Left(Directive::MOV(
+                        Either::from(a.clone().offset(ICValue(i as _)))
+                            .into_inner()
+                            .into(),
+                        b.clone().offset(ICValue(i as _)).into(),
+                    )));
+                }
+                res
+            }
         })
     }
 }
@@ -91,6 +114,8 @@ impl Display for Directive {
             }
             Directive::ZEROS(n) => write!(f, "zeros {n}"),
             Directive::JMP(a) => write!(f, "jmp {a}"),
+            Directive::MOV(a, b) => write!(f, "mov {a} {b}"),
+            Directive::MOVM(a, b, len) => write!(f, "mov {a} {b} {len}"),
         }
     }
 }

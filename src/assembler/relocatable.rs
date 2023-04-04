@@ -354,6 +354,19 @@ impl RlValue {
             Err(self)
         }
     }
+
+    pub(crate) fn offset(self, offset: ICValue) -> Self {
+        match self {
+            RlValue::Absolute(v) => RlValue::Absolute(v + offset),
+            RlValue::Reference {
+                lbl,
+                offset: offset_before,
+            } => RlValue::Reference {
+                lbl,
+                offset: offset_before + offset,
+            },
+        }
+    }
 }
 impl From<ICValue> for RlValue {
     fn from(value: ICValue) -> Self {

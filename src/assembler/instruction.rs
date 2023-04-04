@@ -28,6 +28,13 @@ impl WriteParam {
             WriteParam::Relative(_) => WriteMode::Relative,
         }
     }
+
+    pub(crate) fn offset(self, i: ICValue) -> Self {
+        match self {
+            WriteParam::Position(v) => WriteParam::Position(v.offset(i)),
+            WriteParam::Relative(v) => WriteParam::Relative(v + i),
+        }
+    }
 }
 impl Display for WriteParam {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -124,6 +131,14 @@ impl ReadParam {
             ReadParam::Position(_) => ReadMode::Position,
             ReadParam::Immediate(_) => ReadMode::Immediate,
             ReadParam::Relative(_) => ReadMode::Relative,
+        }
+    }
+
+    pub(crate) fn offset(self, i: ICValue) -> Result<Self, Self> {
+        match self {
+            ReadParam::Position(v) => Ok(ReadParam::Position(v.offset(i))),
+            ReadParam::Immediate(v) => Err(ReadParam::Immediate(v)),
+            ReadParam::Relative(v) => Ok(ReadParam::Relative(v + i)),
         }
     }
 }
