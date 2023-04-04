@@ -2,7 +2,7 @@
 //!
 //! Assembly commands that do not translate to single instructions
 
-use std::{fmt::Display, mem::size_of};
+use std::fmt::Display;
 
 use either::Either::{self, Left, Right};
 use thiserror::Error;
