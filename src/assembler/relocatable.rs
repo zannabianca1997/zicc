@@ -168,8 +168,18 @@ impl ICProgramFragment {
     }
 
     /// Empty program fragment
-    pub fn empty() -> ICProgramFragment {
+    pub fn empty() -> Self {
         Default::default()
+    }
+
+    /// Program fragment made only of zeros
+    pub fn zeros(len: usize) -> Self {
+        Self {
+            content: vec![ICValue(0); len],
+            labels: HashMap::new(),
+            references: HashMap::new(),
+            relatives: HashSet::new(),
+        }
     }
 
     /// Add a memory location to the fragment

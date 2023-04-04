@@ -50,7 +50,7 @@ impl Directive {
                     Ok(fragment)
                 },
             )?)],
-            Directive::ZEROS(_) => todo!(),
+            Directive::ZEROS(n) => vec![Right(ICProgramFragment::zeros(n))],
             Directive::Labels(lbls) => {
                 let mut fragment = ICProgramFragment::empty();
                 fragment
@@ -79,7 +79,7 @@ impl Display for Directive {
                 }
                 Ok(())
             }
-            Directive::ZEROS(_) => todo!(),
+            Directive::ZEROS(n) => write!(f, "zeros {n}"),
         }
     }
 }

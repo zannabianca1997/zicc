@@ -134,7 +134,14 @@ fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
     let kw = pairs.next().unwrap().as_rule();
     Ok(match kw {
         Rule::data_kw => DATA(pairs.map(parse_labelled_value).collect::<Result<_>>()?),
-        Rule::zeros_kw => todo!(),
+        Rule::zeros_kw => ZEROS(
+            pairs
+                .next()
+                .unwrap()
+                .as_str()
+                .parse()
+                .map_err(ParseError::LiteralTooLong)?,
+        ),
         _ => unreachable!(),
     })
 }
