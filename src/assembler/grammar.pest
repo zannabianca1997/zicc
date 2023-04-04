@@ -34,13 +34,17 @@ directive = {
     mov_kw ~ ( 
       read_param ~ ","? ~ write_param ~  ","? ~ !"1" ~ number 
       | labelled_read_param ~ ","? ~ labelled_write_param ~ ( ","? ~ "1" )? 
-    )
+    ) |
+    load_kw  ~ labelled_read_param ~ ","? ~ labelled_write_param |
+    store_kw ~ labelled_read_param ~ ","? ~ labelled_read_param
 }
 
 data_kw  = @{ ^"data"  ~ WHITESPACE }
 zeros_kw = @{ ^"zeros" ~ WHITESPACE }
 mov_kw   = @{ ^"mov"   ~ WHITESPACE }
 jmp_kw   = @{ ^"jmp"   ~ WHITESPACE }
+load_kw  = @{ ^"load"  ~ WHITESPACE }
+store_kw = @{ ^"store" ~ WHITESPACE }
 
 labelled_value       = { labels ~ number_or_label_and_offset }
 labelled_read_param  = { labels ~ read_param }

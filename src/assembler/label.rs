@@ -1,6 +1,7 @@
 //! Labels
 
 use std::{
+    borrow::Borrow,
     collections::HashSet,
     fmt::Display,
     hash::Hash,
@@ -29,6 +30,22 @@ pub enum Label {
 impl Label {
     pub fn is_global(&self) -> bool {
         matches!(self, Label::Global(_))
+    }
+
+    // Find a unused label from an iterator of labels
+    pub fn unused<T: Borrow<Label>>(iter: impl Iterator<Item = T>) -> Self {
+        Self::Numeric(
+            iter.filter_map(|lbl| {
+                if let Label::Numeric(n) = lbl.borrow() {
+                    Some(*n)
+                } else {
+                    None
+                }
+            })
+            .max()
+            .map(|v| v + 1)
+            .unwrap_or(0),
+        )
     }
 }
 

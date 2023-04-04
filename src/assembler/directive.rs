@@ -7,13 +7,13 @@ use std::fmt::Display;
 use either::Either::{self, Left, Right};
 use thiserror::Error;
 
-use crate::intcode::ICValue;
+use crate::{assembler::label::Labellable, intcode::ICValue};
 
 use super::{
     instruction::{GenerateInstructionError, Instruction, ReadParam, WriteParam},
     label::Labelled,
     relocatable::{ICProgramFragment, RlValue},
-    AppendError,
+    AppendError, AssembleError, AssemblyFile, Label,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +25,8 @@ pub enum Directive {
     JMP(Labelled<ReadParam>),
     MOV(Labelled<ReadParam>, Labelled<WriteParam>),
     MOVM(ReadParam, WriteParam, usize),
+    LOAD(Labelled<ReadParam>, Labelled<WriteParam>),
+    STORE(Labelled<ReadParam>, Labelled<ReadParam>),
 }
 
 // const s: usize = size_of::<Directive>();
@@ -43,6 +45,8 @@ pub enum ExpandError {
         #[source]
         AppendError,
     ),
+    #[error("Error while sub-assembling for instruction {0}")]
+    SubAssemble(&'static str, #[source] Box<AssembleError>),
 }
 
 impl Directive {
@@ -91,6 +95,60 @@ impl Directive {
                 }
                 res
             }
+            /*
+                load a b => mov a $0
+                            mov $0:0 b
+            */
+            Directive::LOAD(a, b) => {
+                // find a label unused by both
+                let lbl = Label::unused(a.lbls.iter().chain(b.lbls.iter()));
+                let code = AssemblyFile(vec![
+                    Some(Directive::MOV(
+                        a,
+                        WriteParam::Position(RlValue::Reference {
+                            lbl: lbl.clone(),
+                            offset: 0.into(),
+                        })
+                        .into(),
+                    ))
+                    .into(),
+                    Some(Directive::MOV(
+                        ReadParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl),
+                        b,
+                    ))
+                    .into(),
+                ])
+                .assemble()
+                .map_err(|err| ExpandError::SubAssemble("load", Box::new(err)))?;
+                vec![Right(code)]
+            }
+            /*
+                store a b => mov b $0
+                             mov a $0:0
+            */
+            Directive::STORE(a, b) => {
+                // find a label unused by both
+                let lbl = Label::unused(a.lbls.iter().chain(b.lbls.iter()));
+                let code = AssemblyFile(vec![
+                    Some(Directive::MOV(
+                        b,
+                        WriteParam::Position(RlValue::Reference {
+                            lbl: lbl.clone(),
+                            offset: 0.into(),
+                        })
+                        .into(),
+                    ))
+                    .into(),
+                    Some(Directive::MOV(
+                        a,
+                        WriteParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl),
+                    ))
+                    .into(),
+                ])
+                .assemble()
+                .map_err(|err| ExpandError::SubAssemble("load", Box::new(err)))?;
+                vec![Right(code)]
+            }
         })
     }
 }
@@ -116,6 +174,8 @@ impl Display for Directive {
             Directive::JMP(a) => write!(f, "jmp {a}"),
             Directive::MOV(a, b) => write!(f, "mov {a} {b}"),
             Directive::MOVM(a, b, len) => write!(f, "mov {a} {b} {len}"),
+            Directive::LOAD(a, b) => write!(f, "load {a} {b}"),
+            Directive::STORE(a, b) => write!(f, "store {a} {b}"),
         }
     }
 }

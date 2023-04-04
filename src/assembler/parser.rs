@@ -161,6 +161,20 @@ fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
                 MOV(a, b)
             }
         }
+        Rule::load_kw => {
+            let a = pairs.next().unwrap();
+            let b = pairs.next().unwrap();
+            let a = parse_labelled_read_param(a)?;
+            let b = parse_labelled_write_param(b)?;
+            LOAD(a, b)
+        }
+        Rule::store_kw => {
+            let a = pairs.next().unwrap();
+            let b = pairs.next().unwrap();
+            let a = parse_labelled_read_param(a)?;
+            let b = parse_labelled_read_param(b)?;
+            STORE(a, b)
+        }
         _ => unreachable!(),
     })
 }
