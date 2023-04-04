@@ -1,0 +1,9 @@
+src: |
+  jmp #one
+  out #0
+  halt
+  one: out #1
+  halt
+io:
+  - inp: []
+    out: [1]

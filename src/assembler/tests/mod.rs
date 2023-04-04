@@ -248,4 +248,5 @@ testcase! {
     data=> "sources/data.yaml",
     data_2=> "sources/data_2.yaml",
     zeros=> "sources/zeros.yaml",
+    jmp=> "sources/jmp.yaml",
 }

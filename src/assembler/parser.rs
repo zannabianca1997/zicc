@@ -142,6 +142,7 @@ fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
                 .parse()
                 .map_err(ParseError::LiteralTooLong)?,
         ),
+        Rule::jmp_kw => JMP(parse_labelled_read_param(pairs.next().unwrap())?),
         _ => unreachable!(),
     })
 }

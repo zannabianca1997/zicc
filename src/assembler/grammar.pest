@@ -29,11 +29,13 @@ halt_kw = @{ ^"halt" }
 
 directive = {
     data_kw ~ labelled_value ~ (","? ~ labelled_value)* |
-	  zeros_kw ~ number
+	  zeros_kw ~ number |
+    jmp_kw ~ labelled_read_param
 }
 
-data_kw  = @{ ^"data" ~ WHITESPACE }
+data_kw  = @{ ^"data"  ~ WHITESPACE }
 zeros_kw = @{ ^"zeros" ~ WHITESPACE }
+jmp_kw   = @{ ^"jmp"   ~ WHITESPACE }
 
 labelled_value       = { labels ~ number_or_label_and_offset }
 labelled_read_param  = { labels ~ read_param }

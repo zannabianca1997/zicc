@@ -4,11 +4,13 @@
 
 use std::fmt::Display;
 
-use either::Either::{self, Right};
+use either::Either::{self, Left, Right};
 use thiserror::Error;
 
+use crate::intcode::ICValue;
+
 use super::{
-    instruction::{GenerateInstructionError, Instruction},
+    instruction::{GenerateInstructionError, Instruction, ReadParam},
     label::Labelled,
     relocatable::{ICProgramFragment, RlValue},
     AppendError,
@@ -20,6 +22,7 @@ pub enum Directive {
     Labels(Labelled<()>),
     DATA(Vec<Labelled<RlValue>>),
     ZEROS(usize),
+    JMP(Labelled<ReadParam>),
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -58,6 +61,13 @@ impl Directive {
                     .expect("Adding labels to a empty fragmens should not panic");
                 vec![Right(fragment)]
             }
+            // jmp a => jz #0 a
+            Directive::JMP(dest) => {
+                vec![Left(Directive::Instruction(Instruction::JZ(
+                    ReadParam::Immediate(ICValue(0).into()).into(),
+                    dest,
+                )))]
+            }
         })
     }
 }
@@ -80,6 +90,7 @@ impl Display for Directive {
                 Ok(())
             }
             Directive::ZEROS(n) => write!(f, "zeros {n}"),
+            Directive::JMP(a) => write!(f, "jmp {a}"),
         }
     }
 }
