@@ -36,11 +36,11 @@ The basic intcode instruction are all presents:
 
 ### Additional instruction-like directives
 Some directive looks just like instruction, and assemble to them
-| Assembly      |                                                                                                | Warning                      |
-| ------------- | ---------------------------------------------------------------------------------------------- | ---------------------------- |
-| `jmp a`       | Unconditionally jumps to `a`                                                                   |                              |
-| `mov a b [n]` | Move the content of `a` into `b`. If `c` is present, move `c`consecutive memory locations[^1]. | `c` is a simple unsigned int |
-[^1]: If `c` is present, and `a` is immediate, the value of `a` is copied on every destination
+| Assembly      |                                                                                                           | Warning                      |
+| ------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `jmp a`       | Unconditionally jumps to `a`                                                                              |                              |
+| `mov a b [n]` | Move the content of `a` into `b`. If `c` is present, move `c`consecutive memory locations <sup>[1]</sup>. | `c` is a simple unsigned int |
+1) If `c` is present, and `a` is immediate, the value of `a` is copied on every destination
 
 ### Embedded data
 These are directives that produce non-code values:
