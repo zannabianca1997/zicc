@@ -1,0 +1,7 @@
+src: |
+  POP a 3
+  a:
+equiv: |
+  INCB #-3
+  MOV @0 a 3
+  a:

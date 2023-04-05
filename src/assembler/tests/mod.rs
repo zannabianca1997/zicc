@@ -225,11 +225,11 @@ fn test_equiv(name: &str, TestCase { src, result }: &TestCase) {
             .emit()
             .expect("Sources should be a complete program");
         let equiv = parse(equiv)
-            .expect("Source not tagged as parse_error should parse")
+            .expect("Equivalent source should parse")
             .assemble()
-            .expect("Source not tagged as assemble_error should assemble")
+            .expect("Equivalent source should assemble")
             .emit()
-            .expect("Sources should be a complete program");
+            .expect("Equivalent source should be a complete program");
         assert_eq!(
             program, equiv,
             "Program {name} did not assemble to the same code of the equivalent source"
@@ -308,4 +308,7 @@ testcase! {
     loadcmp=> "sources/loadcmp.yaml",
     store=>"sources/store.yaml",
     hello=>"sources/hello.yaml",
+    invert=>"sources/invert.yaml",
+    push_equiv=>"sources/push_equiv.yaml",
+    pop_equiv=>"sources/pop_equiv.yaml",
 }

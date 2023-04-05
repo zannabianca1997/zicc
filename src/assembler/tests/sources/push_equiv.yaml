@@ -1,0 +1,7 @@
+src: |
+  PUSH a 3
+  a:
+equiv: |
+  MOV a @0 3
+  INCB #3
+  a:
