@@ -42,6 +42,8 @@ Some directive looks just like instruction, and assemble to them
 | `mov a b [n]`   | Move the content of `a` into `b`. If `n` is present, move `n`consecutive memory locations <sup>[1]</sup>.                     | `n` is a simple unsigned int. If `n` is different than 1, `a` and `b` cannot be labelled |
 | `load a b [n]`  | Move the content of the cell pointed by `a` into `b`. If `n` is present, move `n`consecutive memory locations.                | `n` is a simple unsigned int. If `n` is different than 1, `a` and `b` cannot be labelled |
 | `store a b [n]` | Move the content of `a` into the cell pointed by `b`. If `n` is present, move `n`consecutive memory locations <sup>[1]</sup>. | `n` is a simple unsigned int. If `n` is different than 1, `a` and `b` cannot be labelled |
+| `push a [n]`    | Push `a` on top of the relative stack. If `n` is present, push `n`consecutive memory locations.                               | `n` is a simple unsigned int. If `n` is different than 1, `a` cannot be labelled         |
+| `pop a [n]`     | Pop the top of the relative stack into `a`. If `n` is present, move `n`consecutive memory locations <sup>[1]</sup>.           | `n` is a simple unsigned int. If `n` is different than 1, `a` cannot be labelled         |
 1) If `n` is present, and `a` is immediate, the value of `a` is copied on every destination
 
 ### Embedded data
