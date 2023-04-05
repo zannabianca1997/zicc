@@ -1,0 +1,9 @@
+src: |
+  store #1 a
+  out b
+  halt
+
+  data a: b b:0
+io:
+  - inp: []
+    out: [1]

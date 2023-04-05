@@ -1,0 +1,2 @@
+src: "data a a:2 b:3 b"
+assembled: [1, 2, 3, 2]

@@ -1,7 +1,10 @@
 //! Test for the assembler
 
-use std::{assert_matches::assert_matches, collections::HashSet, error::Report, iter::repeat};
+use std::{
+    assert_matches::assert_matches, borrow::Cow, collections::HashSet, error::Report, iter::repeat,
+};
 
+use either::Either;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -47,8 +50,10 @@ enum AssembleErrorSpec {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct IOExample {
-    inp: Box<[i64]>,
-    out: Box<[i64]>,
+    #[serde(with = "either::serde_untagged")]
+    inp: Either<Box<[i64]>, String>,
+    #[serde(with = "either::serde_untagged")]
+    out: Either<Box<[i64]>, String>,
 }
 
 fn test_parse(name: &str, TestCase { src, result }: &TestCase) {
@@ -147,6 +152,18 @@ fn test_io(name: &str, TestCase { src, result }: &TestCase) {
             .expect("Sources should be a complete program");
         let program: Box<[_]> = program.into_iter().map(|v| v.0 as _).collect();
         for (n, IOExample { inp, out }) in io.iter().enumerate() {
+            // Converting string inputs in boxed slices
+            let inp = inp
+                .as_ref()
+                .map_left(|v| Cow::Borrowed(v.as_ref()))
+                .map_right(|s| s.chars().map(|ch| ch as i64).collect())
+                .into_inner();
+            let out = out
+                .as_ref()
+                .map_left(|v| Cow::Borrowed(v.as_ref()))
+                .map_right(|s| s.chars().map(|ch| ch as i64).collect())
+                .into_inner();
+            // running the machine
             let mut machine = ICMachineData::new(program.as_ref());
             for i in inp.iter() {
                 machine
@@ -163,9 +180,11 @@ fn test_io(name: &str, TestCase { src, result }: &TestCase) {
                 }
                 Halted => {
                     // collect output
-                    let obtained = repeat(()).scan((), |(), ()| machine.get_output()).collect();
+                    let obtained: Box<[i64]> =
+                        repeat(()).scan((), |(), ()| machine.get_output()).collect();
                     assert_eq!(
-                        out, &obtained,
+                        out.as_ref(),
+                        obtained.as_ref(),
                         "Output of machine {name} with input {n} was not matching"
                     )
                 }
@@ -217,6 +236,8 @@ fn test_equiv(name: &str, TestCase { src, result }: &TestCase) {
         )
     }
 }
+
+// TODO: Write a build script to generate ONLY the test effectively used
 
 macro_rules! testcase {
     ($($name:ident => $path:literal,)*) => {
@@ -276,6 +297,7 @@ testcase! {
     halt=> "sources/halt.yaml",
     data=> "sources/data.yaml",
     data_2=> "sources/data_2.yaml",
+    data_with_self_references=> "sources/data_with_self_references.yaml",
     zeros=> "sources/zeros.yaml",
     jmp=> "sources/jmp.yaml",
     offsets=> "sources/offsets.yaml",
@@ -284,4 +306,6 @@ testcase! {
     movm=> "sources/movm.yaml",
     load=> "sources/load.yaml",
     loadcmp=> "sources/loadcmp.yaml",
+    store=>"sources/store.yaml",
+    hello=>"sources/hello.yaml",
 }

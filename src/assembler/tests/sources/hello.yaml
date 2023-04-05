@@ -1,0 +1,14 @@
+src: |
+  LOAD ptr ch
+  loop: 
+        OUT ch           ; out the current char
+        ADD ptr #1 ptr   ; increase pointer
+        LOAD ptr ch      ; load next char
+  JNZ ch #loop           ; loop until terminator
+  HALT
+
+  DATA string: 72 101 108 108 111 32 119 111 114 108 100 10 0 ; Hello world in ascii
+  DATA ptr: string  ch: 0   ; current pointer to string position and current char
+io:
+  - inp: []
+    out: "Hello world\n"

@@ -191,9 +191,10 @@ impl ICProgramFragment {
 
     /// Add a memory location to the fragment
     pub fn push(&mut self, value: Labelled<RlValue>) -> Result<(), AppendError> {
-        let Labelled { inner: value, lbls } = value;
+        let (value, lbls) = value.split();
         // Check for collisions
         if let Some(lbl) = lbls
+            .lbls
             .iter()
             .filter(|lbl| {
                 // either the label is undefined, or point to the end of the content
@@ -206,9 +207,7 @@ impl ICProgramFragment {
             return Err(AppendError::DuplicateLabelDefError(lbl.clone()));
         }
         // Add labels
-        for lbl in lbls {
-            self.labels.insert(lbl, self.content.len());
-        }
+        self.push_labels(lbls)?;
         // Add to the end
         self.content.push(match value {
             RlValue::Absolute(v) => v,
@@ -245,8 +244,21 @@ impl ICProgramFragment {
             return Err(AppendError::DuplicateLabelDefError(lbl.clone()));
         }
         // Add labels
+        let lbls_pos = self.content.len();
         for lbl in lbls {
-            self.labels.insert(lbl, self.content.len());
+            // We need to collect all the reference, to then modify the hashmap
+            let references: Vec<_> = self
+                .references
+                .iter()
+                .filter(|(_, lbl2)| &lbl == *lbl2)
+                .map(|(pos, _)| *pos)
+                .collect();
+            for reference in references {
+                self.references.remove(&reference);
+                self.content[reference] += ICValue(lbls_pos as _);
+                self.relatives.insert(reference);
+            }
+            self.labels.insert(lbl, lbls_pos);
         }
         self.debug_assert_invariants();
         Ok(())
