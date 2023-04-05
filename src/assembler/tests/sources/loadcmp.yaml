@@ -1,0 +1,7 @@
+src: |
+  load idx ch
+  data idx: 0 ch: 0
+equiv: |
+  mov idx $0
+  mov $0:0 ch
+  data idx: 0 ch: 0

@@ -1,0 +1,36 @@
+src: |
+  ; first example of non-modifing code for non trivial stuff
+  in idx
+  add idx #list idx
+  load idx ch
+  out ch
+  halt
+
+  list: data 0 42 76 420 69
+  ch: zeros 1
+  idx: zeros 1
+
+io:
+  - inp: [0]
+    out: [0]
+  - inp: [1]
+    out: [42]
+  - inp: [2]
+    out: [76]
+  - inp: [3]
+    out: [420]
+  - inp: [4]
+    out: [69]
+
+equiv: |
+  ; first example of non-modifing code for non trivial stuff
+  in idx
+  add idx #list idx
+  mov idx $0
+  mov $0:0 ch
+  out ch
+  halt
+
+  list: data 0 42 76 420 69
+  ch: zeros 1
+  idx: zeros 1

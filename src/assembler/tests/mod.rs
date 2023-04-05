@@ -34,6 +34,7 @@ enum AssemblyTestResult {
     Assembled {
         io: Option<Box<[IOExample]>>,
         assembled: Option<Box<[ICValue]>>,
+        equiv: Option<String>,
     },
 }
 
@@ -193,11 +194,35 @@ fn test_assembled(name: &str, TestCase { src, result }: &TestCase) {
     }
 }
 
+fn test_equiv(name: &str, TestCase { src, result }: &TestCase) {
+    if let AssemblyTestResult::Assembled {
+        equiv: Some(equiv), ..
+    } = result
+    {
+        let program = parse(src)
+            .expect("Source not tagged as parse_error should parse")
+            .assemble()
+            .expect("Source not tagged as assemble_error should assemble")
+            .emit()
+            .expect("Sources should be a complete program");
+        let equiv = parse(equiv)
+            .expect("Source not tagged as parse_error should parse")
+            .assemble()
+            .expect("Source not tagged as assemble_error should assemble")
+            .emit()
+            .expect("Sources should be a complete program");
+        assert_eq!(
+            program, equiv,
+            "Program {name} did not assemble to the same code of the equivalent source"
+        )
+    }
+}
+
 macro_rules! testcase {
     ($($name:ident => $path:literal,)*) => {
         $(
         mod $name {
-            use super::{test_assemble, test_assembled, test_display, test_emit, test_io, test_parse, TestCase};
+            use super::{test_assemble, test_assembled, test_display, test_emit, test_io, test_parse, test_equiv, TestCase};
             use lazy_static::lazy_static;
 
             lazy_static! {
@@ -229,6 +254,10 @@ macro_rules! testcase {
             fn assembled() {
                 test_assembled(stringify!($name), &CASE)
             }
+            #[test]
+            fn equiv() {
+                test_equiv(stringify!($name), &CASE)
+            }
         }
     )*
     };
@@ -253,4 +282,6 @@ testcase! {
     mov=> "sources/mov.yaml",
     mov2=> "sources/mov2.yaml",
     movm=> "sources/movm.yaml",
+    load=> "sources/load.yaml",
+    loadcmp=> "sources/loadcmp.yaml",
 }

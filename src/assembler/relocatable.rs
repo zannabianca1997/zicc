@@ -107,7 +107,14 @@ impl ICProgramFragment {
         // Merging relatives
         let relatives = {
             let mut relatives = self.relatives;
-            relatives.extend(other.relatives.into_iter().map(|pos| pos + join_point));
+            for relative in other.relatives {
+                // find new position
+                let relative = relative + join_point;
+                // adjust offset
+                content[relative] += ICValue(join_point as _);
+                // add relative to the list
+                relatives.insert(relative);
+            }
             relatives.extend(new_relatives);
             relatives
         };

@@ -102,7 +102,7 @@ impl Directive {
             Directive::LOAD(a, b) => {
                 // find a label unused by both
                 let lbl = Label::unused(a.lbls.iter().chain(b.lbls.iter()));
-                let code = AssemblyFile(vec![
+                let mut code = AssemblyFile(vec![
                     Some(Directive::MOV(
                         a,
                         WriteParam::Position(RlValue::Reference {
@@ -113,13 +113,14 @@ impl Directive {
                     ))
                     .into(),
                     Some(Directive::MOV(
-                        ReadParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl),
+                        ReadParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl.clone()),
                         b,
                     ))
                     .into(),
                 ])
                 .assemble()
                 .map_err(|err| ExpandError::SubAssemble("load", Box::new(err)))?;
+                code.remove_label(&lbl);
                 vec![Right(code)]
             }
             /*
@@ -129,7 +130,7 @@ impl Directive {
             Directive::STORE(a, b) => {
                 // find a label unused by both
                 let lbl = Label::unused(a.lbls.iter().chain(b.lbls.iter()));
-                let code = AssemblyFile(vec![
+                let mut code = AssemblyFile(vec![
                     Some(Directive::MOV(
                         b,
                         WriteParam::Position(RlValue::Reference {
@@ -141,12 +142,13 @@ impl Directive {
                     .into(),
                     Some(Directive::MOV(
                         a,
-                        WriteParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl),
+                        WriteParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl.clone()),
                     ))
                     .into(),
                 ])
                 .assemble()
                 .map_err(|err| ExpandError::SubAssemble("load", Box::new(err)))?;
+                code.remove_label(&lbl);
                 vec![Right(code)]
             }
         })
