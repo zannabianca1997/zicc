@@ -9,6 +9,7 @@ use std::{
     num::ParseIntError,
     ops::{Deref, DerefMut},
     str::FromStr,
+    sync::atomic::{self, AtomicUsize},
 };
 
 use either::Either::{self, Left, Right};
@@ -24,28 +25,24 @@ pub enum Label {
     Global(Identifier),
     /// Symbol visible only inside the compilation unit
     Local(Identifier),
-    /// Unnamed label
+    /// Numeric label
     Numeric(usize),
+    /// Anonimous label, equal only to self and clones of self
+    Anonimous(usize),
 }
 impl Label {
     pub fn is_global(&self) -> bool {
         matches!(self, Label::Global(_))
     }
 
-    // Find a unused label from an iterator of labels
-    pub fn unused<T: Borrow<Label>>(iter: impl Iterator<Item = T>) -> Self {
-        Self::Numeric(
-            iter.filter_map(|lbl| {
-                if let Label::Numeric(n) = lbl.borrow() {
-                    Some(*n)
-                } else {
-                    None
-                }
-            })
-            .max()
-            .map(|v| v + 1)
-            .unwrap_or(0),
-        )
+    pub(crate) fn is_anonimous(&self) -> bool {
+        matches!(self, Label::Anonimous(_))
+    }
+
+    /// Create a label that matches only itself
+    pub fn anonimous() -> Self {
+        static counter: AtomicUsize = AtomicUsize::new(0);
+        Self::Anonimous(counter.fetch_add(1, atomic::Ordering::SeqCst))
     }
 }
 
@@ -55,6 +52,7 @@ impl Display for Label {
             Label::Global(name) => write!(f, "{name}"),
             Label::Local(name) => write!(f, ".{name}"),
             Label::Numeric(id) => write!(f, "${id}"),
+            Label::Anonimous(_) => unimplemented!("Anonimous labels should never be printed"),
         }
     }
 }

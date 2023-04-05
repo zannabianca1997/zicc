@@ -1,7 +1,10 @@
 //! Relocatable code
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        hash_map::{Entry, OccupiedEntry},
+        HashMap, HashSet,
+    },
     fmt::{Debug, Display},
 };
 
@@ -19,7 +22,7 @@ Invariants:
  - `references` are external references. No value of that map is a key to `labels`
  - `relatives` elements and `references` keys are disjointed
 */
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ICProgramFragment {
     /// Content of the fragment
     content: Vec<ICValue>,
@@ -310,6 +313,96 @@ impl ICProgramFragment {
         } else {
             None
         }
+    }
+
+    /// Check if two program fragment are equivalent
+    ///
+    /// Equivalent mean that they have the same code and references, all the non-anonimous labels are the same and on the same locations, and all the anonimous labels can be mapped on one another
+    pub fn equivalent(&self, other: &Self) -> bool {
+        // Content and relatives are indipendent from the labels
+        if !(self.content == other.content && self.relatives == other.relatives) {
+            return false;
+        }
+
+        let (mut self_labels_anon, self_labels_named): (HashMap<_, _>, HashMap<_, _>) = self
+            .labels
+            .iter()
+            .map(|(lbl, pos)| (lbl, *pos))
+            .partition(|(lbl, _)| lbl.is_anonimous());
+        let (mut other_labels_anon, other_labels_named): (HashMap<_, _>, HashMap<_, _>) = other
+            .labels
+            .iter()
+            .map(|(lbl, pos)| (lbl, *pos))
+            .partition(|(lbl, _)| lbl.is_anonimous());
+
+        // check the named part is equal
+        if self_labels_named != other_labels_named {
+            return false;
+        }
+
+        let (self_refs_anon, self_refs_named): (HashMap<_, _>, HashMap<_, _>) = self
+            .references
+            .iter()
+            .map(|(pos, lbl)| (*pos, lbl))
+            .partition(|(_, lbl)| lbl.is_anonimous());
+        let (mut other_refs_anon, other_refs_named): (HashMap<_, _>, HashMap<_, _>) = other
+            .references
+            .iter()
+            .map(|(pos, lbl)| (*pos, lbl))
+            .partition(|(_, lbl)| lbl.is_anonimous());
+
+        // check the named part is equal
+        if self_refs_named != other_refs_named {
+            return false;
+        }
+
+        // Let's build a mapping between the anonimous labels
+        // Drain all the reference. there is a single label for reference, so match is forced.
+        let mut anon_mapping: HashMap<&Label, &Label> = HashMap::new(); // map self -> other
+        for (pos, lbl1) in self_refs_anon {
+            if let Some(lbl2) = other_refs_anon.remove(&pos) {
+                // they need to match
+                match anon_mapping.entry(lbl1) {
+                    Entry::Occupied(oe) => {
+                        if *oe.get() != lbl2 {
+                            return false; // label was already matched with a different one
+                        }
+                    }
+                    Entry::Vacant(ve) => {
+                        ve.insert(lbl2); // force the match
+                    }
+                }
+            } else {
+                return false; // reference was not matches
+            }
+        }
+        if !other_refs_anon.is_empty() {
+            return false; // Not all references were matched
+        }
+
+        // I can throw away the mapping now, given that no defined label can be in the references
+        // the only thing that remains now are labels that are defined, but not referenced.
+        // They only need to match in number defined on the same cell, and mapping can then be arbitrary
+        let mut anon_number: HashMap<usize, usize> = HashMap::new();
+        for pos in self_labels_anon.into_values() {
+            *anon_number.entry(pos).or_insert(0) += 1;
+        }
+        for pos in other_labels_anon.into_values() {
+            match anon_number.entry(pos) {
+                Entry::Occupied(oe) if *oe.get() == 1 => {
+                    oe.remove(); // no labels left, pop this entry
+                }
+                Entry::Occupied(mut oe) => {
+                    *oe.get_mut() -= 1; // count a label matched
+                }
+                Entry::Vacant(_) => return false, // no labels were left to match
+            }
+        }
+        if !anon_number.is_empty() {
+            return false; // some labels were unmatched...
+        }
+
+        true // all test passed. Good!
     }
 }
 
