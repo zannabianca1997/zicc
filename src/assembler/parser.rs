@@ -133,7 +133,11 @@ fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
     let mut pairs = src.into_inner();
     let kw = pairs.next().unwrap().as_rule();
     Ok(match kw {
-        Rule::data_kw => DATA(pairs.map(parse_labelled_value).collect::<Result<_>>()?),
+        Rule::data_kw => DATA(
+            pairs
+                .map(parse_labelled_signed_value)
+                .collect::<Result<_>>()?,
+        ),
         Rule::zeros_kw => ZEROS(
             pairs
                 .next()
@@ -175,15 +179,45 @@ fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
             let b = parse_labelled_read_param(b)?;
             STORE(a, b)
         }
+        Rule::push_kw => {
+            let a = pairs.next().unwrap();
+            if let Some(len) = pairs.next() {
+                let a = parse_read_param(a)?;
+                let len = len.as_str().parse().map_err(ParseError::LiteralTooLong)?;
+                debug_assert_ne!(
+                    len, 1,
+                    "`push` len should not be produced as token if equal to 1"
+                );
+                PUSHM(a, len)
+            } else {
+                let a = parse_labelled_read_param(a)?;
+                PUSH(a)
+            }
+        }
+        Rule::pop_kw => {
+            let a = pairs.next().unwrap();
+            if let Some(len) = pairs.next() {
+                let a = parse_write_param(a)?;
+                let len = len.as_str().parse().map_err(ParseError::LiteralTooLong)?;
+                debug_assert_ne!(
+                    len, 1,
+                    "`push` len should not be produced as token if equal to 1"
+                );
+                POPM(a, len)
+            } else {
+                let a = parse_labelled_write_param(a)?;
+                POP(a)
+            }
+        }
         _ => unreachable!(),
     })
 }
 
-fn parse_labelled_value(src: Pair<Rule>) -> Result<Labelled<RlValue>> {
-    debug_assert_matches!(src.as_rule(), Rule::labelled_value);
+fn parse_labelled_signed_value(src: Pair<Rule>) -> Result<Labelled<RlValue>> {
+    debug_assert_matches!(src.as_rule(), Rule::labelled_signed_value);
     let mut src = src.into_inner();
     let labels = parse_labels(src.next().unwrap())?;
-    let content = parse_number_or_label_and_offset(src.next().unwrap())?;
+    let content = parse_signed_number_or_label_and_offset(src.next().unwrap())?;
     Ok(labels.map(|_| content))
 }
 
@@ -208,7 +242,9 @@ fn parse_write_param(src: Pair<Rule>) -> Result<WriteParam> {
         Rule::position_param => WriteParam::Position(parse_number_or_label_and_offset(
             src.into_inner().next().unwrap(),
         )?),
-        Rule::relative_param => WriteParam::Relative(parse_number_maybe_signed(src)?),
+        Rule::relative_param => {
+            WriteParam::Relative(parse_signed_number(src.into_inner().next().unwrap())?)
+        }
         _ => unreachable!(),
     })
 }
@@ -218,10 +254,12 @@ fn parse_read_param(src: Pair<Rule>) -> Result<ReadParam> {
         Rule::position_param => ReadParam::Position(parse_number_or_label_and_offset(
             src.into_inner().next().unwrap(),
         )?),
-        Rule::immediate_param => ReadParam::Immediate(parse_number_or_label_and_offset(
+        Rule::immediate_param => ReadParam::Immediate(parse_signed_number_or_label_and_offset(
             src.into_inner().next().unwrap(),
         )?),
-        Rule::relative_param => ReadParam::Relative(parse_number_maybe_signed(src)?),
+        Rule::relative_param => {
+            ReadParam::Relative(parse_signed_number(src.into_inner().next().unwrap())?)
+        }
         _ => unreachable!(),
     })
 }
@@ -256,17 +294,39 @@ fn parse_number_or_label_and_offset(src: Pair<Rule>) -> Result<RlValue> {
     })
 }
 
-fn parse_number_maybe_signed(src: Pair<Rule>) -> Result<ICValue> {
-    let mut src = src.into_inner();
-    let a = src.next().unwrap();
-    Ok(ICValue(
-        match a.as_rule() {
-            Rule::number => a,
-            Rule::minus => src.next().unwrap(),
-            _ => unreachable!(),
+fn parse_signed_number_or_label_and_offset(src: Pair<Rule>) -> Result<RlValue> {
+    Ok(match src.as_rule() {
+        Rule::signed_number => {
+            RlValue::Absolute(src.as_str().parse().map_err(ParseError::LiteralTooLong)?)
         }
-        .as_str()
-        .parse()
-        .map_err(ParseError::LiteralTooLong)?,
+        Rule::label_and_offset => {
+            let mut src = src.into_inner();
+            let lbl = parse_label(src.next().unwrap())?;
+            let offset = match src.next().map(|v| v.as_rule()) {
+                Some(r) => {
+                    let num = src
+                        .next()
+                        .unwrap()
+                        .as_str()
+                        .parse::<ICValue>()
+                        .map_err(ParseError::LiteralTooLong)?;
+                    match r {
+                        Rule::minus => num.neg(),
+                        Rule::plus => num,
+                        _ => unreachable!(),
+                    }
+                }
+                None => ICValue(0),
+            };
+            RlValue::Reference { lbl, offset }
+        }
+        _ => unreachable!(),
+    })
+}
+
+fn parse_signed_number(src: Pair<Rule>) -> Result<ICValue> {
+    debug_assert_matches!(src.as_rule(), Rule::signed_number);
+    Ok(ICValue(
+        src.as_str().parse().map_err(ParseError::LiteralTooLong)?,
     ))
 }

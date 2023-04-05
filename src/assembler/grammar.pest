@@ -4,6 +4,7 @@ line =  { labels ~ (instruction | directive)? }
 labels           =  { (label ~ ":")* }
 label            = _{ numeric | local_identifier | identifier }
 number           = @{ ASCII_DIGIT+ }
+signed_number    = @{ minus? ~ number }
 local_identifier = @{ "." ~ identifier }
 identifier       = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 numeric          = @{ "$" ~ number }
@@ -28,15 +29,14 @@ incb_kw = @{ ^"incb" ~ WHITESPACE }
 halt_kw = @{ ^"halt" }
 
 directive = {
-    data_kw ~ labelled_value ~ (","? ~ labelled_value)* |
-	  zeros_kw ~ number |
-    jmp_kw ~ labelled_read_param | 
-    mov_kw ~ ( 
-      read_param ~ ","? ~ write_param ~  ","? ~ !"1" ~ number 
-      | labelled_read_param ~ ","? ~ labelled_write_param ~ ( ","? ~ "1" )? 
-    ) |
-    load_kw  ~ labelled_read_param ~ ","? ~ labelled_write_param |
-    store_kw ~ labelled_read_param ~ ","? ~ labelled_read_param
+    data_kw  ~ labelled_signed_value ~ (","? ~ labelled_signed_value)*
+  | zeros_kw ~ number
+  | jmp_kw   ~ labelled_read_param
+  | mov_kw   ~ (read_param ~ ","? ~ write_param ~ ","? ~ !"1" ~ number | labelled_read_param ~ ","? ~ labelled_write_param ~ (","? ~ "1")?)
+  | load_kw  ~ labelled_read_param ~ ","? ~ labelled_write_param
+  | store_kw ~ labelled_read_param ~ ","? ~ labelled_read_param
+  | push_kw  ~ (read_param ~ ","? ~ !"1" ~ number | labelled_read_param ~ (","? ~ "1")?)
+  | pop_kw   ~ (write_param ~ ","? ~ !"1" ~ number | labelled_write_param ~ (","? ~ "1")?)
 }
 
 data_kw  = @{ ^"data"  ~ WHITESPACE }
@@ -45,8 +45,10 @@ mov_kw   = @{ ^"mov"   ~ WHITESPACE }
 jmp_kw   = @{ ^"jmp"   ~ WHITESPACE }
 load_kw  = @{ ^"load"  ~ WHITESPACE }
 store_kw = @{ ^"store" ~ WHITESPACE }
+push_kw  = @{ ^"push"  ~ WHITESPACE }
+pop_kw   = @{ ^"pop"   ~ WHITESPACE }
 
-labelled_value       = { labels ~ number_or_label_and_offset }
+labelled_signed_value       = { labels ~ signed_number_or_label_and_offset }
 labelled_read_param  = { labels ~ read_param }
 labelled_write_param = { labels ~ write_param }
 
@@ -61,12 +63,16 @@ write_param = _{
 }
 
 position_param  = { number_or_label_and_offset }
-immediate_param = { "#" ~ number_or_label_and_offset }
-relative_param  = { "@" ~ minus? ~ number }
+immediate_param = { "#" ~ signed_number_or_label_and_offset }
+relative_param  = { "@" ~ signed_number }
 
 number_or_label_and_offset = _{
     label_and_offset
   | number
+}
+signed_number_or_label_and_offset = _{
+    label_and_offset
+  | signed_number
 }
 label_and_offset           =  {
     label ~ ((minus | plus) ~ number)?
@@ -76,7 +82,4 @@ minus = @{ "-" }
 plus  = @{ "+" }
 
 WHITESPACE = _{ " " | "\t" }
-COMMENT    = _{
-    // "/*" ~ (!"*/" ~ ANY)* ~ "*/" |
-	";" ~ (!NEWLINE ~ ANY)*
-}
+COMMENT    = _{ ";" ~ (!NEWLINE ~ ANY)* }

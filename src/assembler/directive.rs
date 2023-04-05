@@ -25,6 +25,10 @@ pub enum Directive {
     JMP(Labelled<ReadParam>),
     MOV(Labelled<ReadParam>, Labelled<WriteParam>),
     MOVM(ReadParam, WriteParam, usize),
+    PUSH(Labelled<ReadParam>),
+    PUSHM(ReadParam, usize),
+    POP(Labelled<WriteParam>),
+    POPM(WriteParam, usize),
     LOAD(Labelled<ReadParam>, Labelled<WriteParam>),
     STORE(Labelled<ReadParam>, Labelled<ReadParam>),
 }
@@ -96,7 +100,7 @@ impl Directive {
                 res
             }
             /*
-                load a b => mov a $0
+                load a b => mov a
                             mov $0:0 b
             */
             Directive::LOAD(a, b) => {
@@ -151,6 +155,46 @@ impl Directive {
                 code.remove_label(&lbl);
                 vec![Right(code)]
             }
+            /*
+                push a [l] => mov a @0 [l]
+                              incb #l
+            */
+            Directive::PUSH(a) => {
+                vec![
+                    Left(Directive::MOV(a, WriteParam::Relative(ICValue(0)).into())),
+                    Left(Directive::Instruction(Instruction::INCB(
+                        ReadParam::Immediate(RlValue::Absolute(ICValue(1))).into(),
+                    ))),
+                ]
+            }
+            Directive::PUSHM(a, len) => {
+                vec![
+                    Left(Directive::MOVM(a, WriteParam::Relative(ICValue(0)), len)),
+                    Left(Directive::Instruction(Instruction::INCB(
+                        ReadParam::Immediate(RlValue::Absolute(ICValue(len as _))).into(),
+                    ))),
+                ]
+            }
+            /*
+                pop a [l] => incb #-l
+                             mov @0 a [l]
+            */
+            Directive::POP(a) => {
+                vec![
+                    Left(Directive::Instruction(Instruction::INCB(
+                        ReadParam::Immediate(RlValue::Absolute(-ICValue(1))).into(),
+                    ))),
+                    Left(Directive::MOV(ReadParam::Relative(ICValue(0)).into(), a)),
+                ]
+            }
+            Directive::POPM(a, len) => {
+                vec![
+                    Left(Directive::Instruction(Instruction::INCB(
+                        ReadParam::Immediate(RlValue::Absolute(-ICValue(len as _))).into(),
+                    ))),
+                    Left(Directive::MOVM(ReadParam::Relative(ICValue(0)), a, len)),
+                ]
+            }
         })
     }
 }
@@ -178,6 +222,10 @@ impl Display for Directive {
             Directive::MOVM(a, b, len) => write!(f, "mov {a} {b} {len}"),
             Directive::LOAD(a, b) => write!(f, "load {a} {b}"),
             Directive::STORE(a, b) => write!(f, "store {a} {b}"),
+            Directive::PUSH(a) => write!(f, "push {a}"),
+            Directive::PUSHM(a, len) => write!(f, "push {a} {len}"),
+            Directive::POP(a) => write!(f, "pop {a}"),
+            Directive::POPM(a, len) => write!(f, "pop {a} {len}"),
         }
     }
 }
