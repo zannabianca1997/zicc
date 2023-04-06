@@ -231,6 +231,8 @@ fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
                 POP(a)
             }
         }
+        Rule::call_kw => CALL(parse_labelled_read_param(pairs.next().unwrap())?),
+        Rule::ret_kw => RET,
         _ => unreachable!(),
     })
 }

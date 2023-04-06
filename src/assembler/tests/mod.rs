@@ -334,4 +334,6 @@ testcase! {
     pop_equiv=>"sources/pop_equiv.yaml",
     storem=>"sources/storem.yaml",
     loadm=>"sources/loadm.yaml",
+    calling=>"sources/calling.yaml",
+    factorial=>"sources/factorial.yaml",
 }

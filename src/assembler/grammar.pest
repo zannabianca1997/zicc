@@ -37,6 +37,8 @@ directive = {
   | store_kw ~ (read_param ~ ","? ~ read_param  ~ ","? ~ !"1" ~ number | labelled_read_param ~ ","? ~ labelled_read_param  ~ (","? ~ "1")?)
   | push_kw  ~ (read_param  ~ ","? ~ !"1" ~ number | labelled_read_param  ~ (","? ~ "1")?)
   | pop_kw   ~ (write_param ~ ","? ~ !"1" ~ number | labelled_write_param ~ (","? ~ "1")?)
+  | call_kw   ~ labelled_read_param
+  | ret_kw
 }
 
 data_kw  = @{ ^"data"  ~ WHITESPACE }
@@ -47,6 +49,8 @@ load_kw  = @{ ^"load"  ~ WHITESPACE }
 store_kw = @{ ^"store" ~ WHITESPACE }
 push_kw  = @{ ^"push"  ~ WHITESPACE }
 pop_kw   = @{ ^"pop"   ~ WHITESPACE }
+call_kw  = @{ ^"call"  ~ WHITESPACE }
+ret_kw   = @{ ^"ret" } // no arguments means no whitespace
 
 labelled_signed_value       = { labels ~ signed_number_or_label_and_offset }
 labelled_read_param  = { labels ~ read_param }

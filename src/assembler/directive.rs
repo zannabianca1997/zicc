@@ -33,6 +33,8 @@ pub enum Directive {
     LOADM(ReadParam, WriteParam, usize),
     STORE(Labelled<ReadParam>, Labelled<ReadParam>),
     STOREM(ReadParam, ReadParam, usize),
+    CALL(Labelled<ReadParam>),
+    RET,
 }
 
 // const s: usize = size_of::<Directive>();
@@ -158,7 +160,7 @@ impl Directive {
                 code
             }
             /*
-                store a b => mov b $0
+                store a b => mov b
                              mov a $0:0
             */
             Directive::STORE(a, b) => {
@@ -256,6 +258,28 @@ impl Directive {
                     Left(Directive::MOVM(ReadParam::Relative(ICValue(0)), a, len)),
                 ]
             }
+            Directive::CALL(a) => {
+                let lbl = Label::anonimous();
+                vec![
+                    Left(Directive::PUSH(
+                        ReadParam::Immediate(RlValue::Reference {
+                            lbl: lbl.clone(),
+                            offset: ICValue(0),
+                        })
+                        .into(),
+                    )),
+                    Left(Directive::JMP(a)),
+                    Left(Directive::Labels(().labelled(lbl))),
+                ]
+            }
+            Directive::RET => {
+                vec![
+                    Left(Directive::Instruction(Instruction::INCB(
+                        ReadParam::Immediate(RlValue::Absolute(-ICValue(1))).into(),
+                    ))),
+                    Left(Directive::JMP(ReadParam::Relative(ICValue(0)).into())),
+                ]
+            }
         })
     }
 }
@@ -289,6 +313,8 @@ impl Display for Directive {
             Directive::PUSHM(a, len) => write!(f, "push {a} {len}"),
             Directive::POP(a) => write!(f, "pop {a}"),
             Directive::POPM(a, len) => write!(f, "pop {a} {len}"),
+            Directive::CALL(a) => write!(f, "call {a}"),
+            Directive::RET => write!(f, "ret"),
         }
     }
 }
