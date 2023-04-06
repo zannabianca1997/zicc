@@ -324,12 +324,12 @@ impl ICProgramFragment {
             return false;
         }
 
-        let (mut self_labels_anon, self_labels_named): (HashMap<_, _>, HashMap<_, _>) = self
+        let (self_labels_anon, self_labels_named): (HashMap<_, _>, HashMap<_, _>) = self
             .labels
             .iter()
             .map(|(lbl, pos)| (lbl, *pos))
             .partition(|(lbl, _)| lbl.is_anonimous());
-        let (mut other_labels_anon, other_labels_named): (HashMap<_, _>, HashMap<_, _>) = other
+        let (other_labels_anon, other_labels_named): (HashMap<_, _>, HashMap<_, _>) = other
             .labels
             .iter()
             .map(|(lbl, pos)| (lbl, *pos))

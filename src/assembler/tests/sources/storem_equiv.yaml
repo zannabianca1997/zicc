@@ -1,0 +1,16 @@
+src: |
+  store idx ch 3
+  idx: ch:
+equiv: |
+  mov idx $0
+  mov ch $0:0
+
+  mov idx $1
+  add $1 #1 $1
+  mov ch+1 $1:0
+
+  mov idx $2
+  add $2 #2 $2
+  mov ch+2 $2:0
+
+  ch: idx:

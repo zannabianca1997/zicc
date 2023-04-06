@@ -16,7 +16,7 @@ use crate::{
     machine::{ICMachine, ICMachineData},
 };
 
-use super::parser::parse;
+use super::{parser::parse, ICProgramFragment};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TestCase {
@@ -129,11 +129,30 @@ fn test_display(_name: &str, TestCase { src, .. }: &TestCase) {
         let displayed = a.to_string();
         let b = parse(&displayed);
         match b {
-            Ok(b) => assert_eq!(
-                a.assemble(),
-                b.assemble(),
-                "Reparsed display should assemble to the same fragment"
-            ),
+            Ok(b) => {
+                let a = a.assemble();
+                let b = b.assemble();
+                match (a, b) {
+                    (Ok(a), Ok(b)) if ICProgramFragment::equivalent(&a, &b) => (),
+                    (Ok(a), Ok(b)) => {
+                        panic!("Source assembled to:\n{a:?}\nReparsed instead assembled to\n{b:?}")
+                    }
+                    (Ok(a), Err(err)) => {
+                        panic!(
+                            "Source assembled to {a:?}, but display failed to assemble with {err}"
+                        )
+                    }
+                    (Err(err), Ok(b)) => {
+                        panic!(
+                            "Source failed to assemble with {err}, but display assembled to {b:?}"
+                        )
+                    }
+                    (Err(erra), Err(errb)) => assert_eq!(
+                        erra, errb,
+                        "Reparsed display failed to assemble with a different error"
+                    ),
+                }
+            }
             Err(err) => panic!(
                 "Display failed to parse: {}",
                 Report::from(err).pretty(true)
@@ -307,6 +326,8 @@ testcase! {
     load=> "sources/load.yaml",
     loadcmp=> "sources/loadcmp.yaml",
     store=>"sources/store.yaml",
+    loadm_equiv=> "sources/loadm_equiv.yaml",
+    storem_equiv=>"sources/storem_equiv.yaml",
     hello=>"sources/hello.yaml",
     invert=>"sources/invert.yaml",
     push_equiv=>"sources/push_equiv.yaml",

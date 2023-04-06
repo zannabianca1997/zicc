@@ -168,16 +168,38 @@ fn parse_directive(src: Pair<Rule>) -> Result<Directive> {
         Rule::load_kw => {
             let a = pairs.next().unwrap();
             let b = pairs.next().unwrap();
-            let a = parse_labelled_read_param(a)?;
-            let b = parse_labelled_write_param(b)?;
-            LOAD(a, b)
+            if let Some(len) = pairs.next() {
+                let a = parse_read_param(a)?;
+                let b = parse_write_param(b)?;
+                let len = len.as_str().parse().map_err(ParseError::LiteralTooLong)?;
+                debug_assert_ne!(
+                    len, 1,
+                    "`load` len should not be produced as token if equal to 1"
+                );
+                LOADM(a, b, len)
+            } else {
+                let a = parse_labelled_read_param(a)?;
+                let b = parse_labelled_write_param(b)?;
+                LOAD(a, b)
+            }
         }
         Rule::store_kw => {
             let a = pairs.next().unwrap();
             let b = pairs.next().unwrap();
-            let a = parse_labelled_read_param(a)?;
-            let b = parse_labelled_read_param(b)?;
-            STORE(a, b)
+            if let Some(len) = pairs.next() {
+                let a = parse_read_param(a)?;
+                let b = parse_read_param(b)?;
+                let len = len.as_str().parse().map_err(ParseError::LiteralTooLong)?;
+                debug_assert_ne!(
+                    len, 1,
+                    "`store` len should not be produced as token if equal to 1"
+                );
+                STOREM(a, b, len)
+            } else {
+                let a = parse_labelled_read_param(a)?;
+                let b = parse_labelled_read_param(b)?;
+                STORE(a, b)
+            }
         }
         Rule::push_kw => {
             let a = pairs.next().unwrap();

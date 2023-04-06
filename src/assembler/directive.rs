@@ -30,7 +30,9 @@ pub enum Directive {
     POP(Labelled<WriteParam>),
     POPM(WriteParam, usize),
     LOAD(Labelled<ReadParam>, Labelled<WriteParam>),
+    LOADM(ReadParam, WriteParam, usize),
     STORE(Labelled<ReadParam>, Labelled<ReadParam>),
+    STOREM(ReadParam, ReadParam, usize),
 }
 
 // const s: usize = size_of::<Directive>();
@@ -101,59 +103,118 @@ impl Directive {
             }
             /*
                 load a b => mov a
-                            mov $0:0 b
+                            mov :0 b
             */
             Directive::LOAD(a, b) => {
-                // find a label unused by both
-                let lbl = Label::unused(a.lbls.iter().chain(b.lbls.iter()));
-                let mut code = AssemblyFile(vec![
-                    Some(Directive::MOV(
+                let lbl = Label::anonimous();
+                vec![
+                    Left(Directive::MOV(
                         a,
                         WriteParam::Position(RlValue::Reference {
                             lbl: lbl.clone(),
                             offset: 0.into(),
                         })
                         .into(),
-                    ))
-                    .into(),
-                    Some(Directive::MOV(
-                        ReadParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl.clone()),
+                    )),
+                    Left(Directive::MOV(
+                        ReadParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl),
                         b,
-                    ))
-                    .into(),
-                ])
-                .assemble()
-                .map_err(|err| ExpandError::SubAssemble("load", Box::new(err)))?;
-                code.remove_label(&lbl);
-                vec![Right(code)]
+                    )),
+                ]
+            }
+            Directive::LOADM(a, b, len) => {
+                let mut code = vec![];
+                for i in 0..len {
+                    let lbl = Label::anonimous();
+                    code.push(Left(Directive::MOV(
+                        a.clone().into(),
+                        WriteParam::Position(RlValue::Reference {
+                            lbl: lbl.clone(),
+                            offset: 0.into(),
+                        })
+                        .into(),
+                    )));
+                    if i != 0 {
+                        code.push(Left(Directive::Instruction(Instruction::ADD(
+                            ReadParam::Position(RlValue::Reference {
+                                lbl: lbl.clone(),
+                                offset: 0.into(),
+                            })
+                            .into(),
+                            ReadParam::Immediate(RlValue::Absolute(ICValue(i as _))).into(),
+                            WriteParam::Position(RlValue::Reference {
+                                lbl: lbl.clone(),
+                                offset: 0.into(),
+                            })
+                            .into(),
+                        ))));
+                    }
+                    code.push(Left(Directive::MOV(
+                        ReadParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl),
+                        b.clone().offset(ICValue(i as _)).into(),
+                    )));
+                }
+
+                code
             }
             /*
                 store a b => mov b $0
                              mov a $0:0
             */
             Directive::STORE(a, b) => {
-                // find a label unused by both
-                let lbl = Label::unused(a.lbls.iter().chain(b.lbls.iter()));
-                let mut code = AssemblyFile(vec![
-                    Some(Directive::MOV(
+                let lbl = Label::anonimous();
+                vec![
+                    Left(Directive::MOV(
                         b,
                         WriteParam::Position(RlValue::Reference {
                             lbl: lbl.clone(),
                             offset: 0.into(),
                         })
                         .into(),
-                    ))
-                    .into(),
-                    Some(Directive::MOV(
+                    )),
+                    Left(Directive::MOV(
                         a,
-                        WriteParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl.clone()),
-                    ))
-                    .into(),
-                ])
-                .assemble()
-                .map_err(|err| ExpandError::SubAssemble("load", Box::new(err)))?;
-                code.remove_label(&lbl);
-                vec![Right(code)]
+                        WriteParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl),
+                    )),
+                ]
+            }
+            Directive::STOREM(a, b, len) => {
+                let mut code = vec![];
+                for i in 0..len {
+                    let lbl = Label::anonimous();
+                    code.push(Left(Directive::MOV(
+                        b.clone().into(),
+                        WriteParam::Position(RlValue::Reference {
+                            lbl: lbl.clone(),
+                            offset: 0.into(),
+                        })
+                        .into(),
+                    )));
+                    if i != 0 {
+                        code.push(Left(Directive::Instruction(Instruction::ADD(
+                            ReadParam::Position(RlValue::Reference {
+                                lbl: lbl.clone(),
+                                offset: 0.into(),
+                            })
+                            .into(),
+                            ReadParam::Immediate(RlValue::Absolute(ICValue(i as _))).into(),
+                            WriteParam::Position(RlValue::Reference {
+                                lbl: lbl.clone(),
+                                offset: 0.into(),
+                            })
+                            .into(),
+                        ))));
+                    }
+                    code.push(Left(Directive::MOV(
+                        // Either the param with the offset, or for a immediate param just itself
+                        Either::from(a.clone().offset(ICValue(i as _)))
+                            .into_inner()
+                            .into(),
+                        WriteParam::Position(RlValue::Absolute(ICValue(0))).labelled(lbl),
+                    )));
+                }
+
+                code
             }
             /*
                 push a [l] => mov a @0 [l]
@@ -221,7 +282,9 @@ impl Display for Directive {
             Directive::MOV(a, b) => write!(f, "mov {a} {b}"),
             Directive::MOVM(a, b, len) => write!(f, "mov {a} {b} {len}"),
             Directive::LOAD(a, b) => write!(f, "load {a} {b}"),
+            Directive::LOADM(a, b, len) => write!(f, "load {a} {b} {len}"),
             Directive::STORE(a, b) => write!(f, "store {a} {b}"),
+            Directive::STOREM(a, b, len) => write!(f, "store {a} {b} {len}"),
             Directive::PUSH(a) => write!(f, "push {a}"),
             Directive::PUSHM(a, len) => write!(f, "push {a} {len}"),
             Directive::POP(a) => write!(f, "pop {a}"),

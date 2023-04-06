@@ -41,8 +41,8 @@ impl Label {
 
     /// Create a label that matches only itself
     pub fn anonimous() -> Self {
-        static counter: AtomicUsize = AtomicUsize::new(0);
-        Self::Anonimous(counter.fetch_add(1, atomic::Ordering::SeqCst))
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        Self::Anonimous(COUNTER.fetch_add(1, atomic::Ordering::SeqCst))
     }
 }
 
