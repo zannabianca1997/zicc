@@ -13,7 +13,7 @@ use super::{
     instruction::{GenerateInstructionError, Instruction, ReadParam, WriteParam},
     label::Labelled,
     relocatable::{ICProgramFragment, RlValue},
-    AppendError, AssembleError, AssemblyFile, Label,
+    AppendError, AssembleError, Label,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

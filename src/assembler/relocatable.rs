@@ -1,10 +1,7 @@
 //! Relocatable code
 
 use std::{
-    collections::{
-        hash_map::{Entry, OccupiedEntry},
-        HashMap, HashSet,
-    },
+    collections::{hash_map::Entry, HashMap, HashSet},
     fmt::{Debug, Display},
 };
 

@@ -1,7 +1,6 @@
 //! Labels
 
 use std::{
-    borrow::Borrow,
     collections::HashSet,
     fmt::Display,
     hash::Hash,
