@@ -336,4 +336,5 @@ testcase! {
     loadm=>"sources/loadm.yaml",
     calling=>"sources/calling.yaml",
     factorial=>"sources/factorial.yaml",
+    brainfuck=>"sources/brainfuck.yaml",
 }

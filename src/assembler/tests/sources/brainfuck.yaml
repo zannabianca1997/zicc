@@ -1,0 +1,147 @@
+src: |
+  ; brainfuck interpreter
+  ; by zannabianca1997
+
+  ; load the program from stdin
+  IN readed_ch
+  loop: JZ readed_ch #init
+    STORE readed_ch mem_ptr
+    ADD mem_ptr #1 mem_ptr
+    IN readed_ch
+  JMP #loop
+
+  init: ADD mem_ptr #1 mem_ptr  ; add space to mark end of program
+
+  exec:
+    LOAD instr_ptr curr_instr  ; load current instruction
+    LOAD mem_ptr   curr_val    ; load current memory value
+
+    ; jump into jump table
+    ADD curr_instr #jmp_table curr_instr ; add start of the jump table to the current instruction
+    LOAD curr_instr curr_instr           ; recover destination from the jump table
+    JMP curr_instr                       ; jump to the current instruction
+
+
+  ; handlers
+  increase:
+    ADD curr_val #1 curr_val
+    STORE curr_val mem_ptr     ; save new value
+    ADD instr_ptr #1 instr_ptr ; go to next instruction
+    JMP #exec
+
+  decrease:
+    ADD curr_val #-1 curr_val
+    STORE curr_val mem_ptr     ; save new value
+    ADD instr_ptr #1 instr_ptr ; go to next instruction
+    JMP #exec
+
+  input:
+    IN curr_val
+    STORE curr_val mem_ptr     ; save new value
+    ADD instr_ptr #1 instr_ptr ; go to next instruction
+    JMP #exec
+
+  output:
+    OUT curr_val
+    ADD instr_ptr #1 instr_ptr ; go to next instruction
+    JMP #exec
+
+  go_right:
+    ADD mem_ptr #1 mem_ptr
+    ADD instr_ptr #1 instr_ptr ; go to next instruction
+    JMP #exec
+
+  go_left:
+    ADD mem_ptr #-1 mem_ptr
+    ADD instr_ptr #1 instr_ptr ; go to next instruction
+    JMP #exec
+
+  lparen:
+    JZ curr_val #end_loop_if       ; if the value is 0, start searching for ]
+      ; skip loop
+      ADD instr_ptr #1 instr_ptr ; go to next instruction
+      JMP #exec
+    end_loop_if:
+
+    ; go to the corresponding ]
+    MOV #1 par_depth ; we are inside this loop
+    back_par_loop:
+      ADD instr_ptr #1 instr_ptr
+      LOAD instr_ptr curr_instr  ; load current instruction
+
+      SEQ curr_instr #91 condition_out ; check if it's an end loop
+      JZ condition_out #end_close_if_2  ; if it's different, skip if
+        ADD par_depth #1 par_depth
+      end_close_if_2:
+
+      SEQ curr_instr #93 condition_out   ; check if it's a start
+      JZ condition_out #end_open_if_2    ; if it's different, skip if
+        ADD par_depth #-1 par_depth
+        JNZ par_depth #end_open_if_2   ; if we found the matching [
+          ADD instr_ptr #1 instr_ptr ; restart interpreter
+          JMP #exec
+      end_open_if_2:
+    JMP #back_par_loop
+
+  rparen:
+    ; go to the corresponding [
+    MOV #1 par_depth ; we are inside this loop
+    forward_par_loop:
+      ADD instr_ptr #-1 instr_ptr
+      LOAD instr_ptr curr_instr  ; load current instruction
+
+      SEQ curr_instr #93 condition_out ; check if it's an end loop
+      JZ condition_out #end_close_if_1  ; if it's different, skip if
+        ADD par_depth #1 par_depth
+      end_close_if_1:
+
+      SEQ curr_instr #91 condition_out ; check if it's a start
+      JZ condition_out #end_open_if_1   ; if it's different, skip if
+        ADD par_depth #-1 par_depth
+        JZ par_depth #exec            ; restart interpreter if we found the matching [
+      end_open_if_1:
+    JMP #forward_par_loop
+
+  halt:
+    HALT
+
+  ; jump table to recover pointers for processing instuctions
+  jmp_table:   
+    DATA halt
+    ZEROS 42
+    DATA increase input decrease output 
+    ZEROS 13
+    DATA go_left 0 go_right 
+    ZEROS 28
+    DATA lparen 0 rparen
+
+  ; run variables
+  instr_ptr:  DATA  program ; instruction pointer
+  mem_ptr:    DATA  program ; memory pointer
+  curr_instr: ZEROS 1       ; current instruction
+  curr_val:   ZEROS 1       ; current value in mem
+
+  ; variable for [] navigation
+  par_depth:  ZEROS 1       ; depth of parenthesis
+
+  ; variable for input
+  readed_ch:  ZEROS 1       ; char readed
+
+  ; miscellanea
+  condition_out: ZEROS 1    ; condition output
+
+  ; program space
+  program:                  ; Program is loaded starting from here
+io:
+  - inp: "\0"
+    out: ""
+  - inp: ",[.,]\u0000Repeat this!\u0000"
+    out: "Repeat this!"
+  - inp: ",----------[----------------------.,----------]\u0000uppercase\n"
+    out: "UPPERCASE"
+  - inp: ",>++++++[<-------->-],,[<+>-],<.>.\u00004+3\n"
+    out: "7\n"
+  - inp: ",>++++++[<-------->-],,[<+>-],<.>.\u00002+4\n"
+    out: "6\n"
+  - inp: "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.\u0000"
+    out: "Hello World!\n"
