@@ -332,4 +332,6 @@ testcase! {
     invert=>"sources/invert.yaml",
     push_equiv=>"sources/push_equiv.yaml",
     pop_equiv=>"sources/pop_equiv.yaml",
+    storem=>"sources/storem.yaml",
+    loadm=>"sources/loadm.yaml",
 }

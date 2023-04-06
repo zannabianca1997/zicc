@@ -1,0 +1,19 @@
+src: |
+  in a
+  in a+1
+  load ptr b 2
+  load ptr c 2
+  out b
+  out b+1
+  out c
+  out c+1
+  halt
+  data a: 0 0 b: 0 0 c:0 0
+  data ptr:a
+io:
+  - inp: [1, 2]
+    out: [1, 2, 1, 2]
+  - inp: [-1, 5]
+    out: [-1, 5, -1, 5]
+  - inp: [32, 67]
+    out: [32, 67, 32, 67]
