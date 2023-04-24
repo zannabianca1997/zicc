@@ -15,6 +15,8 @@ pub mod icfile;
 
 pub mod assembler;
 
+pub mod compiler;
+
 mod identifier;
 
 pub mod machine;
