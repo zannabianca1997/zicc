@@ -3,20 +3,20 @@ use std::{collections::BTreeMap, fmt::Display};
 /// A general ICC type
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub(super) enum Type {
-    Data(Data),
+    DataType(DataType),
     /// Void type
     Void,
     /// Function type
     Function {
         /// Eventual result of the function
-        result: Option<Data>,
+        result: Option<DataType>,
         /// Argument of the function
-        args: Vec<Data>,
+        args: Vec<DataType>,
     },
 }
 impl Type {
     pub(crate) fn is_scalar(&self) -> bool {
-        if let Self::Data(d) = self {
+        if let Self::DataType(d) = self {
             d.is_scalar()
         } else {
             false
@@ -27,7 +27,7 @@ impl Type {
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Data(d) => write!(f, "{d}"),
+            Type::DataType(d) => write!(f, "{d}"),
             Type::Void => write!(f, "void"),
             Type::Function { result, args } => {
                 match result {
@@ -50,7 +50,7 @@ impl Display for Type {
 
 /// A ICC data type
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub(super) enum Data {
+pub(super) enum DataType {
     /// Scalar type
     ///
     /// Single memory cell
@@ -58,22 +58,25 @@ pub(super) enum Data {
     /// Pointer type
     Pointer(Box<Type>),
     /// Array type
-    Array { element: Box<Data>, lenght: usize },
+    Array {
+        element: Box<DataType>,
+        lenght: usize,
+    },
     /// Composite type
     ///
     /// This can be either a struct, or a union. Fields can overlap
     Composite {
-        fields: BTreeMap<String, (usize, Data)>,
+        fields: BTreeMap<String, (usize, DataType)>,
     },
 }
-impl Data {
+impl DataType {
     /// Calculate size of the type
     pub(super) fn size(&self) -> usize {
         match &self {
-            Data::Scalar => 1,
-            Data::Pointer(_) => 1,
-            Data::Array { element, lenght } => element.size() * lenght,
-            Data::Composite { fields } => fields
+            DataType::Scalar => 1,
+            DataType::Pointer(_) => 1,
+            DataType::Array { element, lenght } => element.size() * lenght,
+            DataType::Composite { fields } => fields
                 .values()
                 .map(|(offset, element)| offset + element.size())
                 .max()
@@ -89,13 +92,13 @@ impl Data {
         matches!(self, Self::Scalar)
     }
 }
-impl Display for Data {
+impl Display for DataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Data::Scalar => write!(f, "int"),
-            Data::Pointer(d) => write!(f, "{d}*"),
-            Data::Array { element, lenght } => write!(f, "{element}[{lenght}]"),
-            Data::Composite { fields: _ } => write!(f, "(composite)"),
+            DataType::Scalar => write!(f, "int"),
+            DataType::Pointer(d) => write!(f, "{d}*"),
+            DataType::Array { element, lenght } => write!(f, "{element}[{lenght}]"),
+            DataType::Composite { fields: _ } => write!(f, "(composite)"),
         }
     }
 }

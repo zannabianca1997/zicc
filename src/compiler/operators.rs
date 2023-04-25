@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-use crate::compiler::types::Data;
+use crate::compiler::types::DataType;
 
 use super::types::Type;
 
@@ -40,13 +40,13 @@ impl UnaryOp {
         use TypeCheckError::*;
         match self {
             UnaryOp::Dereference => {
-                if let Type::Data(Data::Pointer(dest)) = operand {
+                if let Type::DataType(DataType::Pointer(dest)) = operand {
                     Ok(*dest)
                 } else {
                     Err(CannotDereference(operand))
                 }
             }
-            UnaryOp::Reference => Ok(Type::Data(Data::Pointer(Box::new(operand)))),
+            UnaryOp::Reference => Ok(Type::DataType(DataType::Pointer(Box::new(operand)))),
             UnaryOp::Minus => {
                 // All the scalar types are signed
                 if operand.is_scalar() {
@@ -79,38 +79,40 @@ impl BinaryOp {
         match self {
             BinaryOp::Sum => {
                 if lhs.is_scalar() && rhs.is_scalar() {
-                    Ok(Type::Data(Data::Scalar))
+                    Ok(Type::DataType(DataType::Scalar))
                 } else {
                     Err(CannotSum(lhs, rhs))
                 }
             }
             BinaryOp::Sub => {
                 if lhs.is_scalar() && rhs.is_scalar() {
-                    Ok(Type::Data(Data::Scalar))
+                    Ok(Type::DataType(DataType::Scalar))
                 } else {
                     Err(CannotSub(lhs, rhs))
                 }
             }
             BinaryOp::Mul => {
                 if lhs.is_scalar() && rhs.is_scalar() {
-                    Ok(Type::Data(Data::Scalar))
+                    Ok(Type::DataType(DataType::Scalar))
                 } else {
                     Err(CannotMul(lhs, rhs))
                 }
             }
             BinaryOp::Assign => match (lhs, rhs) {
-                (Type::Data(lhs), Type::Data(rhs)) if lhs == rhs => Ok(Type::Data(rhs)),
+                (Type::DataType(lhs), Type::DataType(rhs)) if lhs == rhs => Ok(Type::DataType(rhs)),
                 (lhs, rhs) => Err(CannotAssign(lhs, rhs)),
             },
             BinaryOp::Gt | BinaryOp::Ge | BinaryOp::Lt | BinaryOp::Le => {
                 if lhs.is_scalar() && rhs.is_scalar() {
-                    Ok(Type::Data(Data::Scalar))
+                    Ok(Type::DataType(DataType::Scalar))
                 } else {
                     Err(CannotOrd(lhs, rhs))
                 }
             }
             BinaryOp::Eq | BinaryOp::Ne => match (lhs, rhs) {
-                (Type::Data(lhs), Type::Data(rhs)) if lhs == rhs => Ok(Type::Data(Data::Scalar)),
+                (Type::DataType(lhs), Type::DataType(rhs)) if lhs == rhs => {
+                    Ok(Type::DataType(DataType::Scalar))
+                }
                 (lhs, rhs) => Err(CannotCmp(lhs, rhs)),
             },
         }
