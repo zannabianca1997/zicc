@@ -1,101 +1,101 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Display};
 
-use either::Either;
-
-/// Function type
-#[derive(Debug, Clone, Hash)]
-struct Function {
-    result: Either<Box<DataType>, Void>,
-    params: Vec<DataType>,
+/// A general ICC type
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub(super) enum Type {
+    Data(Data),
+    /// Void type
+    Void,
+    /// Function type
+    Function {
+        /// Eventual result of the function
+        result: Option<Data>,
+        /// Argument of the function
+        args: Vec<Data>,
+    },
 }
-
-/// Composite datatype.
-///
-/// Fields can be overlapping
-#[derive(Debug, Clone, Hash)]
-struct Composite {
-    /// Fields, with the offset from the start of the struct
-    fields: BTreeMap<String, (usize, DataType)>,
-}
-impl Composite {
-    fn size(&self) -> usize {
-        self.fields
-            .values()
-            .map(|(offset, field_type)| offset + field_type.size()) // take the end of each field
-            .max()
-            .unwrap_or(0) // if no field is present, the size is 0
-    }
-}
-
-/// Void type
-#[derive(Debug, Clone, Hash)]
-struct Void;
-
-/// Basic scalar type
-///
-/// Correspond to a single intcode cell
-#[derive(Debug, Clone, Hash)]
-struct Scalar;
-impl Scalar {
-    fn size(&self) -> usize {
-        1
-    }
-}
-
-/// Pointer type
-#[derive(Debug, Clone, Hash)]
-struct Pointer {
-    dest: Box<Type>,
-}
-impl Pointer {
-    fn size(&self) -> usize {
-        1
-    }
-}
-
-/// Fixed lenght array type
-#[derive(Debug, Clone, Hash)]
-struct Array {
-    element: Box<DataType>,
-    lenght: usize,
-}
-impl Array {
-    fn size(&self) -> usize {
-        self.element.size() * self.lenght
-    }
-}
-
-/// A ICC type of data
-#[derive(Debug, Clone, Hash)]
-struct DataType {
-    const_: bool,
-    content: DataTypeContent,
-}
-
-#[derive(Debug, Clone, Hash)]
-enum DataTypeContent {
-    Scalar(Scalar),
-    Pointer(Pointer),
-    Array(Array),
-    Composite(Composite),
-}
-impl DataType {
-    /// Size of the data
-    fn size(&self) -> usize {
-        use DataTypeContent::*;
-        match &self.content {
-            Scalar(s) => s.size(),
-            Pointer(p) => p.size(),
-            Composite(u) => u.size(),
-            Array(a) => a.size(),
+impl Type {
+    pub(crate) fn is_scalar(&self) -> bool {
+        if let Self::Data(d) = self {
+            d.is_scalar()
+        } else {
+            false
         }
     }
 }
 
-/// A general ICC type
-#[derive(Debug, Clone, Hash)]
-enum Type {
-    Data(DataType),
-    Void(Void),
-    Function(Function),
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Data(d) => write!(f, "{d}"),
+            Type::Void => write!(f, "void"),
+            Type::Function { result, args } => {
+                match result {
+                    Some(r) => write!(f, "{r}"),
+                    None => write!(f, "{}", Type::Void),
+                }?;
+                write!(f, "(")?;
+                for elem in args.iter().map(Some).intersperse(None) {
+                    match elem {
+                        Some(d) => write!(f, "{d}")?,
+                        None => write!(f, ",")?,
+                    }
+                }
+                write!(f, ")")?;
+                Ok(())
+            }
+        }
+    }
+}
+
+/// A ICC data type
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub(super) enum Data {
+    /// Scalar type
+    ///
+    /// Single memory cell
+    Scalar,
+    /// Pointer type
+    Pointer(Box<Type>),
+    /// Array type
+    Array { element: Box<Data>, lenght: usize },
+    /// Composite type
+    ///
+    /// This can be either a struct, or a union. Fields can overlap
+    Composite {
+        fields: BTreeMap<String, (usize, Data)>,
+    },
+}
+impl Data {
+    /// Calculate size of the type
+    pub(super) fn size(&self) -> usize {
+        match &self {
+            Data::Scalar => 1,
+            Data::Pointer(_) => 1,
+            Data::Array { element, lenght } => element.size() * lenght,
+            Data::Composite { fields } => fields
+                .values()
+                .map(|(offset, element)| offset + element.size())
+                .max()
+                .unwrap_or(0),
+        }
+    }
+
+    /// Returns `true` if the data is [`Scalar`].
+    ///
+    /// [`Scalar`]: Data::Scalar
+    #[must_use]
+    pub(super) fn is_scalar(&self) -> bool {
+        matches!(self, Self::Scalar)
+    }
+}
+impl Display for Data {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Data::Scalar => write!(f, "int"),
+            Data::Pointer(d) => write!(f, "{d}*"),
+            Data::Array { element, lenght } => write!(f, "{element}[{lenght}]"),
+            Data::Composite { fields: _ } => write!(f, "(composite)"),
+        }
+    }
 }
