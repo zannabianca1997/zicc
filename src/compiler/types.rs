@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, fmt::Display};
 
+use thiserror::Error;
+
 /// A general ICC type
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub(super) enum Type {
@@ -48,6 +50,57 @@ impl Display for Type {
     }
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+/// Composite type
+///
+/// This can be either a struct, or a union. Fields can overlap
+pub(super) struct Composite {
+    pub(super) fields: BTreeMap<String, (usize, DataType)>,
+}
+impl Composite {
+    /// Calculate size of the type
+    pub(super) fn size(&self) -> usize {
+        self.fields
+            .values()
+            .map(|(offset, element)| offset + element.size())
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// New composite without field
+    pub(crate) fn empty() -> Self {
+        Self {
+            fields: BTreeMap::new(),
+        }
+    }
+
+    /// Join two composite together
+    pub(crate) fn join(mut self, other: Self) -> Result<Self, CompositeJoinError> {
+        for (name, field) in other.fields {
+            if self.fields.contains_key(&name) {
+                return Err(CompositeJoinError(name));
+            }
+            self.fields.insert(name, field);
+        }
+        Ok(self)
+    }
+
+    /// Offset this composite, leaving `offset` empty space at the start
+    pub(crate) fn offset(self, offset: usize) -> Composite {
+        Composite {
+            fields: self
+                .fields
+                .into_iter()
+                .map(|(name, (pos, t))| (name, (pos + offset, t)))
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("Duplicate field {0}")]
+pub struct CompositeJoinError(String);
+
 /// A ICC data type
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub(super) enum DataType {
@@ -62,12 +115,7 @@ pub(super) enum DataType {
         element: Box<DataType>,
         lenght: usize,
     },
-    /// Composite type
-    ///
-    /// This can be either a struct, or a union. Fields can overlap
-    Composite {
-        fields: BTreeMap<String, (usize, DataType)>,
-    },
+    Composite(Composite),
 }
 impl DataType {
     /// Calculate size of the type
@@ -76,11 +124,7 @@ impl DataType {
             DataType::Scalar => 1,
             DataType::Pointer(_) => 1,
             DataType::Array { element, lenght } => element.size() * lenght,
-            DataType::Composite { fields } => fields
-                .values()
-                .map(|(offset, element)| offset + element.size())
-                .max()
-                .unwrap_or(0),
+            DataType::Composite(c) => c.size(),
         }
     }
 
@@ -98,7 +142,7 @@ impl Display for DataType {
             DataType::Scalar => write!(f, "int"),
             DataType::Pointer(d) => write!(f, "{d}*"),
             DataType::Array { element, lenght } => write!(f, "{element}[{lenght}]"),
-            DataType::Composite { fields: _ } => write!(f, "(composite)"),
+            DataType::Composite(Composite { fields: _ }) => write!(f, "(composite)"),
         }
     }
 }

@@ -10,6 +10,7 @@ ciborium = "0.2.0"
 clap = { version = "4.2.1", features = ["derive"] }
 either = { version = "1.8.1", features = ["serde"] }
 enum-primitive-derive = "0.2.2"
+itertools = "0.10.5"
 lazy-regex = "2.5.0"
 lazy_static = "1.4.0"
 num-traits = "0.2.15"

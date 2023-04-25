@@ -8,6 +8,7 @@
 #![feature(map_try_insert)]
 #![feature(map_entry_replace)]
 #![feature(error_reporter)]
+#![feature(iterator_try_collect)]
 
 pub mod intcode;
 
