@@ -21,7 +21,7 @@ impl Display for Error {
 type Result<T> = std::result::Result<T, Error>;
 
 #[must_use]
-pub fn lex(input: &str) -> impl Iterator<Item = Result<Token>> {
+pub fn lex(input: &str) -> impl Iterator<Item = Result<Token>> + '_ {
     input.lines().flat_map(|line| 
     // remove the eventual comment after the ';'
     line.rsplit_once(';')
@@ -31,11 +31,11 @@ pub fn lex(input: &str) -> impl Iterator<Item = Result<Token>> {
         .split([' ', '\t'])
         .filter(|s| !s.is_empty())
         .map(|s| Token::parse(s,  unsafe {
-            // Safety: `s` is always a subslice of `input`
+            // Safety: `s` is always a subslice of `input`, and `input` is alive as long as the iterator is alive
             subslice_pos(input, s)
         }))
         .chain(Some(Ok(Token::Punctuator(Punctuator::Newline, unsafe {
-            // Safety: `line` is always a subslice of `input`
+            // Safety: `line` is always a subslice of `input`, and `input` is alive as long as the iterator is alive
             subslice_pos(input, line)
         } + line.len()))))
     )
