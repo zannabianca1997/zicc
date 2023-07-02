@@ -18,10 +18,17 @@ impl Display for Error {
         }
     }
 }
-type Result<T> = std::result::Result<T, Error>;
+impl Spanned for Error {
+    fn span(&self) -> Span {
+        match self {
+            Error::UnknownToken(s) => *s,
+        }
+    }
+}
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[must_use]
-pub fn lex(input: &str) -> impl Iterator<Item = Result<Token>> + '_ {
+pub fn lex(input: &str) -> std::result::Result<Vec<Token>, Vec<Error>> {
     input.lines().flat_map(|line| 
     // remove the eventual comment after the ';'
     line.rsplit_once(';')
@@ -38,7 +45,15 @@ pub fn lex(input: &str) -> impl Iterator<Item = Result<Token>> + '_ {
             // Safety: `line` is always a subslice of `input`, and `input` is alive as long as the iterator is alive
             subslice_pos(input, line)
         } + line.len()))))
-    )
+    ).fold(Ok(vec![]), |mut res,item| {
+        match (&mut res,item) {
+            (Ok(toks), Ok(tok)) => toks.push(tok),
+            (Ok(_), Err(err)) => res = Err(vec![err]),
+            (Err(_), Ok(_)) => (),
+            (Err(errs), Err(err)) => errs.push(err),
+        };
+        res
+    })
 }
 
 /// Find the index of a subslice
@@ -59,23 +74,21 @@ mod tests {
     #[test]
     fn empty() {
         let source = "";
-        let (tokens, errors): (Vec<_>, Vec<_>) = lex(source).partition_result();
-        assert!(tokens.is_empty()&&errors.is_empty())
+        let tokens = lex(source).unwrap();
+        assert!(tokens.is_empty())
     }
 
     #[test]
     fn add() {
         let source = "add 1 2 3\n";
-        let (tokens, errors): (Vec<_>, Vec<_>) = lex(source).partition_result();
-        assert!(errors.is_empty());
+        let tokens = lex(source).unwrap();
         assert_eq!(tokens, ["add","1","2","3","\n"]);
     }
 
     #[test]
     fn newline_added() {
         let source = "add 1 2 3";
-        let (tokens, errors): (Vec<_>, Vec<_>) = lex(source).partition_result();
-        assert!(errors.is_empty());
+        let tokens = lex(source).unwrap();
         assert_eq!(tokens, ["add","1","2","3","\n"]);
     }
 }
