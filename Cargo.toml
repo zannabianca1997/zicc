@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "assembler",
+    "assembler-macro",
+    "compiler",
+    "compiler-macros",
+    "vm",
+    "zicc",
+]
