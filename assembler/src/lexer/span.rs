@@ -1,23 +1,36 @@
 /// Represent a span of text
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Span(usize, usize);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Span {
+    Span(usize, usize),
+    #[default]
+    Empty,
+}
 
 impl Span {
     #[must_use]
     #[inline]
     pub(super) const fn new(start: usize, end: usize) -> Self {
         debug_assert!(start <= end);
-        Self(start, end)
+        Self::Span(start, end)
     }
 
     #[must_use]
     #[inline]
     pub const fn join(self, other: Span) -> Self {
-        Self::new(usize::min(self.0, other.0), usize::max(self.1, other.1))
+        match (self, other) {
+            (Span::Span(a, b), Span::Span(c, d)) => Self::Span(Ord::min(a, c), Ord::max(b, d)),
+            (s @ Span::Span(..), Span::Empty) | (Span::Empty, s @ Span::Span(..)) => s,
+            (Span::Empty, Span::Empty) => Span::Empty,
+        }
     }
 
+    #[must_use]
+    #[inline]
     pub fn len(&self) -> usize {
-        self.1 - self.0
+        match self {
+            Span::Span(a, b) => b - a,
+            Span::Empty => 0,
+        }
     }
 }
 
@@ -25,4 +38,16 @@ impl Span {
 pub trait Spanned {
     #[must_use]
     fn span(&self) -> Span;
+}
+
+impl<T> Spanned for [T]
+where
+    T: Spanned,
+{
+    fn span(&self) -> Span {
+        self.iter()
+            .map(Spanned::span)
+            .reduce(Span::join)
+            .unwrap_or_default()
+    }
 }

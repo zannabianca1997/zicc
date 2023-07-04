@@ -1,11 +1,12 @@
 mod span;
-mod token;
+pub mod tokens;
 
-use std::{mem, fmt::Display};
+use std::{fmt::Display};
 
 pub use span::*;
+pub use tokens::Token;
 use thiserror::Error;
-pub use token::*;
+use utils::collect_oks_or_errs::CollectOksOrErrs;
 
 #[derive(Debug,Error)]
 pub enum Error {
@@ -25,7 +26,6 @@ impl Spanned for Error {
         }
     }
 }
-pub type Result<T> = std::result::Result<T, Error>;
 
 #[must_use]
 pub fn lex(input: &str) -> std::result::Result<Vec<Token>, Vec<Error>> {
@@ -37,23 +37,15 @@ pub fn lex(input: &str) -> std::result::Result<Vec<Token>, Vec<Error>> {
         // split by whitespace
         .split([' ', '\t'])
         .filter(|s| !s.is_empty())
-        .map(|s| Token::parse(s,  unsafe {
+        .map(|s| Token::lex(s,  unsafe {
             // Safety: `s` is always a subslice of `input`, and `input` is alive as long as the iterator is alive
             subslice_pos(input, s)
         }))
-        .chain(Some(Ok(Token::Punctuator(Punctuator::Newline, unsafe {
+        .chain(Some(Ok(Token::lex("\n", unsafe {
             // Safety: `line` is always a subslice of `input`, and `input` is alive as long as the iterator is alive
             subslice_pos(input, line)
-        } + line.len()))))
-    ).fold(Ok(vec![]), |mut res,item| {
-        match (&mut res,item) {
-            (Ok(toks), Ok(tok)) => toks.push(tok),
-            (Ok(_), Err(err)) => res = Err(vec![err]),
-            (Err(_), Ok(_)) => (),
-            (Err(errs), Err(err)) => errs.push(err),
-        };
-        res
-    })
+        } + line.len()).unwrap())))
+    ).collect_oks_or_errs()
 }
 
 /// Find the index of a subslice
@@ -67,9 +59,8 @@ unsafe fn subslice_pos(text: &str, sub: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
 
-    use super::{lex, Error};
+    use super::{lex};
 
     #[test]
     fn empty() {
