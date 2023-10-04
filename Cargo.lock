@@ -21,12 +21,8 @@ dependencies = [
  "smartstring",
  "strum",
  "thiserror",
- "utils",
+ "vm",
 ]
-
-[[package]]
-name = "assembler-macro"
-version = "0.1.0"
 
 [[package]]
 name = "autocfg"
@@ -39,14 +35,17 @@ name = "compiler"
 version = "0.1.0"
 
 [[package]]
-name = "compiler-macros"
-version = "0.1.0"
+name = "either"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
 
 [[package]]
-name = "either"
-version = "1.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91"
+name = "errors"
+version = "0.1.0"
+dependencies = [
+ "nonempty",
+]
 
 [[package]]
 name = "heck"
@@ -91,6 +90,12 @@ name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
+
+[[package]]
+name = "nonempty"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aeaf4ad7403de93e699c191202f017118df734d3850b01e13a3a8b2e6953d3c9"
 
 [[package]]
 name = "once_cell"
@@ -225,10 +230,6 @@ name = "unicode-ident"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15811caf2415fb889178633e7724bad2509101cde276048e013b9def5e51fa0"
-
-[[package]]
-name = "utils"
-version = "0.1.0"
 
 [[package]]
 name = "version_check"
