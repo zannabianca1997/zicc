@@ -1,17 +1,15 @@
 #![feature(char_indices_offset)]
-use std::ops::Range;
-
 pub mod tokens;
 
 pub mod ast {
-    use std::{collections::BTreeSet, ops::Range};
+    use std::ops::Range;
 
     use errors::{Accumulator, Spanned};
 
     use crate::parse_all_from_parse;
     use crate::tokens::{
         At, Colon, Comma, Div, Identifier, Minus, Mod, Mul, Number, ParClose, ParOpen, Plus, Pound,
-        Punctuator, Token, Tokens, TokensSlice,
+        Punctuator, Token, TokensSlice,
     };
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -637,7 +635,7 @@ pub mod ast {
     {
         fn parse<'t>(
             tokens: TokensSlice<'s, 't>,
-            errors: &mut Accumulator<impl From<ParseError>>,
+            _errors: &mut Accumulator<impl From<ParseError>>,
         ) -> Option<(Self, TokensSlice<'s, 't>)> {
             let mut throwaway = Accumulator::<ParseError>::new();
             Some(match T::parse(tokens, &mut throwaway) {
@@ -654,15 +652,11 @@ pub mod ast {
             tokens: TokensSlice<'s, 't>,
             errors: &mut Accumulator<impl From<ParseError>>,
         ) -> Option<Self> {
-            let mut throwaway = Accumulator::new();
-            Some(T::parse_all(
-                tokens,
-                if tokens.is_empty() {
-                    &mut throwaway
-                } else {
-                    errors
-                },
-            ))
+            if tokens.is_empty() {
+                None
+            } else {
+                Some(T::parse_all(tokens, errors))
+            }
         }
     }
     impl<'s, T> Parse<'s> for Box<T>
@@ -691,7 +685,7 @@ pub mod ast {
     impl<'s> Parse<'s> for () {
         fn parse<'t>(
             tokens: TokensSlice<'s, 't>,
-            errors: &mut Accumulator<impl From<ParseError>>,
+            _errors: &mut Accumulator<impl From<ParseError>>,
         ) -> Option<(Self, TokensSlice<'s, 't>)> {
             Some(((), tokens))
         }
