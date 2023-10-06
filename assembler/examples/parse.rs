@@ -1,7 +1,7 @@
 use std::io::{read_to_string, stdin};
 
 use assembler::{
-    ast::{File, ParseError},
+    ast::{parse, File, ParseError},
     tokens::{tokenize, TokenizeError},
 };
 use codespan_reporting::{
@@ -39,7 +39,7 @@ fn main() {
     let input = read_to_string(stdin()).expect("Cannot read stdin");
     let mut errors = Accumulator::<Error>::new();
     let tokens = tokenize(&input, &mut errors);
-    let ast = File::parse(tokens.as_slice(), &mut errors);
+    let ast = parse(tokens.as_slice(), &mut errors);
 
     let file = SimpleFile::new("<stdin>", &input);
     let writer = StandardStream::stderr(ColorChoice::Always);

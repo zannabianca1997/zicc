@@ -104,7 +104,7 @@ impl Hash for Identifier<'_> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Number {
-    pub value: u64,
+    pub value: vm::VMInt,
     pos: usize,
 }
 impl Number {
