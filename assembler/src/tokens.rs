@@ -391,12 +391,7 @@ impl<'s, 't> TokensSlice<'s, 't> {
     pub fn split_newlines(&self) -> impl Iterator<Item = TokensSlice<'s, 't>> {
         self.tokens()
             .split(|t| matches!(t, Token::Punctuator(Punctuator::Newline(_))))
-            .map(|l| {
-                TokensSlice::Tokens(
-                    l.try_into()
-                        .expect("Double newlines should be eliminated by the tokenizer"),
-                )
-            })
+            .flat_map(|l| l.try_into().map(TokensSlice::Tokens).ok())
     }
 }
 impl Spanned for TokensSlice<'_, '_> {

@@ -5,16 +5,25 @@ pub mod ast {
     use std::ops::Range;
 
     use errors::{Accumulator, Spanned};
+    use thiserror::Error;
 
     use crate::parse_all_from_parse;
     use crate::tokens::{
         At, Colon, Comma, Div, Identifier, Minus, Mod, Mul, Number, ParClose, ParOpen, Plus, Pound,
-        Punctuator, Token, TokensSlice,
+        Punctuator, Token, Tokens, TokensSlice,
     };
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct File<'s> {
         pub statements: Vec<Labelled<'s, Option<Statement<'s>>>>,
+    }
+    impl<'s> File<'s> {
+        pub fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> File<'s> {
+            ParseAll::parse_all(tokens, errors).unwrap()
+        }
     }
     impl<'s> ParseAll<'s> for File<'s> {
         fn parse_all<'t>(
@@ -590,11 +599,26 @@ pub mod ast {
         }
     }
 
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Error)]
     pub enum ParseError {
+        #[error("Unexpected token")]
         UnexpectedTokens(Range<usize>),
+        #[error("Expected {0}")]
         ExpectedToken(&'static str, usize),
+        #[error("Unmatched parentheses")]
         UnmatchedParenthesis(ParOpen),
+        #[error("Unknow command")]
         UnknowCommand(Range<usize>),
+    }
+    impl Spanned for ParseError {
+        fn span(&self) -> Range<usize> {
+            match self {
+                ParseError::UnexpectedTokens(span) => span.clone(),
+                ParseError::ExpectedToken(_, pos) => *pos..*pos,
+                ParseError::UnmatchedParenthesis(par) => par.span(),
+                ParseError::UnknowCommand(span) => span.clone(),
+            }
+        }
     }
 
     pub(crate) trait Parse<'s>: Sized {
