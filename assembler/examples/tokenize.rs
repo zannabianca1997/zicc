@@ -22,6 +22,8 @@ fn main() {
 
     let tokens = Diagnostic::note().with_labels(
         tokens
+            .as_slice()
+            .tokens()
             .into_iter()
             .map(|t| {
                 Label::secondary((), t.span()).with_message(match t {

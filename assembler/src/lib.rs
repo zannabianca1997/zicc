@@ -1,433 +1,743 @@
 #![feature(char_indices_offset)]
 use std::ops::Range;
 
-pub mod tokens {
+pub mod tokens;
 
-    use std::{hash::Hash, ops::Deref};
+pub mod ast {
+    use std::{collections::BTreeSet, ops::Range};
 
-    use errors::{Accumulator, SourceError, Spanned};
-    use itertools::Itertools;
-    use thiserror::Error;
+    use errors::{Accumulator, Spanned};
+
+    use crate::parse_all_from_parse;
+    use crate::tokens::{
+        At, Colon, Comma, Div, Identifier, Minus, Mod, Mul, Number, ParClose, ParOpen, Plus, Pound,
+        Punctuator, Token, Tokens, TokensSlice,
+    };
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct File<'s> {
+        pub statements: Vec<Labelled<'s, Option<Statement<'s>>>>,
+    }
+    impl<'s> ParseAll<'s> for File<'s> {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            // no statement contains newline, so we can split them directly
+            let statements = tokens
+                .split_newlines()
+                .flat_map(|l| ParseAll::parse_all(l, errors))
+                .collect();
+            Some(File { statements })
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Labelled<'s, T> {
+        pub labels: Punctuated<LabelDef<'s>, ()>,
+        pub content: T,
+    }
+
+    impl<'s, T> Parse<'s> for Labelled<'s, T>
+    where
+        T: Parse<'s>,
+    {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            let (labels, tokens) = Parse::parse(tokens, errors)?;
+            let (content, tokens) = Parse::parse(tokens, errors)?;
+            Some((Labelled { labels, content }, tokens))
+        }
+    }
+
+    impl<'s, T> ParseAll<'s> for Labelled<'s, T>
+    where
+        T: ParseAll<'s>,
+    {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            let (labels, tokens) = Parse::parse(tokens, errors)?;
+            let content = ParseAll::parse_all(tokens, errors)?;
+            Some(Labelled { labels, content })
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct LabelDef<'s> {
+        pub label: Identifier<'s>,
+        pub colon: Colon,
+    }
+
+    impl<'s> Parse<'s> for LabelDef<'s> {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            let (label, tokens) = Parse::parse(tokens, errors)?;
+            let (colon, tokens) = Parse::parse(tokens, errors)?;
+            Some((LabelDef { label, colon }, tokens))
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum Statement<'s> {
+        Ints(Ints<'s>),
+    }
+
+    impl<'s> Parse<'s> for Statement<'s> {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            let (cmd_ident @ Identifier { value: command, .. }, _) = Parse::parse(tokens, errors)?;
+            match command {
+                "ints" => {
+                    let (ints, tokens) = Parse::parse(tokens, errors)?;
+                    Some((Statement::Ints(ints), tokens))
+                }
+                _ => {
+                    errors.push(ParseError::UnknowCommand(cmd_ident.span()));
+                    None
+                }
+            }
+        }
+    }
+    impl<'s> ParseAll<'s> for Statement<'s> {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            let (cmd_ident @ Identifier { value: command, .. }, _) = Parse::parse(tokens, errors)?;
+            match command {
+                "ints" => {
+                    let ints = ParseAll::parse_all(tokens, errors)?;
+                    Some(Statement::Ints(ints))
+                }
+                _ => {
+                    errors.push(ParseError::UnknowCommand(cmd_ident.span()));
+                    None
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Ints<'s> {
+        pub ints: Identifier<'s>,
+        pub values: Punctuated<Labelled<'s, Expression<'s>>, Option<Comma>>,
+    }
+
+    impl<'s> Parse<'s> for Ints<'s> {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            let Some((Token::Identifier(ints @ Identifier { value: "ints", .. }), tokens)) =
+                tokens.split_first()
+            else {
+                errors.push(ParseError::ExpectedToken("`ints`", tokens.span().start));
+                return None;
+            };
+            let (values, tokens) = Parse::parse(tokens, errors)?;
+            Some((
+                Ints {
+                    ints: *ints,
+                    values,
+                },
+                tokens,
+            ))
+        }
+    }
+    impl<'s> ParseAll<'s> for Ints<'s> {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            let Some((Token::Identifier(ints @ Identifier { value: "ints", .. }), tokens)) =
+                tokens.split_first()
+            else {
+                errors.push(ParseError::ExpectedToken("`ints`", tokens.span().start));
+                return None;
+            };
+            let values = ParseAll::parse_all(tokens, errors)?;
+            Some(Ints {
+                ints: *ints,
+                values,
+            })
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Expression<'s> {
+        pub addends: Punctuated<Addend<'s>, SumOp>,
+    }
+
+    impl<'s> Parse<'s> for Expression<'s> {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            let (addends, tokens) = Parse::parse(tokens, errors)?;
+            Some((Expression { addends }, tokens))
+        }
+    }
+
+    impl<'s> ParseAll<'s> for Expression<'s> {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            let addends = ParseAll::parse_all(tokens, errors)?;
+            Some(Expression { addends })
+        }
+    }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub enum Token<'s> {
-        Identifier(Identifier<'s>),
+    pub enum SumOp {
+        Plus(Plus),
+        Minus(Minus),
+    }
+    impl<'s> Parse<'s> for SumOp {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            match tokens.split_first() {
+                Some((Token::Punctuator(Punctuator::Plus(plus)), tokens)) => {
+                    Some((SumOp::Plus(*plus), tokens))
+                }
+                Some((Token::Punctuator(Punctuator::Minus(minus)), tokens)) => {
+                    Some((SumOp::Minus(*minus), tokens))
+                }
+                _ => {
+                    errors.push(ParseError::ExpectedToken(
+                        "Plus or Minus",
+                        tokens.span().start,
+                    ));
+                    None
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Addend<'s> {
+        pub factors: Punctuated<Factor<'s>, MulOp>,
+    }
+
+    impl<'s> Parse<'s> for Addend<'s> {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            let (factors, tokens) = Parse::parse(tokens, errors)?;
+            Some((Addend { factors }, tokens))
+        }
+    }
+    impl<'s> ParseAll<'s> for Addend<'s> {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            let factors = ParseAll::parse_all(tokens, errors)?;
+            Some(Addend { factors })
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum MulOp {
+        Mul(Mul),
+        Div(Div),
+        Mod(Mod),
+    }
+    impl<'s> Parse<'s> for MulOp {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            match tokens.split_first() {
+                Some((Token::Punctuator(Punctuator::Mul(mul)), tokens)) => {
+                    Some((MulOp::Mul(*mul), tokens))
+                }
+                Some((Token::Punctuator(Punctuator::Div(div)), tokens)) => {
+                    Some((MulOp::Div(*div), tokens))
+                }
+                Some((Token::Punctuator(Punctuator::Mod(m)), tokens)) => {
+                    Some((MulOp::Mod(*m), tokens))
+                }
+                _ => {
+                    errors.push(ParseError::ExpectedToken(
+                        "Plus or Minus",
+                        tokens.span().start,
+                    ));
+                    None
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum Factor<'s> {
+        Neg(Neg<'s>),
         Number(Number),
-        Punctuator(Punctuator),
+        Reference(Reference<'s>),
+        Parenthesis(Parenthesis<Box<Expression<'s>>>),
     }
-    impl Token<'_> {
-        pub fn len(&self) -> usize {
-            match self {
-                Token::Number(n) => n.len(),
-                Token::Punctuator(p) => p.len(),
-                Token::Identifier(i) => i.len(),
-            }
-        }
-    }
-    impl Spanned for Token<'_> {
-        fn span(&self) -> std::ops::Range<usize> {
-            match self {
-                Token::Number(n) => n.span(),
-                Token::Punctuator(p) => p.span(),
-                Token::Identifier(i) => i.span(),
+
+    impl<'s> Parse<'s> for Factor<'s> {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            match tokens.split_first() {
+                Some((Token::Punctuator(crate::tokens::Punctuator::Minus(_)), _)) => {
+                    let (neg, tokens) = Parse::parse(tokens, errors)?;
+                    Some((Factor::Neg(neg), tokens))
+                }
+                Some((Token::Number(num), rest)) => Some((Factor::Number(*num), rest)),
+                Some((
+                    Token::Identifier(_)
+                    | Token::Punctuator(
+                        crate::tokens::Punctuator::Pound(_) | crate::tokens::Punctuator::At(_),
+                    ),
+                    _,
+                )) => {
+                    let (r, tokens) = Parse::parse(tokens, errors)?;
+                    Some((Factor::Reference(r), tokens))
+                }
+                Some((Token::Punctuator(crate::tokens::Punctuator::ParOpen(_)), _)) => {
+                    let (p, tokens) = Parse::parse(tokens, errors)?;
+                    Some((Factor::Parenthesis(p), tokens))
+                }
+                _ => {
+                    errors.push(ParseError::ExpectedToken(
+                        "Minus, Reference, Number or ParOpen",
+                        tokens.span().start,
+                    ));
+                    None
+                }
             }
         }
     }
 
-    #[derive(Debug, Clone, Copy)]
-    pub struct Identifier<'s> {
-        value: &'s str,
-        pos: usize,
-    }
-    impl<'s> Identifier<'s> {
-        pub fn as_str(&self) -> &'s str {
-            self.value
-        }
-        pub fn len(&self) -> usize {
-            self.value.len()
-        }
-    }
-    impl Spanned for Identifier<'_> {
-        fn span(&self) -> std::ops::Range<usize> {
-            self.pos..(self.pos + self.len())
-        }
-    }
-    impl PartialEq for Identifier<'_> {
-        fn eq(&self, other: &Self) -> bool {
-            self.value == other.value
-        }
-    }
-    impl Eq for Identifier<'_> {}
-    impl PartialOrd for Identifier<'_> {
-        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-            self.value.partial_cmp(&other.value)
-        }
-    }
-    impl Ord for Identifier<'_> {
-        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-            self.value.cmp(other.value)
-        }
-    }
-    impl Hash for Identifier<'_> {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            self.value.hash(state);
+    impl<'s> ParseAll<'s> for Factor<'s> {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            match tokens.split_first() {
+                Some((Token::Punctuator(crate::tokens::Punctuator::Minus(_)), _)) => {
+                    let neg = ParseAll::parse_all(tokens, errors)?;
+                    Some(Factor::Neg(neg))
+                }
+                Some((Token::Number(_), _)) => {
+                    let num = ParseAll::parse_all(tokens, errors)?;
+                    Some(Factor::Number(num))
+                }
+                Some((
+                    Token::Identifier(_)
+                    | Token::Punctuator(
+                        crate::tokens::Punctuator::Pound(_) | crate::tokens::Punctuator::At(_),
+                    ),
+                    _,
+                )) => {
+                    let r = ParseAll::parse_all(tokens, errors)?;
+                    Some(Factor::Reference(r))
+                }
+                Some((Token::Punctuator(crate::tokens::Punctuator::ParOpen(_)), _)) => {
+                    let p = ParseAll::parse_all(tokens, errors)?;
+                    Some(Factor::Parenthesis(p))
+                }
+                _ => {
+                    errors.push(ParseError::ExpectedToken(
+                        "Minus, Reference, Number or ParOpen",
+                        tokens.span().start,
+                    ));
+                    None
+                }
+            }
         }
     }
 
-    #[derive(Debug, Clone, Copy)]
-    pub struct Number {
-        value: u64,
-        pos: usize,
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum Reference<'s> {
+        Absolute {
+            identifier: Identifier<'s>,
+        },
+        Relative {
+            at: At,
+            identifier: Identifier<'s>,
+        },
+        Immediate {
+            pound: Pound,
+            identifier: Identifier<'s>,
+        },
     }
-    impl Number {
-        pub const fn len(&self) -> usize {
-            let mut value = self.value;
-            let mut count = 0;
+    impl<'s> Parse<'s> for Reference<'s> {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            match tokens.split_first() {
+                Some((Token::Identifier(identifier), tokens)) => Some((
+                    Reference::Absolute {
+                        identifier: *identifier,
+                    },
+                    tokens,
+                )),
+                Some((Token::Punctuator(crate::tokens::Punctuator::Pound(pound)), tokens)) => {
+                    let (identifier, tokens) = Parse::parse(tokens, errors)?;
+                    Some((
+                        Reference::Immediate {
+                            pound: *pound,
+                            identifier,
+                        },
+                        tokens,
+                    ))
+                }
+                Some((Token::Punctuator(crate::tokens::Punctuator::At(at)), tokens)) => {
+                    let (identifier, tokens) = Parse::parse(tokens, errors)?;
+                    Some((
+                        Reference::Relative {
+                            at: *at,
+                            identifier,
+                        },
+                        tokens,
+                    ))
+                }
+                _ => {
+                    errors.push(ParseError::ExpectedToken(
+                        "Pound, At or Identifier",
+                        tokens.span().start,
+                    ));
+                    None
+                }
+            }
+        }
+    }
+    parse_all_from_parse!(Reference<'s>);
 
-            while value > 0 {
-                value = value / 10;
-                count += 1;
-            }
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Neg<'s> {
+        pub minus: Minus,
+        pub factor: Box<Factor<'s>>,
+    }
 
-            count
-        }
-    }
-    impl Spanned for Number {
-        fn span(&self) -> std::ops::Range<usize> {
-            self.pos..(self.pos + self.len())
-        }
-    }
-    impl PartialEq for Number {
-        fn eq(&self, other: &Self) -> bool {
-            self.value == other.value
-        }
-    }
-    impl Eq for Number {}
-    impl PartialOrd for Number {
-        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-            self.value.partial_cmp(&other.value)
-        }
-    }
-    impl Ord for Number {
-        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-            self.value.cmp(&other.value)
-        }
-    }
-    impl Hash for Number {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            self.value.hash(state);
+    impl<'s> Parse<'s> for Neg<'s> {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            let ((minus, factor), tokens) = Parse::parse(tokens, errors)?;
+            Some((Neg { minus, factor }, tokens))
         }
     }
 
-    macro_rules! puctuators {
-        (
-            $(
-                $char:literal => $name:ident,
-            )*
-        ) => {
-            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-            pub enum Punctuator {
-                $($name($name),)*
+    impl<'s> ParseAll<'s> for Neg<'s> {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            let (minus, factor) = ParseAll::parse_all(tokens, errors)?;
+            Some(Neg { minus, factor })
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Parenthesis<T> {
+        pub par_open: ParOpen,
+        pub inner: T,
+        pub par_close: ParClose,
+    }
+    impl<'s, T> Parse<'s> for Parenthesis<T>
+    where
+        T: ParseAll<'s>,
+    {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            // I know parenthesis are balanced, so I can use that to use parse_all
+            let (par_open, tokens) = ParOpen::parse(tokens, errors)?;
+
+            let mut par_close = None;
+            let mut depth = 1usize;
+            for (i, t) in tokens.tokens().into_iter().enumerate() {
+                match t {
+                    crate::tokens::Token::Punctuator(crate::tokens::Punctuator::ParOpen(_)) => {
+                        depth += 1
+                    }
+                    crate::tokens::Token::Punctuator(crate::tokens::Punctuator::ParClose(tok)) => {
+                        depth -= 1;
+                        if depth == 0 {
+                            par_close = Some((i, *tok));
+                            break;
+                        }
+                    }
+                    _ => (),
+                }
             }
-            impl Punctuator {
-                pub fn len(&self)->usize {
-                    match self {
-                        $(Punctuator::$name(v) => v.len(),)*
-                    }
+            if let Some((close_idx, par_close)) = par_close {
+                // separate inner
+                let (inner, tokens) = tokens.split_at(close_idx);
+                // split off par_close
+                let (_, tokens) = tokens.split_at(1);
+
+                // parse the inner stuff
+                let inner = T::parse_all(inner, errors)?;
+
+                Some((
+                    Parenthesis {
+                        par_open,
+                        inner,
+                        par_close,
+                    },
+                    tokens,
+                ))
+            } else {
+                errors.push(ParseError::UnmatchedParenthesis(par_open));
+                // parse T anyway so we get some more errors
+                T::parse_all(tokens, errors);
+
+                return None;
+            }
+        }
+    }
+    impl<'s, T> ParseAll<'s> for Parenthesis<T>
+    where
+        T: ParseAll<'s>,
+    {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            let Some((Token::Punctuator(Punctuator::ParOpen(par_open)), tokens)) =
+                tokens.split_first()
+            else {
+                errors.push(ParseError::ExpectedToken("ParOpen", tokens.span().start));
+                return None;
+            };
+            let Some((Token::Punctuator(Punctuator::ParClose(par_close)), tokens)) =
+                tokens.split_last()
+            else {
+                errors.push(ParseError::ExpectedToken("ParClose", tokens.span().end));
+                return None;
+            };
+            Some(Parenthesis {
+                par_open: *par_open,
+                inner: ParseAll::parse_all(tokens, errors)?,
+                par_close: *par_close,
+            })
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum Punctuated<T, P> {
+        NonEmpty { head: T, tail: Vec<(P, T)> },
+        Empty,
+    }
+    impl<'s, T, P> Parse<'s> for Punctuated<T, P>
+    where
+        T: Parse<'s>,
+        P: Parse<'s>,
+    {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            let (head, mut tokens) = Parse::parse(tokens, errors)?;
+            if let Some(head) = head {
+                let mut tail = vec![];
+                while let Some((Some(el), rest)) = <Option<(P, T)>>::parse(tokens, errors) {
+                    tail.push(el);
+                    tokens = rest;
                 }
-                pub fn char(&self)->char {
-                    match self {
-                        $(Punctuator::$name(v) => v.char(),)*
-                    }
+                Some((Punctuated::NonEmpty { head, tail }, tokens))
+            } else {
+                Some((Punctuated::Empty, tokens))
+            }
+        }
+    }
+    impl<'s, T, P> ParseAll<'s> for Punctuated<T, P>
+    where
+        T: Parse<'s> + ParseAll<'s>,
+        P: Parse<'s>,
+    {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            let (head, mut tokens) = Parse::parse(tokens, errors)?;
+            if let Some(head) = head {
+                let mut tail = vec![];
+                while !tokens.is_empty() {
+                    let (el, rest) = <(P, T)>::parse(tokens, errors)?;
+                    tail.push(el);
+                    tokens = rest;
                 }
-                fn try_from_parts(ch:char, pos:usize)->Option<Self> {
-                    match ch {
-                        $($char => Some(Punctuator::$name($name{pos})),)*
-                        _=>None
-                    }
+                Some(Punctuated::NonEmpty { head, tail })
+            } else {
+                if tokens.is_empty() {
+                    Some(Punctuated::Empty)
+                } else {
+                    // get all the errors on the tracker
+                    T::parse_all(tokens, errors);
+                    None
                 }
             }
-            impl Spanned for Punctuator {
-                fn span(&self)->std::ops::Range<usize> {
-                    match self {
-                        $(Punctuator::$name(v) => v.span(),)*
+        }
+    }
+
+    pub enum ParseError {
+        UnexpectedTokens(Range<usize>),
+        ExpectedToken(&'static str, usize),
+        UnmatchedParenthesis(ParOpen),
+        UnknowCommand(Range<usize>),
+    }
+
+    pub(crate) trait Parse<'s>: Sized {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)>;
+    }
+
+    pub(crate) trait ParseAll<'s>: Sized {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self>;
+    }
+
+    #[macro_export]
+    macro_rules! parse_all_from_parse {
+        ($T:ty) => {
+            impl<'s> ParseAll<'s> for $T {
+                fn parse_all<'t>(
+                    tokens: TokensSlice<'s, 't>,
+                    errors: &mut Accumulator<impl From<ParseError>>,
+                ) -> Option<Self> {
+                    let (parsed, rem) = Parse::parse(tokens, errors)?;
+                    if !rem.is_empty() {
+                        errors.push(ParseError::UnexpectedTokens(tokens.span()))
                     }
+                    Some(parsed)
                 }
             }
-            impl From<Punctuator> for char {
-                fn from(value:Punctuator) -> char {
-                    value.char()
-                }
-            }
-            $(
-                #[derive(Debug, Clone, Copy)]
-                pub struct $name {
-                    pos: usize
-                }
-                impl $name {
-                    pub const fn len(&self)->usize {
-                        $char.len_utf8()
-                    }
-                    pub const fn char(&self)->char {
-                        $char
-                    }
-                }
-                impl Spanned for $name {
-                    fn span(&self) -> std::ops::Range<usize> {
-                        self.pos..(self.pos + self.len())
-                    }
-                }
-                impl PartialEq for $name {
-                    fn eq(&self, other: &Self) -> bool {
-                        true
-                    }
-                }
-                impl Eq for $name {}
-                impl PartialOrd for $name {
-                    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-                        Some(std::cmp::Ordering::Equal)
-                    }
-                }
-                impl Ord for $name {
-                    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-                        std::cmp::Ordering::Equal
-                    }
-                }
-                impl Hash for $name {
-                    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {}
-                }
-            )*
         };
     }
 
-    puctuators! {
-        '+' => Plus,
-        '-' => Minus,
-        '*' => Mul,
-        '/' => Div,
-        '%' => Mod,
-        ':' => Colon,
-        ',' => Comma,
-        '#' => Pound,
-        '@' => At,
-        '(' => ParOpen,
-        ')' => ParClose,
-        '\n' => Newline,
+    impl<'s, T> Parse<'s> for Option<T>
+    where
+        T: Parse<'s>,
+    {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            let mut throwaway = Accumulator::<ParseError>::new();
+            Some(match T::parse(tokens, &mut throwaway) {
+                Some((v, rest)) => (Some(v), rest),
+                None => (None, tokens),
+            })
+        }
+    }
+    impl<'s, T> ParseAll<'s> for Option<T>
+    where
+        T: ParseAll<'s>,
+    {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            let mut throwaway = Accumulator::new();
+            Some(T::parse_all(
+                tokens,
+                if tokens.is_empty() {
+                    &mut throwaway
+                } else {
+                    errors
+                },
+            ))
+        }
+    }
+    impl<'s, T> Parse<'s> for Box<T>
+    where
+        T: Parse<'s>,
+    {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            T::parse(tokens, errors).map(|(t, rest)| (Box::new(t), rest))
+        }
+    }
+    impl<'s, T> ParseAll<'s> for Box<T>
+    where
+        T: ParseAll<'s>,
+    {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            T::parse_all(tokens, errors).map(Box::new)
+        }
     }
 
-    #[derive(Debug, Clone)]
-    pub struct Tokens<'s> {
-        pub tokens: Vec<Token<'s>>,
-        pub span: (usize, usize),
+    impl<'s> Parse<'s> for () {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            Some(((), tokens))
+        }
     }
 
-    impl<'s> Tokens<'s> {
-        pub fn as_slice(&self) -> TokensSlice<'s, '_> {
-            TokensSlice {
-                tokens: &self.tokens,
-                span: self.span,
+    impl<'s> ParseAll<'s> for () {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            if tokens.is_empty() {
+                Some(())
+            } else {
+                errors.push(ParseError::UnexpectedTokens(tokens.span()));
+                None
             }
         }
     }
 
-    impl<'s> Deref for Tokens<'s> {
-        type Target = [Token<'s>];
-
-        fn deref(&self) -> &Self::Target {
-            &self.tokens
+    impl<'s, A, B> Parse<'s> for (A, B)
+    where
+        A: Parse<'s>,
+        B: Parse<'s>,
+    {
+        fn parse<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<(Self, TokensSlice<'s, 't>)> {
+            let (a, tokens) = A::parse(tokens, errors)?;
+            let (b, tokens) = B::parse(tokens, errors)?;
+            Some(((a, b), tokens))
         }
     }
 
-    impl Tokens<'_> {
-        pub fn len(&self) -> usize {
-            self.span.1 - self.span.0
-        }
-    }
-    impl Spanned for Tokens<'_> {
-        fn span(&self) -> std::ops::Range<usize> {
-            self.span.0..self.span.1
-        }
-    }
-
-    impl PartialEq for Tokens<'_> {
-        fn eq(&self, other: &Self) -> bool {
-            self.tokens == other.tokens
-        }
-    }
-    impl Eq for Tokens<'_> {}
-    impl PartialOrd for Tokens<'_> {
-        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-            self.tokens.partial_cmp(&other.tokens)
-        }
-    }
-    impl Ord for Tokens<'_> {
-        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-            self.tokens.cmp(&other.tokens)
-        }
-    }
-    impl Hash for Tokens<'_> {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            self.tokens.hash(state);
-        }
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub struct TokensSlice<'s, 't> {
-        tokens: &'t [Token<'s>],
-        span: (usize, usize),
-    }
-
-    impl<'s> Deref for TokensSlice<'s, '_> {
-        type Target = [Token<'s>];
-
-        fn deref(&self) -> &Self::Target {
-            self.tokens
-        }
-    }
-
-    impl TokensSlice<'_, '_> {
-        pub fn len(&self) -> usize {
-            self.span.1 - self.span.0
-        }
-    }
-    impl Spanned for TokensSlice<'_, '_> {
-        fn span(&self) -> std::ops::Range<usize> {
-            self.span.0..self.span.1
-        }
-    }
-
-    impl PartialEq for TokensSlice<'_, '_> {
-        fn eq(&self, other: &Self) -> bool {
-            self.tokens == other.tokens
-        }
-    }
-    impl Eq for TokensSlice<'_, '_> {}
-    impl PartialOrd for TokensSlice<'_, '_> {
-        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-            self.tokens.partial_cmp(&other.tokens)
-        }
-    }
-    impl Ord for TokensSlice<'_, '_> {
-        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-            self.tokens.cmp(&other.tokens)
-        }
-    }
-    impl Hash for TokensSlice<'_, '_> {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            self.tokens.hash(state);
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, Error)]
-    pub enum TokenizeError {
-        #[error("Unknow character")]
-        UnknowChar(char, usize),
-        #[error("Integer literal is too long to fit")]
-        IntegerLiteralTooLong(usize, usize),
-        #[error("Escape without newline")]
-        EscapeWithoutNewline(usize),
-    }
-
-    impl Spanned for TokenizeError {
-        fn span(&self) -> std::ops::Range<usize> {
-            match self {
-                TokenizeError::UnknowChar(ch, pos) => *pos..(pos + ch.len_utf8()),
-                TokenizeError::IntegerLiteralTooLong(start, end) => *start..*end,
-                TokenizeError::EscapeWithoutNewline(pos) => *pos..(pos + '\\'.len_utf8()),
-            }
-        }
-    }
-
-    impl SourceError for TokenizeError {
-        fn severity(&self) -> errors::Severity {
-            errors::Severity::Error
-        }
-    }
-
-    pub fn tokenize<'s>(
-        source: &'s str,
-        errors: &mut Accumulator<impl From<TokenizeError>>,
-    ) -> Tokens<'s> {
-        let mut tokens = vec![];
-        let mut chars = source.char_indices();
-        while !chars.as_str().is_empty() {
-            // remove all non-newline whitespace
-            for _ in chars.peeking_take_while(|(_, ch)| ch.is_whitespace() && *ch != '\n') {}
-
-            let Some((start_idx, start_ch)) = chars.next() else {
-                break;
-            };
-            match start_ch {
-                'a'..='z' | 'A'..='Z' | '_' => {
-                    // consume identifier
-                    for _ in chars.peeking_take_while(
-                        |(_, ch)| matches!(ch, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'),
-                    ) {}
-                    let end_idx = chars.offset();
-                    tokens.push(Token::Identifier(Identifier {
-                        value: &source[start_idx..end_idx],
-                        pos: start_idx,
-                    }))
-                }
-                '0'..='9' => {
-                    // consume number
-                    for _ in chars.peeking_take_while(|(_, ch)| matches!(ch, '0'..='9')) {}
-                    let end_idx = chars.offset();
-                    match source[start_idx..end_idx].parse() {
-                        Ok(value) => tokens.push(Token::Number(Number {
-                            value,
-                            pos: start_idx,
-                        })),
-                        Err(_) => {
-                            errors.push(TokenizeError::IntegerLiteralTooLong(start_idx, end_idx))
-                        }
-                    }
-                }
-                ';' => {
-                    // consume all until newline
-                    for _ in chars.peeking_take_while(|(_, ch)| *ch != '\n') {}
-                }
-                '\\' => {
-                    // consume all non newline whitespace
-                    for _ in chars.peeking_take_while(|(_, ch)| ch.is_whitespace() && *ch != '\n') {
-                    }
-                    if chars.clone().next().is_some_and(|(_, ch)| ch == '\n') {
-                        // consume newline
-                        chars.next().unwrap();
-                        // do not add any token
-                    } else {
-                        errors.push(TokenizeError::EscapeWithoutNewline(start_idx))
-                    }
-                }
-                _ => {
-                    if let Some(punct) = Punctuator::try_from_parts(start_ch, start_idx) {
-                        // skip starting newline and duplicate ones
-                        if !(matches!(punct, Punctuator::Newline(_))
-                            && matches!(
-                                tokens.last(),
-                                None | Some(Token::Punctuator(Punctuator::Newline(_)))
-                            ))
-                        {
-                            tokens.push(Token::Punctuator(punct))
-                        }
-                    } else {
-                        errors.push(TokenizeError::UnknowChar(start_ch, start_idx))
-                    }
-                }
-            }
-        }
-        // skip ending newlines
-        {
-            let ending_newlines = tokens
-                .iter()
-                .rev()
-                .take_while(|t| matches!(t, Token::Punctuator(Punctuator::Newline(_))))
-                .count();
-            tokens.truncate(tokens.len() - ending_newlines)
-        }
-        Tokens {
-            tokens,
-            span: (0, source.len()),
+    impl<'s, A, B> ParseAll<'s> for (A, B)
+    where
+        A: Parse<'s>,
+        B: ParseAll<'s>,
+    {
+        fn parse_all<'t>(
+            tokens: TokensSlice<'s, 't>,
+            errors: &mut Accumulator<impl From<ParseError>>,
+        ) -> Option<Self> {
+            let (a, tokens) = A::parse(tokens, errors)?;
+            let b = B::parse_all(tokens, errors)?;
+            Some((a, b))
         }
     }
 }
