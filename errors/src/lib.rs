@@ -1,7 +1,8 @@
 //! Utilities to collect multiple errors
+#![feature(never_type)]
+use std::{error::Error, mem, ops::Range};
 
-use std::mem;
-
+use codespan_reporting::diagnostic::{Diagnostic, Label};
 use nonempty::{nonempty, NonEmpty};
 
 #[derive(Debug, Clone)]
@@ -162,13 +163,6 @@ where
     fn collect_errs<E>(self, acc: &mut Accumulator<E>) -> HandleIter<'_, E, Self::IntoIter>
     where
         EI: Into<E>;
-    fn collect_errs_flattened<E>(
-        self,
-        acc: &mut Accumulator<E>,
-    ) -> HandleIterFlattened<'_, E, Self::IntoIter>
-    where
-        EI: IntoIterator,
-        EI::Item: Into<E>;
 }
 impl<T, EI> IteratorExt<T, EI> for T
 where
@@ -180,7 +174,23 @@ where
     {
         acc.handle_iter(self)
     }
-
+}
+pub trait IteratorFlattenExt<T, EI>
+where
+    Self: IntoIterator<Item = Result<T, EI>>,
+{
+    fn collect_errs_flattened<E>(
+        self,
+        acc: &mut Accumulator<E>,
+    ) -> HandleIterFlattened<'_, E, Self::IntoIter>
+    where
+        EI: IntoIterator,
+        EI::Item: Into<E>;
+}
+impl<T, EI> IteratorFlattenExt<T, EI> for T
+where
+    T: IntoIterator<Item = Result<T, EI>>,
+{
     fn collect_errs_flattened<E>(
         self,
         acc: &mut Accumulator<E>,
@@ -190,5 +200,22 @@ where
         EI::Item: Into<E>,
     {
         acc.handle_iter_flattened(self)
+    }
+}
+
+pub trait Spanned {
+    fn span(&self) -> Range<usize>;
+}
+
+pub use codespan_reporting::diagnostic::Severity;
+pub trait SourceError: Error + Spanned {
+    fn severity(&self) -> Severity;
+    fn into_diagnostic<F>(self, file_id: F) -> Diagnostic<F>
+    where
+        Self: Sized,
+    {
+        Diagnostic::new(self.severity())
+            .with_message(self.to_string())
+            .with_labels(vec![Label::primary(file_id, self.span())])
     }
 }
