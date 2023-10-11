@@ -34,6 +34,7 @@ dependencies = [
  "string-interner",
  "strum",
  "thiserror",
+ "uncased",
  "vm",
 ]
 
@@ -431,6 +432,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "uncased"
+version = "0.9.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b9bc53168a4be7402ab86c3aad243a84dd7381d09be0eddc81280c1da95ca68"
+dependencies = [
+ "version_check",
 ]
 
 [[package]]

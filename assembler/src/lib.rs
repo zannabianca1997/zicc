@@ -15,11 +15,12 @@ pub mod assemble {
         mem,
     };
 
-    use errors::{Accumulator, Spanned};
+    use errors::{Accumulator, SourceError, Spanned};
     use itertools::Itertools;
+    use thiserror::Error;
 
     use crate::{
-        ast::{Expression, File, Ints, LabelDef, Labelled, Statement},
+        ast::{Expression, File, IntsStm, LabelDef, Labelled, Statement},
         tokens::Identifier,
     };
 
@@ -71,7 +72,7 @@ pub mod assemble {
             values
                 .into_iter()
                 .flat_map(|e| {
-                    e.calculate(|id| match labels.get(id.as_str()) {
+                    e.calculate(&mut |id| match labels.get(id.as_str()) {
                         Some((v, _)) => Some(
                             (*v).try_into()
                                 .expect("The lenght should not overflow VMInt"),
@@ -124,12 +125,12 @@ pub mod assemble {
     impl<'s> WriteTo<'s> for Statement<'s> {
         fn write_to(self, code: &mut Code<'s>) {
             match self {
-                Statement::Ints(ints) => ints.write_to(code),
+                Statement::IntsStm(ints) => ints.write_to(code),
             }
         }
     }
 
-    impl<'s> WriteTo<'s> for Ints<'s> {
+    impl<'s> WriteTo<'s> for IntsStm<'s> {
         fn write_to(self, code: &mut Code<'s>) {
             for v in self.values {
                 v.write_to(code)
@@ -147,9 +148,25 @@ pub mod assemble {
         }
     }
 
+    #[derive(Debug, Clone, Error)]
     pub enum AssembleError {
+        #[error("Label was already in use")]
         DoubleDef(std::ops::Range<usize>, std::ops::Range<usize>),
+        #[error("Unknow label")]
         UnknowLabel(std::ops::Range<usize>),
+    }
+    impl Spanned for AssembleError {
+        fn span(&self) -> std::ops::Range<usize> {
+            match self {
+                AssembleError::DoubleDef(s, _) | AssembleError::UnknowLabel(s) => s.clone(),
+            }
+        }
+    }
+
+    impl SourceError for AssembleError {
+        fn severity(&self) -> errors::Severity {
+            errors::Severity::Error
+        }
     }
 
     pub fn assemble(

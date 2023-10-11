@@ -1,8 +1,10 @@
+use std::hash::Hash;
 use std::iter::Chain;
 use std::ops::Range;
 
 use errors::{Accumulator, Spanned};
 use thiserror::Error;
+use uncased::AsUncased;
 
 use crate::parse_all_from_parse;
 use crate::tokens::{
@@ -92,9 +94,138 @@ impl Spanned for LabelDef<'_> {
     }
 }
 
+macro_rules! keywords {
+    (
+        $(
+            $kwd:literal => $name:ident,
+        )*
+    ) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum KeyWord {
+            $($name($name),)*
+        }
+        impl KeyWord {
+            pub fn len(&self)->usize {
+                match self {
+                    $(KeyWord::$name(v) => v.len(),)*
+                }
+            }
+            pub fn as_str(&self)->&'static str {
+                match self {
+                    $(KeyWord::$name(v) => v.as_str(),)*
+                }
+            }
+        }
+        impl Spanned for KeyWord {
+            fn span(&self)->std::ops::Range<usize> {
+                match self {
+                    $(KeyWord::$name(v) => v.span(),)*
+                }
+            }
+        }
+        impl<'s> Parse<'s> for KeyWord {
+            fn parse<'t>(
+                tokens: TokensSlice<'s, 't>,
+                errors: &mut Accumulator<impl From<ParseError>>,
+            ) -> Option<(Self, TokensSlice<'s, 't>)> {
+                if let Some((Token::Identifier(ident @ Identifier { value, ..}), rest)) = tokens.split_first() {
+                    $(
+                        if value.as_uncased()== $kwd.as_uncased(){
+                            return Some((KeyWord::$name($name::new(ident.span().start)), rest))
+                        }
+                    )*
+                    errors.push(ParseError::ExpectedToken("KeyWord", tokens.span().start));
+                    None
+                } else {
+                    errors.push(ParseError::ExpectedToken("KeyWord", tokens.span().start));
+                    None
+                }
+            }
+        }
+        parse_all_from_parse!(KeyWord);
+        impl From<KeyWord> for &'static str {
+            fn from(value:KeyWord) -> &'static str {
+                value.as_str()
+            }
+        }
+        $(
+            #[derive(Debug, Clone, Copy)]
+            pub struct $name {
+                pos: usize
+            }
+            impl $name {
+                fn new(pos:usize)-> $name {
+                    $name { pos }
+                }
+                pub const fn len(&self)->usize {
+                    $kwd.len()
+                }
+                pub const fn as_str(&self)->&'static str {
+                    $kwd
+                }
+            }
+            impl Spanned for $name {
+                fn span(&self) -> std::ops::Range<usize> {
+                    self.pos..(self.pos + self.len())
+                }
+            }
+            impl<'s> Parse<'s> for $name {
+                fn parse<'t>(
+                    tokens: TokensSlice<'s, 't>,
+                    errors: &mut Accumulator<impl From<ParseError>>,
+                ) -> Option<(Self, TokensSlice<'s, 't>)> {
+                    if let Some((Token::Identifier(ident @ Identifier { value, ..}), rest)) = tokens.split_first() {
+                        if value.as_uncased()== $kwd.as_uncased(){
+                            return Some(($name::new(ident.span().start), rest))
+                        }
+                        errors.push(ParseError::ExpectedToken(stringify!($name), tokens.span().start));
+                        None
+                    } else {
+                        errors.push(ParseError::ExpectedToken(stringify!($name), tokens.span().start));
+                        None
+                    }
+                }
+            }
+            parse_all_from_parse!($name);
+            impl PartialEq for $name {
+                fn eq(&self, _other: &Self) -> bool {
+                    true
+                }
+            }
+            impl Eq for $name {}
+            impl PartialOrd for $name {
+                fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
+                    Some(std::cmp::Ordering::Equal)
+                }
+            }
+            impl Ord for $name {
+                fn cmp(&self, _other: &Self) -> std::cmp::Ordering {
+                    std::cmp::Ordering::Equal
+                }
+            }
+            impl Hash for $name {
+                fn hash<H: std::hash::Hasher>(&self, _state: &mut H) {}
+            }
+        )*
+    };
+}
+keywords! {
+    "ints"=>IntsKwd,
+    "add"=>AddKwd,
+    "mul"=>MulKwd,
+    "in"=>InKwd,
+    "out"=>OutKwd,
+    "jz"=>JzKwd,
+    "jnz"=>JnzKwd,
+    "slt"=>SltKwd,
+    "seq"=>SeqKwd,
+    "incb"=>IncbKwd,
+    "halt"=>HaltKwd,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Statement<'s> {
-    Ints(Ints<'s>),
+    IntsStm(IntsStm<'s>),
 }
 
 impl<'s> Parse<'s> for Statement<'s> {
@@ -102,15 +233,23 @@ impl<'s> Parse<'s> for Statement<'s> {
         tokens: TokensSlice<'s, 't>,
         errors: &mut Accumulator<impl From<ParseError>>,
     ) -> Option<(Self, TokensSlice<'s, 't>)> {
-        let (cmd_ident @ Identifier { value: command, .. }, _) = Parse::parse(tokens, errors)?;
-        match command {
-            "ints" => {
-                let (ints, tokens) = Parse::parse(tokens, errors)?;
-                Some((Statement::Ints(ints), tokens))
+        let (cmd, _) = KeyWord::parse(tokens, errors)?;
+        match cmd {
+            KeyWord::IntsKwd(_) => {
+                let (ints_stm, tokens) = Parse::parse(tokens, errors)?;
+                Some((Statement::IntsStm(ints_stm), tokens))
             }
-            _ => {
-                errors.push(ParseError::UnknowCommand(cmd_ident.span()));
-                None
+            KeyWord::AddKwd(_)
+            | KeyWord::MulKwd(_)
+            | KeyWord::InKwd(_)
+            | KeyWord::OutKwd(_)
+            | KeyWord::JzKwd(_)
+            | KeyWord::JnzKwd(_)
+            | KeyWord::SltKwd(_)
+            | KeyWord::SeqKwd(_)
+            | KeyWord::IncbKwd(_)
+            | KeyWord::HaltKwd(_) => {
+                todo!()
             }
         }
     }
@@ -120,63 +259,214 @@ impl<'s> ParseAll<'s> for Statement<'s> {
         tokens: TokensSlice<'s, 't>,
         errors: &mut Accumulator<impl From<ParseError>>,
     ) -> Option<Self> {
-        let (cmd_ident @ Identifier { value: command, .. }, _) = Parse::parse(tokens, errors)?;
-        match command {
-            "ints" => {
-                let ints = ParseAll::parse_all(tokens, errors)?;
-                Some(Statement::Ints(ints))
+        let (cmd, _) = KeyWord::parse(tokens, errors)?;
+        match cmd {
+            KeyWord::IntsKwd(_) => {
+                let ints_stm = ParseAll::parse_all(tokens, errors)?;
+                Some(Statement::IntsStm(ints_stm))
             }
-            _ => {
-                errors.push(ParseError::UnknowCommand(cmd_ident.span()));
-                None
+            KeyWord::AddKwd(_)
+            | KeyWord::MulKwd(_)
+            | KeyWord::InKwd(_)
+            | KeyWord::OutKwd(_)
+            | KeyWord::JzKwd(_)
+            | KeyWord::JnzKwd(_)
+            | KeyWord::SltKwd(_)
+            | KeyWord::SeqKwd(_)
+            | KeyWord::IncbKwd(_)
+            | KeyWord::HaltKwd(_) => {
+                todo!()
             }
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Ints<'s> {
-    pub ints: Identifier<'s>,
+pub struct IntsStm<'s> {
+    pub ints: IntsKwd,
     pub values: Punctuated<Labelled<'s, Expression<'s>>, Option<Comma>>,
 }
 
-impl<'s> Parse<'s> for Ints<'s> {
+impl<'s> Parse<'s> for IntsStm<'s> {
     fn parse<'t>(
         tokens: TokensSlice<'s, 't>,
         errors: &mut Accumulator<impl From<ParseError>>,
     ) -> Option<(Self, TokensSlice<'s, 't>)> {
-        let Some((Token::Identifier(ints @ Identifier { value: "ints", .. }), tokens)) =
-            tokens.split_first()
-        else {
-            errors.push(ParseError::ExpectedToken("`ints`", tokens.span().start));
-            return None;
-        };
-        let (values, tokens) = Parse::parse(tokens, errors)?;
-        Some((
-            Ints {
-                ints: *ints,
-                values,
-            },
-            tokens,
-        ))
+        let ((ints, values), tokens) = Parse::parse(tokens, errors)?;
+        Some((IntsStm { ints, values }, tokens))
     }
 }
-impl<'s> ParseAll<'s> for Ints<'s> {
+impl<'s> ParseAll<'s> for IntsStm<'s> {
     fn parse_all<'t>(
         tokens: TokensSlice<'s, 't>,
         errors: &mut Accumulator<impl From<ParseError>>,
     ) -> Option<Self> {
-        let Some((Token::Identifier(ints @ Identifier { value: "ints", .. }), tokens)) =
-            tokens.split_first()
-        else {
-            errors.push(ParseError::ExpectedToken("`ints`", tokens.span().start));
-            return None;
-        };
-        let values = ParseAll::parse_all(tokens, errors)?;
-        Some(Ints {
-            ints: *ints,
-            values,
-        })
+        let (ints, values) = ParseAll::parse_all(tokens, errors)?;
+        Some(IntsStm { ints, values })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ReadParam<'s> {
+    Absolute(AbsoluteParam<'s>),
+    Immediate(ImmediateParam<'s>),
+    Relative(RelativeParam<'s>),
+}
+impl<'s> Parse<'s> for ReadParam<'s> {
+    fn parse<'t>(
+        tokens: TokensSlice<'s, 't>,
+        errors: &mut Accumulator<impl From<ParseError>>,
+    ) -> Option<(Self, TokensSlice<'s, 't>)> {
+        match tokens.split_first() {
+            Some((Token::Punctuator(Punctuator::Pound(_)), _)) => {
+                let (param, tokens) = Parse::parse(tokens, errors)?;
+                Some((ReadParam::Immediate(param), tokens))
+            }
+            Some((Token::Punctuator(Punctuator::At(_)), _)) => {
+                let (param, tokens) = Parse::parse(tokens, errors)?;
+                Some((ReadParam::Relative(param), tokens))
+            }
+            Some(_) => {
+                let (param, tokens) = Parse::parse(tokens, errors)?;
+                Some((ReadParam::Absolute(param), tokens))
+            }
+            None => {
+                errors.push(err)
+            },
+        }
+    }
+}
+impl<'s> ParseAll<'s> for ReadParam<'s> {
+    fn parse_all<'t>(
+        tokens: TokensSlice<'s, 't>,
+        errors: &mut Accumulator<impl From<ParseError>>,
+    ) -> Option<Self> {
+        match tokens.split_first() {
+            Some((Token::Punctuator(Punctuator::Pound(_)), _)) => {
+                let param = ParseAll::parse_all(tokens, errors)?;
+                Some(ReadParam::Immediate(param))
+            }
+            Some((Token::Punctuator(Punctuator::At(_)), _)) => {
+                let param = ParseAll::parse_all(tokens, errors)?;
+                Some(ReadParam::Relative(param))
+            }
+            Some(_) => {
+                let param = ParseAll::parse_all(tokens, errors)?;
+                Some(ReadParam::Absolute(param))
+            }
+            None => todo!(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum WriteParam<'s> {
+    Absolute(AbsoluteParam<'s>),
+    Relative(RelativeParam<'s>),
+}
+impl<'s> Parse<'s> for WriteParam<'s> {
+    fn parse<'t>(
+        tokens: TokensSlice<'s, 't>,
+        errors: &mut Accumulator<impl From<ParseError>>,
+    ) -> Option<(Self, TokensSlice<'s, 't>)> {
+        match tokens.split_first() {
+            Some((Token::Punctuator(Punctuator::At(_)), _)) => {
+                let (param, tokens) = Parse::parse(tokens, errors)?;
+                Some((WriteParam::Relative(param), tokens))
+            }
+            Some(_) => {
+                let (param, tokens) = Parse::parse(tokens, errors)?;
+                Some((WriteParam::Absolute(param), tokens))
+            }
+            None => todo!(),
+        }
+    }
+}
+impl<'s> ParseAll<'s> for WriteParam<'s> {
+    fn parse_all<'t>(
+        tokens: TokensSlice<'s, 't>,
+        errors: &mut Accumulator<impl From<ParseError>>,
+    ) -> Option<Self> {
+        match tokens.split_first() {
+            Some((Token::Punctuator(Punctuator::At(_)), _)) => {
+                let param = ParseAll::parse_all(tokens, errors)?;
+                Some(WriteParam::Relative(param))
+            }
+            Some(_) => {
+                let param = ParseAll::parse_all(tokens, errors)?;
+                Some(WriteParam::Absolute(param))
+            }
+            None => todo!(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ImmediateParam<'s> {
+    pound: Pound,
+    value: Labelled<'s, Expression<'s>>,
+}
+impl<'s> Parse<'s> for ImmediateParam<'s> {
+    fn parse<'t>(
+        tokens: TokensSlice<'s, 't>,
+        errors: &mut Accumulator<impl From<ParseError>>,
+    ) -> Option<(Self, TokensSlice<'s, 't>)> {
+        let ((pound, value), tokens) = Parse::parse(tokens, errors)?;
+        Some((ImmediateParam { pound, value }, tokens))
+    }
+}
+impl<'s> ParseAll<'s> for ImmediateParam<'s> {
+    fn parse_all<'t>(
+        tokens: TokensSlice<'s, 't>,
+        errors: &mut Accumulator<impl From<ParseError>>,
+    ) -> Option<Self> {
+        let (pound, value) = ParseAll::parse_all(tokens, errors)?;
+        Some(ImmediateParam { pound, value })
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AbsoluteParam<'s> {
+    value: Labelled<'s, Expression<'s>>,
+}
+impl<'s> Parse<'s> for AbsoluteParam<'s> {
+    fn parse<'t>(
+        tokens: TokensSlice<'s, 't>,
+        errors: &mut Accumulator<impl From<ParseError>>,
+    ) -> Option<(Self, TokensSlice<'s, 't>)> {
+        let (value, tokens) = Parse::parse(tokens, errors)?;
+        Some((AbsoluteParam { value }, tokens))
+    }
+}
+impl<'s> ParseAll<'s> for AbsoluteParam<'s> {
+    fn parse_all<'t>(
+        tokens: TokensSlice<'s, 't>,
+        errors: &mut Accumulator<impl From<ParseError>>,
+    ) -> Option<Self> {
+        let value = ParseAll::parse_all(tokens, errors)?;
+        Some(AbsoluteParam { value })
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RelativeParam<'s> {
+    at: At,
+    value: Labelled<'s, Expression<'s>>,
+}
+impl<'s> Parse<'s> for RelativeParam<'s> {
+    fn parse<'t>(
+        tokens: TokensSlice<'s, 't>,
+        errors: &mut Accumulator<impl From<ParseError>>,
+    ) -> Option<(Self, TokensSlice<'s, 't>)> {
+        let ((at, value), tokens) = Parse::parse(tokens, errors)?;
+        Some((RelativeParam { at, value }, tokens))
+    }
+}
+impl<'s> ParseAll<'s> for RelativeParam<'s> {
+    fn parse_all<'t>(
+        tokens: TokensSlice<'s, 't>,
+        errors: &mut Accumulator<impl From<ParseError>>,
+    ) -> Option<Self> {
+        let (at, value) = ParseAll::parse_all(tokens, errors)?;
+        Some(RelativeParam { at, value })
     }
 }
 
@@ -188,15 +478,15 @@ pub struct Expression<'s> {
 impl Expression<'_> {
     pub fn calculate(
         self,
-        mut solver: impl FnMut(&Identifier) -> Option<vm::VMInt>,
+        solver: &mut impl FnMut(&Identifier) -> Option<vm::VMInt>,
     ) -> Option<vm::VMInt> {
         match self.addends {
             Punctuated::NonEmpty { head, tail } => {
-                let mut total = head.calculate(&mut solver)?;
+                let mut total = head.calculate(solver)?;
                 for (op, addend) in tail {
                     match op {
-                        SumOp::Plus(_) => total += addend.calculate(&mut solver)?,
-                        SumOp::Minus(_) => total -= addend.calculate(&mut solver)?,
+                        SumOp::Plus(_) => total += addend.calculate(solver)?,
+                        SumOp::Minus(_) => total -= addend.calculate(solver)?,
                     }
                 }
                 Some(total)
@@ -262,16 +552,16 @@ pub struct Addend<'s> {
 impl Addend<'_> {
     pub fn calculate(
         self,
-        mut solver: impl FnMut(&Identifier) -> Option<vm::VMInt>,
+        solver: &mut impl FnMut(&Identifier) -> Option<vm::VMInt>,
     ) -> Option<vm::VMInt> {
         match self.factors {
             Punctuated::NonEmpty { head, tail } => {
-                let mut product = head.calculate(&mut solver)?;
+                let mut product = head.calculate(solver)?;
                 for (op, factor) in tail {
                     match op {
-                        MulOp::Mul(_) => product *= factor.calculate(&mut solver)?,
-                        MulOp::Div(_) => product /= factor.calculate(&mut solver)?,
-                        MulOp::Mod(_) => product %= factor.calculate(&mut solver)?,
+                        MulOp::Mul(_) => product *= factor.calculate(solver)?,
+                        MulOp::Div(_) => product /= factor.calculate(solver)?,
+                        MulOp::Mod(_) => product %= factor.calculate(solver)?,
                     }
                 }
                 Some(product)
@@ -340,7 +630,7 @@ pub enum Factor<'s> {
 impl Factor<'_> {
     pub fn calculate(
         self,
-        mut solver: impl FnMut(&Identifier) -> Option<vm::VMInt>,
+        solver: &mut impl FnMut(&Identifier) -> Option<vm::VMInt>,
     ) -> Option<vm::VMInt> {
         match self {
             Factor::Neg(neg) => neg.calculate(solver),
@@ -412,64 +702,6 @@ impl<'s> ParseAll<'s> for Factor<'s> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Reference<'s> {
-    Absolute {
-        identifier: Identifier<'s>,
-    },
-    Relative {
-        at: At,
-        identifier: Identifier<'s>,
-    },
-    Immediate {
-        pound: Pound,
-        identifier: Identifier<'s>,
-    },
-}
-impl<'s> Parse<'s> for Reference<'s> {
-    fn parse<'t>(
-        tokens: TokensSlice<'s, 't>,
-        errors: &mut Accumulator<impl From<ParseError>>,
-    ) -> Option<(Self, TokensSlice<'s, 't>)> {
-        match tokens.split_first() {
-            Some((Token::Identifier(identifier), tokens)) => Some((
-                Reference::Absolute {
-                    identifier: *identifier,
-                },
-                tokens,
-            )),
-            Some((Token::Punctuator(crate::tokens::Punctuator::Pound(pound)), tokens)) => {
-                let (identifier, tokens) = Parse::parse(tokens, errors)?;
-                Some((
-                    Reference::Immediate {
-                        pound: *pound,
-                        identifier,
-                    },
-                    tokens,
-                ))
-            }
-            Some((Token::Punctuator(crate::tokens::Punctuator::At(at)), tokens)) => {
-                let (identifier, tokens) = Parse::parse(tokens, errors)?;
-                Some((
-                    Reference::Relative {
-                        at: *at,
-                        identifier,
-                    },
-                    tokens,
-                ))
-            }
-            _ => {
-                errors.push(ParseError::ExpectedToken(
-                    "Pound, At or Identifier",
-                    tokens.span().start,
-                ));
-                None
-            }
-        }
-    }
-}
-parse_all_from_parse!(Reference<'s>);
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Neg<'s> {
     pub minus: Minus,
     pub factor: Box<Factor<'s>>,
@@ -477,7 +709,7 @@ pub struct Neg<'s> {
 impl Neg<'_> {
     pub fn calculate(
         self,
-        solver: impl FnMut(&Identifier) -> Option<vm::VMInt>,
+        solver: &mut impl FnMut(&Identifier) -> Option<vm::VMInt>,
     ) -> Option<vm::VMInt> {
         self.factor.calculate(solver).map(|n| -n)
     }
