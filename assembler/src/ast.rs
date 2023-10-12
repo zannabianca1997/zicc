@@ -7,85 +7,25 @@ use thiserror::Error;
 use uncased::AsUncased;
 
 use crate::parse_all_from_parse;
-use crate::tokens::{
-    At, Colon, Comma, Div, Identifier, Minus, Mod, Mul, Number, ParClose, ParOpen, Plus, Pound,
-    Punctuator, Token, Tokens, TokensSlice,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct File<'s> {
     pub statements: Vec<Labelled<'s, Option<Statement<'s>>>>,
 }
-pub fn parse<'s, 't>(
-    tokens: TokensSlice<'s, 't>,
-    errors: &mut Accumulator<impl From<ParseError>>,
-) -> File<'s> {
-    ParseAll::parse_all(tokens, errors).unwrap()
-}
-
-impl<'s> ParseAll<'s> for File<'s> {
-    fn parse_all<'t>(
-        tokens: TokensSlice<'s, 't>,
-        errors: &mut Accumulator<impl From<ParseError>>,
-    ) -> Option<Self> {
-        // no statement contains newline, so we can split them directly
-        let statements = tokens
-            .split_newlines()
-            .flat_map(|l| ParseAll::parse_all(l, errors))
-            .collect();
-        Some(File { statements })
-    }
+pub fn parse<'s>(source: &'s str, errors: &mut Accumulator<impl From<ParseError>>) -> File<'s> {
+    todo!()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Labelled<'s, T> {
-    pub labels: Punctuated<LabelDef<'s>, ()>,
+    pub labels: Vec<LabelDef<'s>>,
     pub content: T,
-}
-
-impl<'s, T> Parse<'s> for Labelled<'s, T>
-where
-    T: Parse<'s>,
-{
-    fn parse<'t>(
-        tokens: TokensSlice<'s, 't>,
-        errors: &mut Accumulator<impl From<ParseError>>,
-    ) -> Option<(Self, TokensSlice<'s, 't>)> {
-        let (labels, tokens) = Parse::parse(tokens, errors)?;
-        let (content, tokens) = Parse::parse(tokens, errors)?;
-        Some((Labelled { labels, content }, tokens))
-    }
-}
-
-impl<'s, T> ParseAll<'s> for Labelled<'s, T>
-where
-    T: ParseAll<'s>,
-{
-    fn parse_all<'t>(
-        tokens: TokensSlice<'s, 't>,
-        errors: &mut Accumulator<impl From<ParseError>>,
-    ) -> Option<Self> {
-        let (labels, tokens) = Parse::parse(tokens, errors)?;
-        let content = ParseAll::parse_all(tokens, errors)?;
-        Some(Labelled { labels, content })
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LabelDef<'s> {
     pub label: Identifier<'s>,
     pub colon: Colon,
-}
-
-impl<'s> Parse<'s> for LabelDef<'s> {
-    fn parse<'t>(
-        tokens: TokensSlice<'s, 't>,
-        errors: &mut Accumulator<impl From<ParseError>>,
-    ) -> Option<(Self, TokensSlice<'s, 't>)> {
-        let (label, tokens) = Parse::parse(tokens, errors)?;
-        let (colon, tokens) = Parse::parse(tokens, errors)?;
-        Some((LabelDef { label, colon }, tokens))
-    }
 }
 
 impl Spanned for LabelDef<'_> {
@@ -123,26 +63,6 @@ macro_rules! keywords {
                 }
             }
         }
-        impl<'s> Parse<'s> for KeyWord {
-            fn parse<'t>(
-                tokens: TokensSlice<'s, 't>,
-                errors: &mut Accumulator<impl From<ParseError>>,
-            ) -> Option<(Self, TokensSlice<'s, 't>)> {
-                if let Some((Token::Identifier(ident @ Identifier { value, ..}), rest)) = tokens.split_first() {
-                    $(
-                        if value.as_uncased()== $kwd.as_uncased(){
-                            return Some((KeyWord::$name($name::new(ident.span().start)), rest))
-                        }
-                    )*
-                    errors.push(ParseError::ExpectedToken("KeyWord", tokens.span().start));
-                    None
-                } else {
-                    errors.push(ParseError::ExpectedToken("KeyWord", tokens.span().start));
-                    None
-                }
-            }
-        }
-        parse_all_from_parse!(KeyWord);
         impl From<KeyWord> for &'static str {
             fn from(value:KeyWord) -> &'static str {
                 value.as_str()
@@ -330,9 +250,7 @@ impl<'s> Parse<'s> for ReadParam<'s> {
                 let (param, tokens) = Parse::parse(tokens, errors)?;
                 Some((ReadParam::Absolute(param), tokens))
             }
-            None => {
-                errors.push(err)
-            },
+            None => errors.push(err),
         }
     }
 }
