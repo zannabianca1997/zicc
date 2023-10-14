@@ -1,0 +1,116 @@
+use crate::{
+    lexer::{
+        Token, Identifier, SpecialIdentifier, StringLit
+    },
+    ast::*
+};
+use vm::VMInt;
+
+grammar<'s>();
+
+pub File: File<'s> = {
+    <mut statements: (<Labelled<Statement?>> "\n")*> <last:Labelled<Statement?>> => {
+      statements.push(last);
+      File { statements: statements.into_iter().filter(|l| l.is_labelled() || l.content.is_some()).collect() }
+    }
+}
+
+// an identifier that can be defined
+DefinedIdentifier: Identifier<'s> = {
+  "ident", 
+  "ints"
+}
+
+LabelDef: LabelDef<'s> = {
+  <label: DefinedIdentifier> ":" => LabelDef {<>}
+}
+LabelRef: LabelRef<'s> = {
+  DefinedIdentifier => LabelRef::Identifier(<>),
+  "$ident" => LabelRef::SpecialIdentifier(<>),
+}
+
+Labelled<T>: Labelled<'s, T> = {
+    <labels: LabelDef*> <content: T> => Labelled { labels: labels.into_iter().collect(), content }
+}
+LabelledPlus<T>: Labelled<'s, T> = {
+    <labels: LabelDef+> <content: T> => Labelled { labels: labels.into_iter().collect(), content }
+}
+
+Statement: Statement<'s> = {
+  "ints" <values: CommaSepExprs> => Statement::IntsStm(IntsStm{<>}) 
+}
+
+CommaSepExprs: Vec<Labelled<'s,Box<Expression<'s>>>> = {
+  <mut head: CommaSepExprs> "," <tail: Labelled<Expression>> => {head.push(tail); head},
+  <mut head: CommaSepExprs> <tail: LabelledPlus<Expression>> => {head.push(tail); head},
+  <mut head: CommaSepExprs> <tail: ExpressionNonNeg> => {head.push(Labelled { labels: BTreeSet::new(), content: tail}); head},
+  Labelled<Expression> => vec![<>]
+}
+ 
+
+
+Expression: Box<Expression<'s>> = {
+  <l:Expression> "+" <r:Factor> => Box::new(Expression::Sum(l,r)),
+  <l:Expression> "-" <r:Factor> => Box::new(Expression::Sub(l,r)),
+  Factor,
+}
+
+Factor: Box<Expression<'s>> = {
+  <l:Factor> "*" <r:Atom> => Box::new(Expression::Mul(l,r)),
+  <l:Factor> "/" <r:Atom> => Box::new(Expression::Div(l,r)),
+  <l:Factor> "%" <r:Atom> => Box::new(Expression::Mod(l,r)),
+  Atom,
+}
+
+Atom: Box<Expression<'s>> = {
+  "num" => Box::new(Expression::Num(<>)),
+  LabelRef => Box::new(Expression::Ref(<>)),
+  "-" <Atom> => Box::new(Expression::Neg(<>)),
+  "(" <Expression> ")",
+}
+
+ExpressionNonNeg: Box<Expression<'s>> = {
+  <l:ExpressionNonNeg> "+" <r:Factor> => Box::new(Expression::Sum(l,r)),
+  <l:ExpressionNonNeg> "-" <r:Factor> => Box::new(Expression::Sub(l,r)),
+  FactorNonNeg,
+}
+
+FactorNonNeg: Box<Expression<'s>> = {
+  <l:FactorNonNeg> "*" <r:Atom> => Box::new(Expression::Mul(l,r)),
+  <l:FactorNonNeg> "/" <r:Atom> => Box::new(Expression::Div(l,r)),
+  <l:FactorNonNeg> "%" <r:Atom> => Box::new(Expression::Mod(l,r)),
+  AtomNonNeg,
+}
+
+AtomNonNeg: Box<Expression<'s>> = {
+  "num" => Box::new(Expression::Num(<>)),
+  LabelRef => Box::new(Expression::Ref(<>)),
+  "(" <Expression> ")",
+}
+
+
+
+extern {
+  type Location = usize;
+  type Error = ParseError;
+
+  enum Token<'s> {
+    "ints" => Token::Ints(<Identifier<'s>>),
+    "ident" => Token::Identifier(<Identifier<'s>>),
+    "$ident" => Token::SpecialIdentifier(<SpecialIdentifier>),
+    "num" => Token::Number(<VMInt>),
+    "str" => Token::StringLit(<StringLit<'s>>),
+    "\n" => Token::Newline,
+    "," => Token::Comma,
+    ":" => Token::Colon,
+    "@" => Token::At,
+    "#" => Token::Pound,
+    "(" => Token::OpenPar,
+    ")" => Token::ClosePar,
+    "+" => Token::Plus,
+    "-" => Token::Minus,
+    "*" => Token::Mul,
+    "/" => Token::Div,
+    "%" => Token::Mod,
+  }
+}

@@ -1,9 +1,6 @@
 use std::{
     collections::{
-        btree_map::{
-            Entry::{Occupied, Vacant},
-            OccupiedEntry,
-        },
+        btree_map::Entry::{Occupied, Vacant},
         BTreeMap, BTreeSet,
     },
     mem,
@@ -14,89 +11,125 @@ use itertools::Itertools;
 use thiserror::Error;
 
 use crate::{
-    ast::{Expression, File, IntsStm, LabelDef, Labelled, Statement},
-    tokens::Identifier,
+    ast::{Expression, File, IntsStm, LabelDef, LabelRef, Labelled, Statement},
+    lexer::{Identifier, SpecialIdentifier},
 };
 
-struct Code<'s> {
-    value: Vec<(BTreeSet<LabelDef<'s>>, Expression<'s>)>,
-    labels: BTreeSet<LabelDef<'s>>,
+pub struct Code<'s, 'e, E> {
+    values: Vec<Expression<'s>>,
+    labels: BTreeMap<Identifier<'s>, usize>,
+    errors: &'e mut Accumulator<E>,
 }
-impl<'s> Code<'s> {
+impl<'s, 'e, E> Code<'s, 'e, E> {
     fn push_value(&mut self, value: Expression<'s>) {
-        self.value.push((mem::take(&mut self.labels), value))
+        self.values.push(value)
     }
-    fn push_label(&mut self, value: LabelDef<'s>) {
-        self.labels.insert(value);
-    }
-
-    fn new() -> Code<'s> {
-        Code {
-            value: vec![],
-            labels: BTreeSet::new(),
+    fn push_label(&mut self, value: LabelDef<'s>)
+    where
+        E: From<AssembleError>,
+    {
+        match self.labels.entry(value.label) {
+            Vacant(entry) => {
+                entry.insert(self.values.len());
+            }
+            Occupied(entry) => self
+                .errors
+                .push(AssembleError::DoubleDef(value.label.to_string())),
         }
     }
 
-    fn codegen(self, errors: &mut Accumulator<impl From<AssembleError>>) -> Vec<vm::VMInt> {
-        let mut labels: BTreeMap<&'s str, (usize, LabelDef<'s>)> = BTreeMap::new();
-        let values = self
-            .value
-            .into_iter()
-            .enumerate()
-            .map(|(i, (lbls, expr))| {
-                for lbl_def @ LabelDef {
-                    label: Identifier { value: name, .. },
-                    ..
-                } in lbls
-                {
-                    match labels.entry(name) {
-                        Vacant(vacant) => {
-                            vacant.insert((i, lbl_def));
-                        }
-                        Occupied(occupied) => {
-                            let prev_def = occupied.get().1;
-                            errors.push(AssembleError::DoubleDef(lbl_def.span(), prev_def.span()))
-                        }
-                    }
-                }
-                expr
-            })
-            .collect_vec();
-        values
+    pub fn new(errors: &'e mut Accumulator<E>) -> Self {
+        Code {
+            values: vec![],
+            labels: BTreeMap::new(),
+            errors,
+        }
+    }
+
+    pub fn push_unit(&mut self, ast: File<'s>)
+    where
+        E: From<AssembleError>,
+    {
+        let unit_start = self.values.len();
+        ast.write_to(self);
+        let unit_end = self.values.len();
+        for value in &mut self.values[unit_start..unit_end] {
+            value.replace(
+                LabelRef::SpecialIdentifier(SpecialIdentifier::UnitStart),
+                unit_start
+                    .try_into()
+                    .expect("The lenght should not overflow VMInt"),
+            );
+            value.replace(
+                LabelRef::SpecialIdentifier(SpecialIdentifier::UnitEnd),
+                unit_end
+                    .try_into()
+                    .expect("The lenght should not overflow VMInt"),
+            );
+        }
+    }
+
+    pub fn codegen(self) -> Vec<vm::VMInt>
+    where
+        E: From<AssembleError>,
+    {
+        let code_end = self
+            .values
+            .len()
+            .try_into()
+            .expect("The lenght should not overflow VMInt");
+        self.values
             .into_iter()
             .flat_map(|e| {
-                e.calculate(&mut |id| match labels.get(id.as_str()) {
-                    Some((v, _)) => Some(
-                        (*v).try_into()
-                            .expect("The lenght should not overflow VMInt"),
-                    ),
-                    None => {
-                        errors.push(AssembleError::UnknowLabel(id.span()));
-                        None
+                e.calculate(&mut |id| match id {
+                    crate::ast::LabelRef::Identifier(id) => match self.labels.get(&id) {
+                        Some(pos) => Some(
+                            (*pos)
+                                .try_into()
+                                .expect("The lenght should not overflow VMInt"),
+                        ),
+                        None => {
+                            self.errors.push(AssembleError::UnknowLabel(id.to_string()));
+                            None
+                        }
+                    },
+                    crate::ast::LabelRef::SpecialIdentifier(SpecialIdentifier::Start) => Some(0),
+                    crate::ast::LabelRef::SpecialIdentifier(SpecialIdentifier::End) => {
+                        Some(code_end)
                     }
+                    crate::ast::LabelRef::SpecialIdentifier(
+                        SpecialIdentifier::UnitEnd | SpecialIdentifier::UnitStart,
+                    ) => unreachable!(),
                 })
             })
             .collect_vec()
     }
 }
 
-trait WriteTo<'s> {
-    fn write_to(self, code: &mut Code<'s>);
+trait WriteTo<'s, 'e, E> {
+    fn write_to(self, code: &mut Code<'s, 'e, E>);
 }
 
-impl<'s> WriteTo<'s> for File<'s> {
-    fn write_to(self, code: &mut Code<'s>) {
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for File<'s>
+where
+    E: From<AssembleError>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
         for s in self.statements {
             s.write_to(code)
         }
     }
 }
 
-impl<'s, T> WriteTo<'s> for Labelled<'s, T>
+impl<'s, 'e, E, T> WriteTo<'s, 'e, E> for Labelled<'s, T>
 where
-    T: WriteTo<'s>,
+    E: From<AssembleError>,
+    T: WriteTo<'s, 'e, E>,
 {
-    fn write_to(self, code: &mut Code<'s>) {
+    fn write_to(self, code: &mut Code<'s, 'e, E>)
+    where
+        E: From<AssembleError>,
+    {
         for def in self.labels {
             def.write_to(code)
         }
@@ -104,39 +137,56 @@ where
     }
 }
 
-impl<'s, T> WriteTo<'s> for Option<T>
+impl<'s, 'e, E, T> WriteTo<'s, 'e, E> for Option<T>
 where
-    T: WriteTo<'s>,
+    T: WriteTo<'s, 'e, E>,
 {
-    fn write_to(self, code: &mut Code<'s>) {
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
         if let Some(this) = self {
             this.write_to(code)
         }
     }
 }
+impl<'s, 'e, E, T> WriteTo<'s, 'e, E> for Box<T>
+where
+    T: WriteTo<'s, 'e, E>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
+        Box::into_inner(self).write_to(code)
+    }
+}
 
-impl<'s> WriteTo<'s> for Statement<'s> {
-    fn write_to(self, code: &mut Code<'s>) {
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for Statement<'s>
+where
+    E: From<AssembleError>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
         match self {
             Statement::IntsStm(ints) => ints.write_to(code),
         }
     }
 }
 
-impl<'s> WriteTo<'s> for IntsStm<'s> {
-    fn write_to(self, code: &mut Code<'s>) {
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for IntsStm<'s>
+where
+    E: From<AssembleError>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
         for v in self.values {
             v.write_to(code)
         }
     }
 }
-impl<'s> WriteTo<'s> for Expression<'s> {
-    fn write_to(self, code: &mut Code<'s>) {
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for Expression<'s> {
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
         code.push_value(self)
     }
 }
-impl<'s> WriteTo<'s> for LabelDef<'s> {
-    fn write_to(self, code: &mut Code<'s>) {
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for LabelDef<'s>
+where
+    E: From<AssembleError>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
         code.push_label(self)
     }
 }
@@ -144,26 +194,7 @@ impl<'s> WriteTo<'s> for LabelDef<'s> {
 #[derive(Debug, Clone, Error)]
 pub enum AssembleError {
     #[error("Label was already in use")]
-    DoubleDef(std::ops::Range<usize>, std::ops::Range<usize>),
+    DoubleDef(String),
     #[error("Unknow label")]
-    UnknowLabel(std::ops::Range<usize>),
-}
-impl Spanned for AssembleError {
-    fn span(&self) -> std::ops::Range<usize> {
-        match self {
-            AssembleError::DoubleDef(s, _) | AssembleError::UnknowLabel(s) => s.clone(),
-        }
-    }
-}
-
-impl SourceError for AssembleError {
-    fn severity(&self) -> errors::Severity {
-        errors::Severity::Error
-    }
-}
-
-pub fn assemble(file: File, errors: &mut Accumulator<impl From<AssembleError>>) -> Vec<vm::VMInt> {
-    let mut code = Code::new();
-    file.write_to(&mut code);
-    code.codegen(errors)
+    UnknowLabel(String),
 }
