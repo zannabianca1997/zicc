@@ -10,9 +10,10 @@ use either::Either;
 use errors::{Accumulator, SourceError, Spanned};
 use itertools::Itertools;
 use thiserror::Error;
+use vm::VMInt;
 
 use crate::{
-    ast::{Expression, File, IntsStm, LabelDef, LabelRef, Labelled, Statement},
+    ast::{Expression, File, Instruction, IntsStm, LabelDef, LabelRef, Labelled, Statement},
     lexer::{Identifier, SpecialIdentifier, StringLit},
 };
 
@@ -24,6 +25,9 @@ pub struct Code<'s, 'e, E> {
 impl<'s, 'e, E> Code<'s, 'e, E> {
     fn push_value(&mut self, value: Expression<'s>) {
         self.values.push(value)
+    }
+    fn push_num(&mut self, value: VMInt) {
+        self.values.push(Expression::Num(value))
     }
     fn push_label(&mut self, value: LabelDef<'s>)
     where
@@ -180,6 +184,7 @@ where
     fn write_to(self, code: &mut Code<'s, 'e, E>) {
         match self {
             Statement::IntsStm(ints) => ints.write_to(code),
+            Statement::Instruction(instr) => instr.write_to(code),
         }
     }
 }
@@ -201,6 +206,23 @@ impl<'s, 'e, E> WriteTo<'s, 'e, E> for StringLit<'s> {
         }
     }
 }
+
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for Instruction<'s>
+where
+    E: From<AssembleError>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
+        let mut opcode = self.opcode();
+        for (val, mode) in self.param_modes().into_iter().zip([100, 1000, 10000]) {
+            opcode += val * mode
+        }
+        code.push_num(opcode);
+        for p in self.into_param_values() {
+            p.write_to(code)
+        }
+    }
+}
+
 impl<'s, 'e, E> WriteTo<'s, 'e, E> for Expression<'s> {
     fn write_to(self, code: &mut Code<'s, 'e, E>) {
         code.push_value(self)

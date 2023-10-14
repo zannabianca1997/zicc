@@ -17,16 +17,26 @@ pub File: File<'s> = {
 }
 
 // an identifier that can be defined
-DefinedIdentifier: Identifier<'s> = {
+DefinableIdentifier: Identifier<'s> = {
   "ident", 
-  "ints"
+  "ints",
+  "add",
+  "mul",
+  "in",
+  "out",
+  "jz",
+  "jnz",
+  "slt",
+  "seq",
+  "incb",
+  "halt"
 }
 
 LabelDef: LabelDef<'s> = {
-  <label: DefinedIdentifier> ":" => LabelDef {<>}
+  <label: DefinableIdentifier> ":" => LabelDef {<>}
 }
 LabelRef: LabelRef<'s> = {
-  DefinedIdentifier => LabelRef::Identifier(<>),
+  DefinableIdentifier => LabelRef::Identifier(<>),
   "$ident" => LabelRef::SpecialIdentifier(<>),
 }
 
@@ -38,7 +48,54 @@ LabelledPlus<T>: Labelled<'s, T> = {
 }
 
 Statement: Statement<'s> = {
-  "ints" <values: CommaSepExprs> => Statement::IntsStm(IntsStm{<>}) 
+  "ints" <values: CommaSepExprs> => Statement::IntsStm(IntsStm{<>}),
+  Instruction => Statement::Instruction(<>),
+}
+
+Instruction: Instruction<'s> = {
+    "add"  <ParamsRRW>  => Instruction::Add(<>.0,<>.1,<>.2),
+    "mul"  <ParamsRRW>  => Instruction::Mul(<>.0,<>.1,<>.2),
+    "in"   <WriteParam> => Instruction::In(<>),
+    "out"  <ReadParam>  => Instruction::Out(<>),
+    "jz"   <ParamsRR>   => Instruction::Jz(<>.0,<>.1),
+    "jnz"  <ParamsRR>   => Instruction::Jnz(<>.0,<>.1),
+    "slt"  <ParamsRRW>  => Instruction::Slt(<>.0,<>.1,<>.2),
+    "seq"  <ParamsRRW>  => Instruction::Seq(<>.0,<>.1,<>.2),
+    "incb" <ReadParam>  => Instruction::Incb(<>),
+    "halt"              => Instruction::Halt,
+}
+
+ReadParam: ReadParam<'s> = {
+  <value: Labelled<Expression>> => ReadParam::Absolute(AbsoluteParam{<>}),
+  "#" <value: Labelled<Expression>> => ReadParam::Immediate(ImmediateParam{<>}),
+  "@" <value: Labelled<Expression>> => ReadParam::Relative(RelativeParam{<>})
+}
+WriteParam: WriteParam<'s> = {
+  ReadParam =>? WriteParam::from_read(<>).ok_or(
+    lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite }
+  )
+}
+ReadParamNoComma: ReadParam<'s> = {
+  <value: LabelledPlus<Expression>> => ReadParam::Absolute(AbsoluteParam{<>}),
+  <value: ExpressionNonNeg> => ReadParam::Absolute(AbsoluteParam{value:Labelled {labels:BTreeSet::new(), content:value}}),
+  "#" <value: Labelled<Expression>> => ReadParam::Immediate(ImmediateParam{<>}),
+  "@" <value: Labelled<Expression>> => ReadParam::Relative(RelativeParam{<>})
+}
+WriteParamNoComma: WriteParam<'s> = {
+  ReadParamNoComma =>? WriteParam::from_read(<>).ok_or(
+    lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite }
+  )
+}
+
+ParamsRR: (ReadParam<'s>, ReadParam<'s>) = {
+  <ReadParam>     <ReadParamNoComma>,
+  <ReadParam> "," <ReadParam>
+}
+ParamsRRW: (ReadParam<'s>, ReadParam<'s>, WriteParam<'s>) = {
+  <ReadParam>     <ReadParamNoComma>     <WriteParamNoComma>,
+  <ReadParam> "," <ReadParam>            <WriteParamNoComma>,
+  <ReadParam>     <ReadParamNoComma> "," <WriteParam>,
+  <ReadParam> "," <ReadParam>        "," <WriteParam>,
 }
 
 CommaSepExprs: Vec<Labelled<'s, Either<Box<Expression<'s>>, StringLit<'s>>>> = {
@@ -54,7 +111,7 @@ CommaSepExprs: Vec<Labelled<'s, Either<Box<Expression<'s>>, StringLit<'s>>>> = {
     head
   },
 
-  <first:Labelled<"str">> <opt: ExpressionNeg?> => {if let Some(opt) = opt { vec![first.map(Right), Labelled { labels: BTreeSet::new(), content: Left(opt)}] } else {vec![first.map(Right)]}},
+  <first:Labelled<"str">> <opt: ExpressionNeg?> => if let Some(opt) = opt { vec![first.map(Right), Labelled { labels: BTreeSet::new(), content: Left(opt)}] } else {vec![first.map(Right)]},
   Labelled<Expression> => vec![<>.map(Left)],
 }
  
@@ -121,10 +178,23 @@ AtomNeg: Box<Expression<'s>> = {
 
 extern {
   type Location = usize;
-  type Error = ParseError;
+  type Error = ParseErrorContent;
 
   enum Token<'s> {
     "ints" => Token::Ints(<Identifier<'s>>),
+    
+    "add" => Token::Add(<Identifier<'s>>),
+    "mul" => Token::Mul(<Identifier<'s>>),
+    "in" => Token::In(<Identifier<'s>>),
+    "out" => Token::Out(<Identifier<'s>>),
+    "jz" => Token::Jz(<Identifier<'s>>),
+    "jnz" => Token::Jnz(<Identifier<'s>>),
+    "slt" => Token::Slt(<Identifier<'s>>),
+    "seq" => Token::Seq(<Identifier<'s>>),
+    "incb" => Token::Incb(<Identifier<'s>>),
+    "halt" => Token::Halt(<Identifier<'s>>),
+
+
     "ident" => Token::Identifier(<Identifier<'s>>),
     "$ident" => Token::SpecialIdentifier(<SpecialIdentifier>),
     "num" => Token::Number(<VMInt>),
@@ -138,7 +208,7 @@ extern {
     ")" => Token::ClosePar,
     "+" => Token::Plus,
     "-" => Token::Minus,
-    "*" => Token::Mul,
+    "*" => Token::Times,
     "/" => Token::Div,
     "%" => Token::Mod,
   }

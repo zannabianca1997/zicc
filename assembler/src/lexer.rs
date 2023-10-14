@@ -223,6 +223,27 @@ pub enum Token<'s> {
     #[regex(r"(?i)ints", |lex| Identifier::Named(lex.slice()))]
     Ints(Identifier<'s>),
 
+    #[regex(r"(?i)add", |lex| Identifier::Named(lex.slice()))]
+    Add(Identifier<'s>),
+    #[regex(r"(?i)mul", |lex| Identifier::Named(lex.slice()))]
+    Mul(Identifier<'s>),
+    #[regex(r"(?i)in", |lex| Identifier::Named(lex.slice()))]
+    In(Identifier<'s>),
+    #[regex(r"(?i)out", |lex| Identifier::Named(lex.slice()))]
+    Out(Identifier<'s>),
+    #[regex(r"(?i)jz", |lex| Identifier::Named(lex.slice()))]
+    Jz(Identifier<'s>),
+    #[regex(r"(?i)jnz", |lex| Identifier::Named(lex.slice()))]
+    Jnz(Identifier<'s>),
+    #[regex(r"(?i)slt", |lex| Identifier::Named(lex.slice()))]
+    Slt(Identifier<'s>),
+    #[regex(r"(?i)seq", |lex| Identifier::Named(lex.slice()))]
+    Seq(Identifier<'s>),
+    #[regex(r"(?i)incb", |lex| Identifier::Named(lex.slice()))]
+    Incb(Identifier<'s>),
+    #[regex(r"(?i)halt", |lex| Identifier::Named(lex.slice()))]
+    Halt(Identifier<'s>),
+
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| Identifier::Named(lex.slice()))]
     #[regex(r"\$[0-9]+", parse_unnamed)]
     Identifier(Identifier<'s>),
@@ -267,7 +288,7 @@ pub enum Token<'s> {
     #[token("-")]
     Minus,
     #[token("*")]
-    Mul,
+    Times,
     #[token("/")]
     Div,
     #[token("%")]

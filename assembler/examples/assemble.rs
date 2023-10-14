@@ -27,7 +27,7 @@ fn main() {
     let code = code.codegen();
 
     match errors.finish_with(code) {
-        Ok(code) => print!("{}", code.into_iter().format(", ")),
+        Ok(code) => println!("{}", code.into_iter().format(", ")),
         Err(errs) => {
             for err in errs {
                 eprintln!("{}", Report::new(err))
