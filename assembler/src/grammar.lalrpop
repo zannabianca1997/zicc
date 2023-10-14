@@ -5,6 +5,7 @@ use crate::{
     ast::*
 };
 use vm::VMInt;
+use either::{Either,Left,Right};
 
 grammar<'s>();
 
@@ -40,11 +41,21 @@ Statement: Statement<'s> = {
   "ints" <values: CommaSepExprs> => Statement::IntsStm(IntsStm{<>}) 
 }
 
-CommaSepExprs: Vec<Labelled<'s,Box<Expression<'s>>>> = {
-  <mut head: CommaSepExprs> "," <tail: Labelled<Expression>> => {head.push(tail); head},
-  <mut head: CommaSepExprs> <tail: LabelledPlus<Expression>> => {head.push(tail); head},
-  <mut head: CommaSepExprs> <tail: ExpressionNonNeg> => {head.push(Labelled { labels: BTreeSet::new(), content: tail}); head},
-  Labelled<Expression> => vec![<>]
+CommaSepExprs: Vec<Labelled<'s, Either<Box<Expression<'s>>, StringLit<'s>>>> = {
+  <mut head: CommaSepExprs> "," <tail: Labelled<Expression>> => {head.push(tail.map(Left)); head},
+  <mut head: CommaSepExprs> <tail: LabelledPlus<Expression>> => {head.push(tail.map(Left)); head},
+  <mut head: CommaSepExprs> <tail: ExpressionNonNeg> => {head.push(Labelled { labels: BTreeSet::new(), content: Left(tail)}); head},
+
+  <mut head: CommaSepExprs> ","? <tail: Labelled<"str">> <opt: ExpressionNeg?> => {
+    head.push(tail.map(Right)); 
+    if let Some(opt) = opt {
+      head.push(Labelled { labels: BTreeSet::new(), content: Left(opt)})
+    }
+    head
+  },
+
+  <first:Labelled<"str">> <opt: ExpressionNeg?> => {if let Some(opt) = opt { vec![first.map(Right), Labelled { labels: BTreeSet::new(), content: Left(opt)}] } else {vec![first.map(Right)]}},
+  Labelled<Expression> => vec![<>.map(Left)],
 }
  
 
@@ -86,6 +97,24 @@ AtomNonNeg: Box<Expression<'s>> = {
   "num" => Box::new(Expression::Num(<>)),
   LabelRef => Box::new(Expression::Ref(<>)),
   "(" <Expression> ")",
+}
+
+
+ExpressionNeg: Box<Expression<'s>> = {
+  <l:ExpressionNeg> "+" <r:Factor> => Box::new(Expression::Sum(l,r)),
+  <l:ExpressionNeg> "-" <r:Factor> => Box::new(Expression::Sub(l,r)),
+  FactorNeg,
+}
+
+FactorNeg: Box<Expression<'s>> = {
+  <l:FactorNeg> "*" <r:Atom> => Box::new(Expression::Mul(l,r)),
+  <l:FactorNeg> "/" <r:Atom> => Box::new(Expression::Div(l,r)),
+  <l:FactorNeg> "%" <r:Atom> => Box::new(Expression::Mod(l,r)),
+  AtomNeg,
+}
+
+AtomNeg: Box<Expression<'s>> = {
+  "-" <Atom> => Box::new(Expression::Neg(<>)),
 }
 
 

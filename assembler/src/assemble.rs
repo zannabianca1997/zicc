@@ -6,13 +6,14 @@ use std::{
     mem,
 };
 
+use either::Either;
 use errors::{Accumulator, SourceError, Spanned};
 use itertools::Itertools;
 use thiserror::Error;
 
 use crate::{
     ast::{Expression, File, IntsStm, LabelDef, LabelRef, Labelled, Statement},
-    lexer::{Identifier, SpecialIdentifier},
+    lexer::{Identifier, SpecialIdentifier, StringLit},
 };
 
 pub struct Code<'s, 'e, E> {
@@ -136,6 +137,22 @@ where
         self.content.write_to(code)
     }
 }
+impl<'s, 'e, E, R, L> WriteTo<'s, 'e, E> for Either<L, R>
+where
+    E: From<AssembleError>,
+    R: WriteTo<'s, 'e, E>,
+    L: WriteTo<'s, 'e, E>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>)
+    where
+        E: From<AssembleError>,
+    {
+        match self {
+            Either::Left(l) => l.write_to(code),
+            Either::Right(r) => r.write_to(code),
+        }
+    }
+}
 
 impl<'s, 'e, E, T> WriteTo<'s, 'e, E> for Option<T>
 where
@@ -174,6 +191,13 @@ where
     fn write_to(self, code: &mut Code<'s, 'e, E>) {
         for v in self.values {
             v.write_to(code)
+        }
+    }
+}
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for StringLit<'s> {
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
+        for value in self {
+            code.push_value(Expression::Num(value))
         }
     }
 }

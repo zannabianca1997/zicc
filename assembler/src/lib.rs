@@ -4,7 +4,6 @@
 
 use assemble::AssembleError;
 use ast::ParseError;
-use lexer::LexError;
 use thiserror::Error;
 
 pub mod assemble;

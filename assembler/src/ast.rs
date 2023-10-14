@@ -1,11 +1,12 @@
 use std::collections::BTreeSet;
 
+use either::Either;
 use lalrpop_util::lalrpop_mod;
 use thiserror::Error;
 
 use vm::VMInt;
 
-use crate::lexer::{Identifier, LexError, Lexer, SpecialIdentifier, Token};
+use crate::lexer::{Identifier, LexError, Lexer, SpecialIdentifier, StringLit, Token};
 
 lalrpop_mod!(grammar);
 
@@ -54,6 +55,13 @@ impl<'s, T> Labelled<'s, T> {
     pub fn is_labelled(&self) -> bool {
         !self.labels.is_empty()
     }
+
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Labelled<'s, U> {
+        Labelled {
+            labels: self.labels,
+            content: f(self.content),
+        }
+    }
 }
 
 impl<'s, T: std::ops::Deref> std::ops::Deref for Labelled<'s, T> {
@@ -82,7 +90,7 @@ pub enum Statement<'s> {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IntsStm<'s> {
-    pub values: Vec<Labelled<'s, Box<Expression<'s>>>>,
+    pub values: Vec<Labelled<'s, Either<Box<Expression<'s>>, StringLit<'s>>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -159,7 +167,10 @@ impl<'s> Expression<'s> {
 }
 
 pub mod constant_folding {
+    use crate::lexer::StringLit;
+
     use super::{Expression, File, IntsStm, Labelled, Statement};
+    use either::Either;
     use itertools::Itertools;
     use map_in_place::MapBoxInPlace;
 
@@ -219,6 +230,20 @@ pub mod constant_folding {
             self.into_iter()
                 .map(ConstantFolding::constant_folding)
                 .collect()
+        }
+    }
+    impl<L: ConstantFolding, R: ConstantFolding> ConstantFolding for Either<L, R> {
+        fn constant_folding(self) -> Self {
+            self.map_either(
+                ConstantFolding::constant_folding,
+                ConstantFolding::constant_folding,
+            )
+        }
+    }
+
+    impl ConstantFolding for StringLit<'_> {
+        fn constant_folding(self) -> Self {
+            self
         }
     }
 

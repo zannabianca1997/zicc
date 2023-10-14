@@ -117,7 +117,7 @@ fn parse_escape(s: &str) -> Result<(VMInt, &str), EscapeError> {
             '"' => '\u{22}',
             '$' => '\u{24}',
             '`' => '\u{60}',
-            'x' => {
+            ch @ ('x' | 'X' | 'd' | 'D' | 'o' | 'O' | 'B') => {
                 let Some((code, rem)) = chars
                     .as_str()
                     .strip_prefix('{')
@@ -125,8 +125,17 @@ fn parse_escape(s: &str) -> Result<(VMInt, &str), EscapeError> {
                 else {
                     return Err(EscapeError::MissingValue);
                 };
-                let ch = VMInt::from_str_radix(code, 16)
-                    .map_err(|err| EscapeError::NonHexEscape(err))?;
+                let ch = VMInt::from_str_radix(
+                    code,
+                    match ch {
+                        'x' | 'X' => 16,
+                        'd' | 'D' => 10,
+                        'o' | 'O' => 8,
+                        'B' => 2,
+                        _ => unreachable!(),
+                    },
+                )
+                .map_err(|err| EscapeError::NonHexEscape(err))?;
 
                 return Ok((ch, rem));
             }
@@ -228,7 +237,7 @@ pub enum Token<'s> {
     #[regex(r"'(?:[^\\']|\\.)*'", parse_char)]
     Number(VMInt),
 
-    #[regex(r#""(?:[^\\"]|\\.)*'""#, parse_string_lit)]
+    #[regex(r#""(?:[^\\"]+|\\.)*""#, parse_string_lit)]
     StringLit(StringLit<'s>),
 
     // separators
