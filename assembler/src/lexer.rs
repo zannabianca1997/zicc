@@ -139,7 +139,7 @@ fn parse_escape(s: &str) -> Result<(VMInt, &str), EscapeError> {
 
                 return Ok((ch, rem));
             }
-            ch => return Err(EscapeError::UnknowEscapeSequence),
+            _ch => return Err(EscapeError::UnknowEscapeSequence),
         } as u32)
             .into(),
         chars.as_str(),
@@ -317,7 +317,7 @@ impl<'s> Iterator for Lexer<'s> {
     fn next(&mut self) -> Option<Self::Item> {
         match self.tokens.next() {
             Some((Ok(token), Range { start, end })) => Some(Ok((start, token, end))),
-            Some((Err(err), Range { start, end })) => Some(Err(err)),
+            Some((Err(err), Range { start: _, end: _ })) => Some(Err(err)),
             None => None,
         }
     }

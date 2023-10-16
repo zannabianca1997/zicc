@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use vm::VMInt;
 
-use crate::lexer::{Identifier, LexError, Lexer, SpecialIdentifier, StringLit, Token};
+use crate::lexer::{Identifier, LexError, Lexer, SpecialIdentifier, StringLit};
 
 lalrpop_mod!(grammar);
 
@@ -112,23 +112,6 @@ impl<'s> Instruction<'s> {
         }
     }
 
-    pub(crate) fn param_values(&self) -> ArrayVec<&Labelled<'s, Box<Expression<'s>>>, 3> {
-        match self {
-            Instruction::Add(a, b, c)
-            | Instruction::Mul(a, b, c)
-            | Instruction::Slt(a, b, c)
-            | Instruction::Seq(a, b, c) => ArrayVec::from([a.value(), b.value(), c.value()]),
-            Instruction::In(a) => ArrayVec::try_from([a.value()].as_slice()).unwrap(),
-            Instruction::Out(a) | Instruction::Incb(a) => {
-                ArrayVec::try_from([a.value()].as_slice()).unwrap()
-            }
-            Instruction::Jz(a, b) | Instruction::Jnz(a, b) => {
-                ArrayVec::try_from([a.value(), b.value()].as_slice()).unwrap()
-            }
-            Instruction::Halt => ArrayVec::new(),
-        }
-    }
-
     pub(crate) fn into_param_values(self) -> ArrayVec<Labelled<'s, Box<Expression<'s>>>, 3> {
         match self {
             Instruction::Add(a, b, c)
@@ -180,14 +163,6 @@ impl<'s> ReadParam<'s> {
             ReadParam::Relative(_) => 2,
         }
     }
-
-    fn value(&self) -> &Labelled<'s, Box<Expression<'s>>> {
-        match self {
-            ReadParam::Absolute(AbsoluteParam { value })
-            | ReadParam::Immediate(ImmediateParam { value })
-            | ReadParam::Relative(RelativeParam { value }) => value,
-        }
-    }
     fn into_value(self) -> Labelled<'s, Box<Expression<'s>>> {
         match self {
             ReadParam::Absolute(AbsoluteParam { value })
@@ -223,13 +198,6 @@ impl<'s> WriteParam<'s> {
         match self {
             WriteParam::Absolute(_) => 0,
             WriteParam::Relative(_) => 2,
-        }
-    }
-
-    fn value(&self) -> &Labelled<'s, Box<Expression<'s>>> {
-        match self {
-            WriteParam::Absolute(AbsoluteParam { value })
-            | WriteParam::Relative(RelativeParam { value }) => value,
         }
     }
     fn into_value(self) -> Labelled<'s, Box<Expression<'s>>> {

@@ -1,13 +1,10 @@
-use std::{
-    collections::{
-        btree_map::Entry::{Occupied, Vacant},
-        BTreeMap, BTreeSet,
-    },
-    mem,
+use std::collections::{
+    btree_map::Entry::{Occupied, Vacant},
+    BTreeMap,
 };
 
 use either::Either;
-use errors::{Accumulator, SourceError, Spanned};
+use errors::Accumulator;
 use itertools::Itertools;
 use thiserror::Error;
 use vm::VMInt;
@@ -37,7 +34,7 @@ impl<'s, 'e, E> Code<'s, 'e, E> {
             Vacant(entry) => {
                 entry.insert(self.values.len());
             }
-            Occupied(entry) => self
+            Occupied(_entry) => self
                 .errors
                 .push(AssembleError::DoubleDef(value.label.to_string())),
         }
