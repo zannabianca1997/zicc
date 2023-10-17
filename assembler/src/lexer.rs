@@ -4,8 +4,10 @@ use std::{
     ops::Range,
 };
 
+use errors::Spanned;
 use itertools::Itertools;
 use logos::{Logos, SpannedIter};
+use syn::token::Le;
 use thiserror::Error;
 use vm::VMInt;
 
@@ -30,31 +32,76 @@ pub enum SpecialIdentifier {
     UnitEnd,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Error, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum LexError {
     #[error("Unknow token")]
-    #[default]
-    Unknow,
+    Unknow { span: Range<usize> },
     #[error("Unnamed label too big to fit in usize")]
-    UnnamedTooLong,
+    UnnamedTooLong { span: Range<usize> },
     #[error("Char literal can contain only a single char")]
-    MultipleCharInCharLiteral,
-    #[error(transparent)]
-    EscapeError(EscapeError),
+    MultipleCharInCharLiteral { span: Range<usize> },
+    #[error("Error in escaping string")]
+    EscapeError {
+        #[source]
+        err: EscapeError,
+        span: Range<usize>,
+    },
+}
+impl LexError {
+    fn spanned_at(mut self, new_span: Range<usize>) -> LexError {
+        match &mut self {
+            LexError::EscapeError { span, .. }
+            | LexError::Unknow { span }
+            | LexError::UnnamedTooLong { span }
+            | LexError::MultipleCharInCharLiteral { span } => *span = new_span,
+        }
+        self
+    }
+}
+impl Default for LexError {
+    fn default() -> Self {
+        Self::Unknow {
+            span: Default::default(),
+        }
+    }
+}
+impl Spanned for LexError {
+    fn span(&self) -> Range<usize> {
+        match self {
+            LexError::Unknow { span }
+            | LexError::UnnamedTooLong { span }
+            | LexError::MultipleCharInCharLiteral { span } => span.clone(),
+            LexError::EscapeError { err, span } => {
+                let mut inner = err.span();
+                inner.start += span.start;
+                inner.end += span.start;
+                inner
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum EscapeError {
     #[error("Unknow escape sequence")]
-    UnknowEscapeSequence,
+    UnknowEscapeSequence { span: Range<usize> },
     #[error("Escaped value should be an hexadecimal integer")]
-    NonHexEscape(
-        #[from]
+    NonHexEscape {
         #[source]
-        ParseIntError,
-    ),
+        err: ParseIntError,
+        span: Range<usize>,
+    },
     #[error("\\x escape should be followed by a braced hexadecimal")]
-    MissingValue,
+    MissingValue { span: Range<usize> },
+}
+impl Spanned for EscapeError {
+    fn span(&self) -> Range<usize> {
+        match self {
+            EscapeError::UnknowEscapeSequence { span }
+            | EscapeError::NonHexEscape { span, .. }
+            | EscapeError::MissingValue { span } => span.clone(),
+        }
+    }
 }
 
 fn parse_unnamed<'s>(
@@ -62,14 +109,18 @@ fn parse_unnamed<'s>(
 ) -> Result<Identifier<'static>, LexError> {
     match lex.slice().strip_prefix('$').unwrap().parse() {
         Ok(n) => Ok(Identifier::Unnamed(n)),
-        Err(err) if *err.kind() == IntErrorKind::PosOverflow => Err(LexError::UnnamedTooLong),
+        Err(err) if *err.kind() == IntErrorKind::PosOverflow => Err(LexError::UnnamedTooLong {
+            span: Default::default(),
+        }),
         Err(_) => unreachable!("The regex should avoid other error types"),
     }
 }
 fn parse_vmint<'s>(lex: &mut logos::Lexer<'s, Token<'s>>) -> Result<VMInt, LexError> {
     match lex.slice().parse() {
         Ok(n) => Ok(n),
-        Err(err) if *err.kind() == IntErrorKind::PosOverflow => Err(LexError::UnnamedTooLong),
+        Err(err) if *err.kind() == IntErrorKind::PosOverflow => Err(LexError::UnnamedTooLong {
+            span: Default::default(),
+        }),
         Err(_) => unreachable!("The regex should avoid other error types"),
     }
 }
@@ -83,13 +134,21 @@ fn parse_char<'s>(lex: &mut logos::Lexer<'s, Token<'s>>) -> Result<VMInt, LexErr
     let ch = match content.strip_prefix('\\') {
         None => {
             let Some((ch,)) = content.chars().collect_tuple() else {
-                return Err(LexError::MultipleCharInCharLiteral);
+                return Err(LexError::MultipleCharInCharLiteral {
+                    span: Default::default(),
+                });
             };
             (ch as u32).into()
         }
         Some(escape) => {
-            let (ch, "") = parse_escape(escape).map_err(LexError::EscapeError)? else {
-                return Err(LexError::MultipleCharInCharLiteral);
+            let (ch, "") = parse_escape(escape).map_err(|err| LexError::EscapeError {
+                err,
+                span: Default::default(),
+            })?
+            else {
+                return Err(LexError::MultipleCharInCharLiteral {
+                    span: Default::default(),
+                });
             };
             ch
         }
@@ -123,7 +182,9 @@ fn parse_escape(s: &str) -> Result<(VMInt, &str), EscapeError> {
                     .strip_prefix('{')
                     .and_then(|rem| rem.split_once('}'))
                 else {
-                    return Err(EscapeError::MissingValue);
+                    return Err(EscapeError::MissingValue {
+                        span: 0..ch.len_utf8(),
+                    });
                 };
                 let ch = VMInt::from_str_radix(
                     code,
@@ -135,11 +196,21 @@ fn parse_escape(s: &str) -> Result<(VMInt, &str), EscapeError> {
                         _ => unreachable!(),
                     },
                 )
-                .map_err(|err| EscapeError::NonHexEscape(err))?;
+                .map_err(|err| {
+                    let code_start = ch.len_utf8() + '{'.len_utf8();
+                    EscapeError::NonHexEscape {
+                        err,
+                        span: code_start..code_start + code.len(),
+                    }
+                })?;
 
                 return Ok((ch, rem));
             }
-            _ch => return Err(EscapeError::UnknowEscapeSequence),
+            ch => {
+                return Err(EscapeError::UnknowEscapeSequence {
+                    span: 0..ch.len_utf8(),
+                })
+            }
         } as u32)
             .into(),
         chars.as_str(),
@@ -209,7 +280,12 @@ fn parse_string_lit<'s>(lex: &mut logos::Lexer<'s, Token<'s>>) -> Result<StringL
 
             if ch == '\\' {
                 // check the escape and cut it out
-                rem = parse_escape(rem).map_err(LexError::EscapeError)?.1
+                rem = parse_escape(rem)
+                    .map_err(|err| LexError::EscapeError {
+                        err,
+                        span: Default::default(),
+                    })?
+                    .1
             }
         }
     }
@@ -317,7 +393,7 @@ impl<'s> Iterator for Lexer<'s> {
     fn next(&mut self) -> Option<Self::Item> {
         match self.tokens.next() {
             Some((Ok(token), Range { start, end })) => Some(Ok((start, token, end))),
-            Some((Err(err), Range { start: _, end: _ })) => Some(Err(err)),
+            Some((Err(err), span)) => Some(Err(err.spanned_at(span))),
             None => None,
         }
     }

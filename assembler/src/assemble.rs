@@ -4,7 +4,7 @@ use std::collections::{
 };
 
 use either::Either;
-use errors::Accumulator;
+use errors::{Accumulator, RootAccumulator};
 use itertools::Itertools;
 use thiserror::Error;
 use vm::VMInt;
@@ -17,7 +17,7 @@ use crate::{
 pub struct Code<'s, 'e, E> {
     values: Vec<Expression<'s>>,
     labels: BTreeMap<Identifier<'s>, usize>,
-    errors: &'e mut Accumulator<E>,
+    errors: &'e mut RootAccumulator<E>,
 }
 impl<'s, 'e, E> Code<'s, 'e, E> {
     fn push_value(&mut self, value: Expression<'s>) {
@@ -40,7 +40,7 @@ impl<'s, 'e, E> Code<'s, 'e, E> {
         }
     }
 
-    pub fn new(errors: &'e mut Accumulator<E>) -> Self {
+    pub fn new(errors: &'e mut RootAccumulator<E>) -> Self {
         Code {
             values: vec![],
             labels: BTreeMap::new(),
@@ -102,6 +102,7 @@ impl<'s, 'e, E> Code<'s, 'e, E> {
                     crate::ast::LabelRef::SpecialIdentifier(
                         SpecialIdentifier::UnitEnd | SpecialIdentifier::UnitStart,
                     ) => unreachable!(),
+                    LabelRef::Error(e) => *e,
                 })
             })
             .collect_vec()
@@ -182,6 +183,7 @@ where
         match self {
             Statement::IntsStm(ints) => ints.write_to(code),
             Statement::Instruction(instr) => instr.write_to(code),
+            Statement::Error(e) => e,
         }
     }
 }

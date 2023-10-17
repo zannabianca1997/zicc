@@ -5,20 +5,24 @@ use crate::{
     ast::*
 };
 use vm::VMInt;
+use errors::Accumulator;
 use either::{Either,Left,Right};
+use lalrpop_util::ErrorRecovery;
 
 grammar<'s>();
 
-pub File: File<'s> = {
+pub File: File<'s, AstErrorRecovery<'s>> = {
     <mut statements: (<Labelled<Statement?>> "\n")*> <last:Labelled<Statement?>> => {
       statements.push(last);
       File { statements: statements.into_iter().filter(|l| l.is_labelled() || l.content.is_some()).collect() }
     }
 }
 
+
 // an identifier that can be defined
 DefinableIdentifier: Identifier<'s> = {
   "ident", 
+
   "ints",
   "add",
   "mul",
@@ -35,7 +39,7 @@ DefinableIdentifier: Identifier<'s> = {
 LabelDef: LabelDef<'s> = {
   <label: DefinableIdentifier> ":" => LabelDef {<>}
 }
-LabelRef: LabelRef<'s> = {
+LabelRef: LabelRef<'s, AstErrorRecovery<'s>> = {
   DefinableIdentifier => LabelRef::Identifier(<>),
   "$ident" => LabelRef::SpecialIdentifier(<>),
 }
@@ -47,12 +51,12 @@ LabelledPlus<T>: Labelled<'s, T> = {
     <labels: LabelDef+> <content: T> => Labelled { labels: labels.into_iter().collect(), content }
 }
 
-Statement: Statement<'s> = {
+Statement: Statement<'s, AstErrorRecovery<'s>> = {
   "ints" <values: CommaSepExprs> => Statement::IntsStm(IntsStm{<>}),
   Instruction => Statement::Instruction(<>),
 }
 
-Instruction: Instruction<'s> = {
+Instruction: Instruction<'s, AstErrorRecovery<'s>> = {
     "add"  <ParamsRRW>  => Instruction::Add(<>.0,<>.1,<>.2),
     "mul"  <ParamsRRW>  => Instruction::Mul(<>.0,<>.1,<>.2),
     "in"   <WriteParam> => Instruction::In(<>),
@@ -65,40 +69,40 @@ Instruction: Instruction<'s> = {
     "halt"              => Instruction::Halt,
 }
 
-ReadParam: ReadParam<'s> = {
+ReadParam: ReadParam<'s, AstErrorRecovery<'s>> = {
   <value: Labelled<Expression>> => ReadParam::Absolute(AbsoluteParam{<>}),
   "#" <value: Labelled<Expression>> => ReadParam::Immediate(ImmediateParam{<>}),
   "@" <value: Labelled<Expression>> => ReadParam::Relative(RelativeParam{<>})
 }
-WriteParam: WriteParam<'s> = {
-  ReadParam =>? WriteParam::from_read(<>).ok_or(
-    lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite }
+WriteParam: WriteParam<'s, AstErrorRecovery<'s>> = {
+  <start:@L> <p: ReadParam> <end:@R> =>? WriteParam::from_read(p).ok_or(
+    lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite { span: start..end} }
   )
 }
-ReadParamNoComma: ReadParam<'s> = {
+ReadParamNoComma: ReadParam<'s, AstErrorRecovery<'s>> = {
   <value: LabelledPlus<Expression>> => ReadParam::Absolute(AbsoluteParam{<>}),
   <value: ExpressionNonNeg> => ReadParam::Absolute(AbsoluteParam{value:Labelled {labels:BTreeSet::new(), content:value}}),
   "#" <value: Labelled<Expression>> => ReadParam::Immediate(ImmediateParam{<>}),
   "@" <value: Labelled<Expression>> => ReadParam::Relative(RelativeParam{<>})
 }
-WriteParamNoComma: WriteParam<'s> = {
-  ReadParamNoComma =>? WriteParam::from_read(<>).ok_or(
-    lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite }
+WriteParamNoComma: WriteParam<'s, AstErrorRecovery<'s>> = {
+  <start:@L> <p: ReadParamNoComma> <end:@R> =>? WriteParam::from_read(p).ok_or(
+    lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite { span: start..end} }
   )
 }
 
-ParamsRR: (ReadParam<'s>, ReadParam<'s>) = {
+ParamsRR: (ReadParam<'s, AstErrorRecovery<'s>>, ReadParam<'s, AstErrorRecovery<'s>>) = {
   <ReadParam>     <ReadParamNoComma>,
   <ReadParam> "," <ReadParam>
 }
-ParamsRRW: (ReadParam<'s>, ReadParam<'s>, WriteParam<'s>) = {
+ParamsRRW: (ReadParam<'s, AstErrorRecovery<'s>>, ReadParam<'s, AstErrorRecovery<'s>>, WriteParam<'s, AstErrorRecovery<'s>>) = {
   <ReadParam>     <ReadParamNoComma>     <WriteParamNoComma>,
   <ReadParam> "," <ReadParam>            <WriteParamNoComma>,
   <ReadParam>     <ReadParamNoComma> "," <WriteParam>,
   <ReadParam> "," <ReadParam>        "," <WriteParam>,
 }
 
-CommaSepExprs: Vec<Labelled<'s, Either<Box<Expression<'s>>, StringLit<'s>>>> = {
+CommaSepExprs: Vec<Labelled<'s, Either<Box<Expression<'s, AstErrorRecovery<'s>>>, StringLit<'s>>>> = {
   <mut head: CommaSepExprs> "," <tail: Labelled<Expression>> => {head.push(tail.map(Left)); head},
   <mut head: CommaSepExprs> <tail: LabelledPlus<Expression>> => {head.push(tail.map(Left)); head},
   <mut head: CommaSepExprs> <tail: ExpressionNonNeg> => {head.push(Labelled { labels: BTreeSet::new(), content: Left(tail)}); head},
@@ -117,60 +121,60 @@ CommaSepExprs: Vec<Labelled<'s, Either<Box<Expression<'s>>, StringLit<'s>>>> = {
  
 
 
-Expression: Box<Expression<'s>> = {
+Expression: Box<Expression<'s, AstErrorRecovery<'s>>> = {
   <l:Expression> "+" <r:Factor> => Box::new(Expression::Sum(l,r)),
   <l:Expression> "-" <r:Factor> => Box::new(Expression::Sub(l,r)),
   Factor,
 }
 
-Factor: Box<Expression<'s>> = {
+Factor: Box<Expression<'s, AstErrorRecovery<'s>>> = {
   <l:Factor> "*" <r:Atom> => Box::new(Expression::Mul(l,r)),
   <l:Factor> "/" <r:Atom> => Box::new(Expression::Div(l,r)),
   <l:Factor> "%" <r:Atom> => Box::new(Expression::Mod(l,r)),
   Atom,
 }
 
-Atom: Box<Expression<'s>> = {
+Atom: Box<Expression<'s, AstErrorRecovery<'s>>> = {
   "num" => Box::new(Expression::Num(<>)),
   LabelRef => Box::new(Expression::Ref(<>)),
   "-" <Atom> => Box::new(Expression::Neg(<>)),
   "(" <Expression> ")",
 }
 
-ExpressionNonNeg: Box<Expression<'s>> = {
+ExpressionNonNeg: Box<Expression<'s, AstErrorRecovery<'s>>> = {
   <l:ExpressionNonNeg> "+" <r:Factor> => Box::new(Expression::Sum(l,r)),
   <l:ExpressionNonNeg> "-" <r:Factor> => Box::new(Expression::Sub(l,r)),
   FactorNonNeg,
 }
 
-FactorNonNeg: Box<Expression<'s>> = {
+FactorNonNeg: Box<Expression<'s, AstErrorRecovery<'s>>> = {
   <l:FactorNonNeg> "*" <r:Atom> => Box::new(Expression::Mul(l,r)),
   <l:FactorNonNeg> "/" <r:Atom> => Box::new(Expression::Div(l,r)),
   <l:FactorNonNeg> "%" <r:Atom> => Box::new(Expression::Mod(l,r)),
   AtomNonNeg,
 }
 
-AtomNonNeg: Box<Expression<'s>> = {
+AtomNonNeg: Box<Expression<'s, AstErrorRecovery<'s>>> = {
   "num" => Box::new(Expression::Num(<>)),
   LabelRef => Box::new(Expression::Ref(<>)),
   "(" <Expression> ")",
 }
 
 
-ExpressionNeg: Box<Expression<'s>> = {
+ExpressionNeg: Box<Expression<'s, AstErrorRecovery<'s>>> = {
   <l:ExpressionNeg> "+" <r:Factor> => Box::new(Expression::Sum(l,r)),
   <l:ExpressionNeg> "-" <r:Factor> => Box::new(Expression::Sub(l,r)),
   FactorNeg,
 }
 
-FactorNeg: Box<Expression<'s>> = {
+FactorNeg: Box<Expression<'s, AstErrorRecovery<'s>>> = {
   <l:FactorNeg> "*" <r:Atom> => Box::new(Expression::Mul(l,r)),
   <l:FactorNeg> "/" <r:Atom> => Box::new(Expression::Div(l,r)),
   <l:FactorNeg> "%" <r:Atom> => Box::new(Expression::Mod(l,r)),
   AtomNeg,
 }
 
-AtomNeg: Box<Expression<'s>> = {
+AtomNeg: Box<Expression<'s, AstErrorRecovery<'s>>> = {
   "-" <Atom> => Box::new(Expression::Neg(<>)),
 }
 

@@ -1,6 +1,6 @@
 //! Utilities to collect multiple errors
 #![feature(never_type)]
-use std::{error::Error, mem, ops::Range};
+use std::{error::Error, marker::PhantomData, mem, ops::Range};
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use nonempty::{nonempty, NonEmpty};
@@ -29,66 +29,13 @@ impl<E> IntoIterator for Multiple<E> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Accumulator<Error> {
+pub struct RootAccumulator<Error> {
     errors: Vec<Error>,
 }
 
-impl<E> Accumulator<E> {
+impl<E> RootAccumulator<E> {
     pub fn new() -> Self {
-        Accumulator { errors: vec![] }
-    }
-
-    pub fn push<EI: Into<E>>(&mut self, err: EI) {
-        self.errors.push(err.into())
-    }
-
-    pub fn handle<T, EI: Into<E>>(&mut self, res: Result<T, EI>) -> Option<T> {
-        match res {
-            Ok(t) => Some(t),
-            Err(e) => {
-                self.push(e.into());
-                None
-            }
-        }
-    }
-
-    pub fn handle_flattened<T, I>(&mut self, res: Result<T, I>) -> Option<T>
-    where
-        I: IntoIterator,
-        I::Item: Into<E>,
-    {
-        match res {
-            Ok(t) => Some(t),
-            Err(e) => {
-                self.extend(e);
-                None
-            }
-        }
-    }
-
-    pub fn handle_iter<'s, I>(&'s mut self, iter: I) -> HandleIter<'s, E, I::IntoIter>
-    where
-        I: IntoIterator,
-        HandleIter<'s, E, I::IntoIter>: Iterator,
-    {
-        HandleIter {
-            acc: self,
-            inner: iter.into_iter(),
-        }
-    }
-
-    pub fn handle_iter_flattened<'s, I>(
-        &'s mut self,
-        iter: I,
-    ) -> HandleIterFlattened<'s, E, I::IntoIter>
-    where
-        I: IntoIterator,
-        HandleIterFlattened<'s, E, I::IntoIter>: Iterator,
-    {
-        HandleIterFlattened {
-            acc: self,
-            inner: iter.into_iter(),
-        }
+        RootAccumulator { errors: vec![] }
     }
 
     pub fn checkpoint(&mut self) -> Result<(), Multiple<E>> {
@@ -116,21 +63,102 @@ impl<E> Accumulator<E> {
     }
 }
 
-impl<E, EI: Into<E>> Extend<EI> for Accumulator<E> {
-    fn extend<T: IntoIterator<Item = EI>>(&mut self, iter: T) {
-        self.errors.extend(iter.into_iter().map(Into::into))
+impl<E> Accumulator for RootAccumulator<E> {
+    type Error = E;
+
+    fn push<EI: Into<Self::Error>>(&mut self, err: EI) {
+        self.errors.push(err.into())
+    }
+}
+/*
+pub trait Converter {
+    type Input;
+    type Output;
+    fn convert(&mut self, inp: Self::Input) -> Self::Output;
+}
+
+impl<T, A, B> Converter for T
+where
+    T: FnMut(A) -> B,
+{
+    type Input = A;
+    type Output = B;
+
+    fn convert(&mut self, inp: Self::Input) -> Self::Output {
+        todo!()
+    }
+} */
+
+#[derive(Debug)]
+pub struct MappedAccumulator<'inner, A, F, E>(
+    &'inner mut A,
+    F,
+    PhantomData<fn(&mut A, E) -> A::Error>,
+)
+where
+    A: Accumulator,
+    F: FnMut(E) -> A::Error;
+
+impl<A, F, E> Accumulator for MappedAccumulator<'_, A, F, E>
+where
+    A: Accumulator,
+    F: FnMut(E) -> A::Error,
+{
+    type Error = E;
+
+    fn push<EI: Into<Self::Error>>(&mut self, err: EI) {
+        self.0.push(self.1(err.into()))
     }
 }
 
-pub struct HandleIter<'a, E, I> {
-    acc: &'a mut Accumulator<E>,
+// Accumulator trait
+
+pub trait Accumulator {
+    type Error;
+
+    fn push<EI: Into<Self::Error>>(&mut self, err: EI);
+
+    fn handle<T, EI: Into<Self::Error>>(&mut self, res: Result<T, EI>) -> Option<T> {
+        match res {
+            Ok(t) => Some(t),
+            Err(e) => {
+                self.push(e.into());
+                None
+            }
+        }
+    }
+
+    fn handle_iter<'s, I>(&'s mut self, iter: I) -> HandledIter<'s, Self, I::IntoIter>
+    where
+        Self: Sized,
+        I: IntoIterator,
+        HandledIter<'s, Self, I::IntoIter>: Iterator,
+    {
+        HandledIter {
+            acc: self,
+            inner: iter.into_iter(),
+        }
+    }
+
+    fn as_mapped<'s, F, E>(&'s mut self, fun: F) -> MappedAccumulator<'s, Self, F, E>
+    where
+        Self: Sized,
+        F: FnMut(E) -> Self::Error,
+    {
+        MappedAccumulator(self, fun, PhantomData)
+    }
+}
+
+pub struct HandledIter<'a, A, I> {
+    acc: &'a mut A,
     inner: I,
 }
 
-impl<E, I, T, EI> Iterator for HandleIter<'_, E, I>
+impl<I, A, T, EI> Iterator for HandledIter<'_, A, I>
 where
+    A: Accumulator,
     I: Iterator<Item = Result<T, EI>>,
-    EI: Into<E>,
+    EI: Into<A::Error>,
 {
     type Item = Option<T>;
 
@@ -138,70 +166,30 @@ where
         self.inner.next().map(|res| self.acc.handle(res))
     }
 }
-pub struct HandleIterFlattened<'a, E, I> {
-    acc: &'a mut Accumulator<E>,
-    inner: I,
-}
-
-impl<E, I, T, II> Iterator for HandleIterFlattened<'_, E, I>
-where
-    I: Iterator<Item = Result<T, II>>,
-    II: IntoIterator,
-    II::Item: Into<E>,
-{
-    type Item = Option<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|res| self.acc.handle_flattened(res))
-    }
-}
 
 pub trait IteratorExt<T, EI>
 where
     Self: IntoIterator<Item = Result<T, EI>>,
 {
-    fn collect_errs<E>(self, acc: &mut Accumulator<E>) -> HandleIter<'_, E, Self::IntoIter>
+    fn collect_errs<A, E>(self, acc: &mut A) -> HandledIter<'_, A, Self::IntoIter>
     where
-        EI: Into<E>;
+        A: Accumulator,
+        EI: Into<A::Error>;
 }
 impl<T, EI> IteratorExt<T, EI> for T
 where
     T: IntoIterator<Item = Result<T, EI>>,
 {
-    fn collect_errs<E>(self, acc: &mut Accumulator<E>) -> HandleIter<'_, E, Self::IntoIter>
+    fn collect_errs<A, E>(self, acc: &mut A) -> HandledIter<'_, A, Self::IntoIter>
     where
-        EI: Into<E>,
+        A: Accumulator,
+        EI: Into<A::Error>,
     {
         acc.handle_iter(self)
     }
 }
-pub trait IteratorFlattenExt<T, EI>
-where
-    Self: IntoIterator<Item = Result<T, EI>>,
-{
-    fn collect_errs_flattened<E>(
-        self,
-        acc: &mut Accumulator<E>,
-    ) -> HandleIterFlattened<'_, E, Self::IntoIter>
-    where
-        EI: IntoIterator,
-        EI::Item: Into<E>;
-}
-impl<T, EI> IteratorFlattenExt<T, EI> for T
-where
-    T: IntoIterator<Item = Result<T, EI>>,
-{
-    fn collect_errs_flattened<E>(
-        self,
-        acc: &mut Accumulator<E>,
-    ) -> HandleIterFlattened<'_, E, Self::IntoIter>
-    where
-        EI: IntoIterator,
-        EI::Item: Into<E>,
-    {
-        acc.handle_iter_flattened(self)
-    }
-}
+
+// Span stuff
 
 pub trait Spanned {
     fn span(&self) -> Range<usize>;
