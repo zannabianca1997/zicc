@@ -7,7 +7,7 @@ use std::{
 
 use assembler::{
     assemble::Code,
-    ast::{AstNode, File, ParseError},
+    ast::{File, ParseError},
 };
 use errors::{Accumulator, RootAccumulator};
 use itertools::Itertools;

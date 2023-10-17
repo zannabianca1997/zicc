@@ -1,0 +1,16 @@
+descr: Copy the input until -1
+tests:
+    empty:
+        in: [-1]
+        out: []
+    some:
+        in: [1,34,2,12,4,2,1,-1]
+        out: [1,34,2,12,4,2,1]
+---
+start:
+in  input
+add input #1 cmp
+jz # cmp:0  #end
+out # input:0
+jnz #1 #start
+end: halt

@@ -1,0 +1,13 @@
+tests:
+    - out: [72,101,108,108,111,32,119,111,114,108,100]
+---
+loop:
+    add ptr #0 out
+    out out:0
+    add ptr #1 ptr
+    add ptr #0 cmp
+jnz cmp:0 #loop
+halt
+
+ints ptr: str
+ints str: "Hello world", 0
