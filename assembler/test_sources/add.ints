@@ -1,0 +1,14 @@
+descr: add two numbers from input
+tests:
+    - in: [3, 5]
+      out: [8]
+    - in: [10, 0]
+      out: [10]
+    - in: [-4, 2]
+      out: [-2]
+---
+in a
+in b
+add # a:0 # b:0 c
+out # c:0
+halt

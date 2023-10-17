@@ -16,12 +16,14 @@ logos = "0.13.0"
 lalrpop-util = { version = "0.20.0", features = ["unicode"] }
 map_in_place = "0.1.0"
 proc-macro2 = "1.0.69"
-syn = "2.0.38"
 
-[dev-dependencies]
-codespan-reporting = "0.11.1"
-rustyline = "12.0.0"
-strum = { version = "0.25.0", features = ["derive"] }
 
 [build-dependencies]
 lalrpop = "0.20.0"
+cargo-emit = "0.2.1"
+vm = { path = "../vm" }
+serde = { version = "1.0.189", features = ["derive"] }
+serde_yaml = "0.9.25"
+quote = "1.0.33"
+proc-macro2 = "1.0.69"
+syn = "2.0.38"

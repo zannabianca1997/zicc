@@ -7,7 +7,6 @@ use std::{
 use errors::Spanned;
 use itertools::Itertools;
 use logos::{Logos, SpannedIter};
-use syn::token::Le;
 use thiserror::Error;
 use vm::VMInt;
 

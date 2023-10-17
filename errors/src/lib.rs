@@ -70,24 +70,6 @@ impl<E> Accumulator for RootAccumulator<E> {
         self.errors.push(err.into())
     }
 }
-/*
-pub trait Converter {
-    type Input;
-    type Output;
-    fn convert(&mut self, inp: Self::Input) -> Self::Output;
-}
-
-impl<T, A, B> Converter for T
-where
-    T: FnMut(A) -> B,
-{
-    type Input = A;
-    type Output = B;
-
-    fn convert(&mut self, inp: Self::Input) -> Self::Output {
-        todo!()
-    }
-} */
 
 #[derive(Debug)]
 pub struct MappedAccumulator<'inner, A, F, E>(

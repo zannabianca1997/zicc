@@ -495,7 +495,7 @@ impl<E, T: AstNode<E>> AstNode<E> for Vec<T> {
                 }
             })
             .collect_vec();
-        error_present.then_some(res)
+        (!error_present).then_some(res)
     }
 }
 
