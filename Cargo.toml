@@ -1,3 +1,13 @@
 [workspace]
-members = ["assembler", "compiler", "vm", "zicc", "errors"]
+members = [
+    "assembler/lexer",
+    "assembler/parser",
+    "assembler/assembler",
+    "assembler/lex_from_rust",
+    "assembler/test_sources",
+    "compiler",
+    "vm",
+    "zicc",
+    "errors",
+]
 resolver = "2"

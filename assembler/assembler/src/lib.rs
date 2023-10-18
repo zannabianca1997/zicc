@@ -1,18 +1,21 @@
+#![feature(box_into_inner)]
+#![feature(unwrap_infallible)]
+
 use std::collections::{
     btree_map::Entry::{Occupied, Vacant},
     BTreeMap,
 };
 
 use either::Either;
-use errors::{Accumulator, RootAccumulator};
 use itertools::Itertools;
 use thiserror::Error;
-use vm::VMInt;
 
-use crate::{
-    ast::{Expression, File, Instruction, IntsStm, LabelDef, LabelRef, Labelled, Statement},
-    lexer::{Identifier, SpecialIdentifier, StringLit},
+use errors::{Accumulator, RootAccumulator};
+use lexer::{Identifier, SpecialIdentifier, StringLit};
+use parser::ast::{
+    Expression, File, Instruction, IntsStm, LabelDef, LabelRef, Labelled, Statement,
 };
+use vm::VMInt;
 
 pub struct Code<'s, 'e, E> {
     values: Vec<Expression<'s>>,
@@ -84,7 +87,7 @@ impl<'s, 'e, E> Code<'s, 'e, E> {
             .into_iter()
             .flat_map(|e| {
                 e.calculate(&mut |id| match id {
-                    crate::ast::LabelRef::Identifier(id) => match self.labels.get(&id) {
+                    LabelRef::Identifier(id) => match self.labels.get(&id) {
                         Some(pos) => Some(
                             (*pos)
                                 .try_into()
@@ -95,11 +98,9 @@ impl<'s, 'e, E> Code<'s, 'e, E> {
                             None
                         }
                     },
-                    crate::ast::LabelRef::SpecialIdentifier(SpecialIdentifier::Start) => Some(0),
-                    crate::ast::LabelRef::SpecialIdentifier(SpecialIdentifier::End) => {
-                        Some(code_end)
-                    }
-                    crate::ast::LabelRef::SpecialIdentifier(
+                    LabelRef::SpecialIdentifier(SpecialIdentifier::Start) => Some(0),
+                    LabelRef::SpecialIdentifier(SpecialIdentifier::End) => Some(code_end),
+                    LabelRef::SpecialIdentifier(
                         SpecialIdentifier::UnitEnd | SpecialIdentifier::UnitStart,
                     ) => unreachable!(),
                     LabelRef::Error(e) => *e,
@@ -242,4 +243,55 @@ pub enum AssembleError {
     DoubleDef(String),
     #[error("Unknow label")]
     UnknowLabel(String),
+}
+
+#[cfg(test)]
+mod sources {
+    use super::*;
+    use test_sources::{test_io, test_sources};
+
+    #[test_sources]
+    fn assemble(source: &str) {
+        let ast = parser::parse(source, &mut RootAccumulator::<parser::ParseError>::new()).unwrap();
+
+        let mut errors = RootAccumulator::<AssembleError>::new();
+        let mut code = Code::new(&mut errors);
+        code.push_unit(ast);
+        let code = code.codegen();
+
+        if let Err(errs) = errors.finish_with(code) {
+            panic!("Errors in parsing:\n\n{}", errs.into_iter().format("\n"))
+        }
+    }
+
+    #[test_io]
+    fn io(source: &str, r#in: &[vm::VMInt], expected_out: &[vm::VMInt]) {
+        use std::mem;
+        use vm::ICMachine;
+
+        let ast = parser::parse(source, &mut RootAccumulator::<parser::ParseError>::new()).unwrap();
+        let mut errors = RootAccumulator::<AssembleError>::new();
+        let mut code = Code::new(&mut errors);
+        code.push_unit(ast);
+        let code = code.codegen();
+        mem::drop(errors);
+
+        let mut vm = vm::ICMachineData::new(&code);
+        for &v in r#in {
+            vm.give_input(v).into_ok();
+        }
+        match vm.run() {
+            vm::ICMachineStopState::EmptyInput => panic!("The vm was not satisfied with the input"),
+            vm::ICMachineStopState::RuntimeErr(err) => {
+                panic!("The vm stopped with an error: {err}")
+            }
+            vm::ICMachineStopState::Halted => {
+                let mut out = vec![];
+                while let Some(v) = vm.get_output() {
+                    out.push(v)
+                }
+                assert_eq!(&out, expected_out, "The vm gave a different output")
+            }
+        }
+    }
 }

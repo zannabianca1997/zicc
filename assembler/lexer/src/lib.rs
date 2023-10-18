@@ -4,10 +4,11 @@ use std::{
     ops::Range,
 };
 
-use errors::Spanned;
 use itertools::Itertools;
 use logos::{Logos, SpannedIter};
 use thiserror::Error;
+
+use errors::Spanned;
 use vm::VMInt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -319,6 +320,11 @@ pub enum Token<'s> {
     #[regex(r"(?i)halt", |lex| Identifier::Named(lex.slice()))]
     Halt(Identifier<'s>),
 
+    #[regex(r"(?i)inc", |lex| Identifier::Named(lex.slice()))]
+    Inc(Identifier<'s>),
+    #[regex(r"(?i)dec", |lex| Identifier::Named(lex.slice()))]
+    Dec(Identifier<'s>),
+
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| Identifier::Named(lex.slice()))]
     #[regex(r"\$[0-9]+", parse_unnamed)]
     Identifier(Identifier<'s>),
@@ -394,6 +400,18 @@ impl<'s> Iterator for Lexer<'s> {
             Some((Ok(token), Range { start, end })) => Some(Ok((start, token, end))),
             Some((Err(err), span)) => Some(Err(err.spanned_at(span))),
             None => None,
+        }
+    }
+}
+
+#[cfg(test)]
+#[test_sources::test_sources]
+fn lex_sources(source: &str) {
+    let lexer = Lexer::new(source);
+    for token in lexer {
+        match token {
+            Ok((start, token, end)) => println!("{start}..{end}\t=> {token:?}"),
+            Err(err) => panic!("Lex error: {err}"),
         }
     }
 }

@@ -2,6 +2,8 @@
 //!
 //! This is kept indipendent from the rest of the project, so it can be substituted with any equivalent implementation
 
+#![feature(never_type)]
+
 use std::collections::VecDeque;
 
 use thiserror::Error;
@@ -206,12 +208,9 @@ impl ICMachineData {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Error)]
-pub enum ICMAchineInputErr {}
-
 impl ICMachine for ICMachineData {
     type IntType = VMInt;
-    type InputErr = ICMAchineInputErr;
+    type InputErr = !;
 
     fn new(program: &[Self::IntType]) -> ICMachineData {
         ICMachineData {

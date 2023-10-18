@@ -2,14 +2,14 @@ use std::{collections::BTreeSet, ops::Range};
 
 use arrayvec::ArrayVec;
 use either::Either::{self, Left, Right};
-use errors::{Accumulator, Spanned};
 use itertools::Itertools;
 use lalrpop_util::{lalrpop_mod, ErrorRecovery};
+use map_in_place::MapBoxInPlace;
 use thiserror::Error;
 
+use errors::{Accumulator, Spanned};
+use lexer::{Identifier, LexError, Lexer, SpecialIdentifier, StringLit, Token};
 use vm::VMInt;
-
-use crate::lexer::{Identifier, LexError, Lexer, SpecialIdentifier, StringLit, Token};
 
 type AstErrorRecovery<'s> = ErrorRecovery<usize, Token<'s>, ParseErrorContent>;
 lalrpop_mod!(grammar);
@@ -109,7 +109,7 @@ impl<'s, T> Labelled<'s, Option<T>> {
                 content: Some(content),
             } => Some(Labelled { labels, content }),
             Labelled {
-                labels,
+                labels: _,
                 content: None,
             } => None,
         }
@@ -195,7 +195,7 @@ impl<'s> Instruction<'s> {
         }
     }
 
-    pub(crate) fn into_param_values(self) -> ArrayVec<Labelled<'s, Box<Expression<'s>>>, 3> {
+    pub fn into_param_values(self) -> ArrayVec<Labelled<'s, Box<Expression<'s>>>, 3> {
         match self {
             Instruction::Add(a, b, c)
             | Instruction::Mul(a, b, c)
@@ -215,7 +215,7 @@ impl<'s> Instruction<'s> {
         }
     }
 
-    pub(crate) fn param_modes(&self) -> ArrayVec<VMInt, 3> {
+    pub fn param_modes(&self) -> ArrayVec<VMInt, 3> {
         match self {
             Instruction::Add(a, b, c)
             | Instruction::Mul(a, b, c)
@@ -347,7 +347,7 @@ impl<'s> Expression<'s> {
         })
     }
 
-    pub(crate) fn replace(&mut self, refer: LabelRef<'s>, value: VMInt) {
+    pub fn replace(&mut self, refer: LabelRef<'s>, value: VMInt) {
         match self {
             Expression::Sum(a, b)
             | Expression::Sub(a, b)
@@ -365,8 +365,6 @@ impl<'s> Expression<'s> {
         }
     }
 }
-
-use map_in_place::MapBoxInPlace;
 
 pub trait AstNode<E> {
     fn constant_folding(self) -> Self;
@@ -526,7 +524,7 @@ impl<E> AstNode<E> for StringLit<'_> {
 
     fn extract_errs(
         self,
-        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+        _accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<!>> {
         Some(self)
     }

@@ -14,22 +14,9 @@ use std::{
 
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, ToTokens};
-
 use serde::{de::Error as _, Deserialize};
-use vm::VMInt;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    // building grammar
-    lalrpop::Configuration::new()
-        .use_colors_if_tty()
-        .use_cargo_dir_conventions()
-        .emit_rerun_directives(true)
-        .emit_report(true)
-        .process()?;
-    // building examples
-    build_examples()?;
-    Ok(())
-}
+use vm::VMInt;
 
 struct Examples(BTreeMap<Ident, Example>);
 impl Examples {
@@ -62,14 +49,14 @@ impl Examples {
 }
 impl ToTokens for Examples {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let examples = self
-            .0
-            .iter()
-            .map(|(name, example)| quote!( mod #name { #example }));
+        let examples = self.0.iter().map(|(name, example)| {
+            let name = name.to_string();
+            quote!( (#name, #example) )
+        });
         quote!(
-            mod examples {
-                #(#examples)*
-            }
+            &[
+                #(#examples),*
+            ]
         )
         .to_tokens(tokens)
     }
@@ -87,22 +74,10 @@ impl ToTokens for Example {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Example { source, tests } = self;
         quote!(
-            static SOURCE: super::super::Source = #source;
-
-            #[test]
-            fn lex(){
-                super::super::test_lex(&SOURCE)
+            SourceFile {
+                source: #source,
+                tests: #tests
             }
-            #[test]
-            fn parse(){
-                super::super::test_parse(&SOURCE)
-            }
-            #[test]
-            fn assemble(){
-                super::super::test_assemble(&SOURCE)
-            }
-
-            #tests
         )
         .to_tokens(tokens)
     }
@@ -123,7 +98,7 @@ impl ToTokens for Source {
             .map(|d| quote!(Some(#d)))
             .unwrap_or_else(|| quote!(None));
         quote!(
-            super::super::Source {
+            Source {
                 descr: #descr,
                 source: #source,
             }
@@ -156,18 +131,14 @@ impl Tests {
 }
 impl ToTokens for Tests {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let tests = self.iter_tests().map(|(name, example)| {
-            quote!(
-                #[test]
-                fn #name() {
-                    #example
-                }
-            )
+        let tests = self.iter_tests().map(|(name, test)| {
+            let name = name.to_string();
+            quote!((#name, #test))
         });
         quote!(
-            mod io {
-                #(#tests)*
-            }
+            &[
+                #(#tests),*
+            ]
         )
         .to_tokens(tokens)
     }
@@ -208,20 +179,18 @@ impl ToTokens for Test {
             .map(|d| quote!(Some(#d)))
             .unwrap_or_else(|| quote!(None));
         quote!(
-            static TEST: super::super::super::Test = super::super::super::Test {
+           Test {
                 descr: #descr,
                 r#in: &[#(#r#in),*],
                 out: &[#(#out),*],
-            };
-            super::super::super::test_io(&super::SOURCE, &TEST)
+            }
         )
         .to_tokens(tokens)
     }
 }
 
-fn build_examples() -> Result<(), Box<dyn Error>> {
-    let examples_dir =
-        PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("test_sources");
+fn main() -> Result<(), Box<dyn Error>> {
+    let examples_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("sources");
     let out_file_path = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("examples.rs");
     cargo_emit::rerun_if_changed!(examples_dir.display());
 
@@ -230,6 +199,6 @@ fn build_examples() -> Result<(), Box<dyn Error>> {
     let mut out_file = File::create(&out_file_path)?;
     write!(out_file, "{}", tokens)?;
 
-    cargo_emit::rustc_env!("EXAMPLES", "{}", out_file_path.display());
+    cargo_emit::rustc_env!("SOURCES", "{}", out_file_path.display());
     Ok(())
 }

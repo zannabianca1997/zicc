@@ -1,13 +1,8 @@
-use crate::{
-    lexer::{
-        Token, Identifier, SpecialIdentifier, StringLit
-    },
-    ast::*
-};
-use vm::VMInt;
-use errors::Accumulator;
 use either::{Either,Left,Right};
-use lalrpop_util::ErrorRecovery;
+
+use crate::ast::*;
+use lexer::{Token, Identifier, SpecialIdentifier, StringLit};
+use vm::VMInt;
 
 grammar<'s>();
 
@@ -24,6 +19,7 @@ DefinableIdentifier: Identifier<'s> = {
   "ident", 
 
   "ints",
+  
   "add",
   "mul",
   "in",

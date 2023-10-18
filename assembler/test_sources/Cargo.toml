@@ -1,0 +1,22 @@
+[package]
+name = "test_sources"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0.69"
+quote = "1.0.33"
+syn = "2.0.38"
+vm = { version = "0.1.0", path = "../../vm" }
+
+[build-dependencies]
+cargo-emit = "0.2.1"
+proc-macro2 = "1.0.69"
+quote = "1.0.33"
+syn = "2.0.38"
+serde = { version = "1.0.189", features = ["derive"] }
+serde_yaml = "0.9.25"
+vm = { version = "0.1.0", path = "../../vm" }
