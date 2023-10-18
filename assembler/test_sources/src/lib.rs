@@ -85,7 +85,7 @@ mod impls {
                 },
             )| {
                 let descr = descr
-                    .map(|d| quote!(#[doc = #descr]))
+                    .map(|descr| quote!(#[doc = #descr]))
                     .unwrap_or_else(|| quote!());
                 let name = format_ident!("{name}");
                 let test_fn_name = &test_fn.sig.ident;
