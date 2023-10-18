@@ -154,7 +154,7 @@ mod impls {
         tts.into_iter()
             .fold(Ok(vec![]), |acc, v| match (acc, relex(v)) {
                 (Ok(mut v1), Ok(tok)) => {
-                    v1.push(MacroToken::TokenDef(tok));
+                    v1.extend(tok.into_iter().map(MacroToken::TokenDef));
                     Ok(v1)
                 }
                 (Ok(_), Err(e)) | (Err(e), Ok(_)) => Err(e),
@@ -165,14 +165,24 @@ mod impls {
             })
     }
 
-    fn relex(v: TokenTree) -> syn::Result<TokenStream> {
+    fn relex(v: TokenTree) -> syn::Result<Vec<TokenStream>> {
         let tok = format!("{v}");
-        let mut lexer = Lexer::new(&tok);
-        let lexed = lexer.next().unwrap();
-        match lexed {
-            Ok((_, tok, _)) => Ok(token_def(tok)),
-            Err(e) => Err(syn::Error::new_spanned(v, e)),
-        }
+        Lexer::new(&tok)
+            .map(|lexed| match lexed {
+                Ok((_, tok, _)) => Ok(token_def(tok)),
+                Err(e) => Err(syn::Error::new_spanned(&v, e)),
+            })
+            .fold(Ok(vec![]), |acc, v| match (acc, v) {
+                (Ok(mut v1), Ok(tok)) => {
+                    v1.push(tok);
+                    Ok(v1)
+                }
+                (Ok(_), Err(e)) | (Err(e), Ok(_)) => Err(e),
+                (Err(mut e1), Err(e2)) => {
+                    e1.combine(e2);
+                    Err(e1)
+                }
+            })
     }
 
     fn relex_special_id(next: TokenTree) -> syn::Result<TokenStream> {

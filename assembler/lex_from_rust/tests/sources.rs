@@ -21,6 +21,11 @@ fn add() {
 }
 
 #[test]
+fn raw() {
+    general_test("r#a", ica!(r#a))
+}
+
+#[test]
 fn with_anon() {
     general_test(
         "in $0
