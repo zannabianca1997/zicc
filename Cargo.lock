@@ -33,19 +33,13 @@ dependencies = [
  "either",
  "errors",
  "itertools 0.11.0",
+ "lex_from_rust",
  "lexer",
+ "logos",
  "parser",
  "test_sources",
  "thiserror",
  "vm",
-]
-
-[[package]]
-name = "assembler_lex_from_rust"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
 ]
 
 [[package]]
@@ -295,6 +289,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f35c735096c0293d313e8f2a641627472b83d01b937177fe76e5e2708d31e0d"
 dependencies = [
  "regex",
+]
+
+[[package]]
+name = "lex_from_rust"
+version = "0.1.0"
+dependencies = [
+ "either",
+ "itertools 0.11.0",
+ "lexer",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "test_sources",
 ]
 
 [[package]]

@@ -219,7 +219,7 @@ fn parse_escape(s: &str) -> Result<(VMInt, &str), EscapeError> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StringLit<'s> {
-    content: &'s str,
+    pub content: &'s str,
 }
 impl<'s> StringLit<'s> {
     fn iter(&self) -> StringLitIter<'s> {
