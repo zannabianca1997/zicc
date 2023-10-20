@@ -1,4 +1,4 @@
-static KEYWORDS: &[&str] = &[
+pub static KEYWORDS: &[&str] = &[
     "ints", "add", "mul", "in", "out", "jz", "jnz", "slt", "seq", "incb", "halt", "inc", "dec",
 ];
 

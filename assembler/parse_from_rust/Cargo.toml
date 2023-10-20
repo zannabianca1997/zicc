@@ -9,7 +9,8 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1.0.69"
 quote = "1.0.33"
-lexer = { path = "../lexer" }
+parser = { path = "../parser" }
+keyword_expand_macro = { path = "../keyword_expand_macro" }
 syn = "2.0.38"
 itertools = "0.11.0"
 either = "1.9.0"

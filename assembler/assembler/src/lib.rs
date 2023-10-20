@@ -3,7 +3,7 @@
 
 use std::collections::{
     btree_map::Entry::{Occupied, Vacant},
-    BTreeMap,
+    BTreeMap, BTreeSet,
 };
 
 use either::Either;
@@ -13,7 +13,8 @@ use thiserror::Error;
 use errors::{Accumulator, RootAccumulator};
 use lexer::{Identifier, SpecialIdentifier, StringLit};
 use parser::ast::{
-    Expression, File, Instruction, IntsStm, LabelDef, LabelRef, Labelled, Statement,
+    DecStm, Expression, File, ImmediateParam, IncStm, Instruction, IntsStm, LabelDef, LabelRef,
+    Labelled, ReadParam, Statement,
 };
 use vm::VMInt;
 
@@ -184,6 +185,8 @@ where
         match self {
             Statement::IntsStm(ints) => ints.write_to(code),
             Statement::Instruction(instr) => instr.write_to(code),
+            Statement::Inc(inc) => inc.write_to(code),
+            Statement::Dec(dec) => dec.write_to(code),
             Statement::Error(e) => e,
         }
     }
@@ -220,6 +223,43 @@ where
         for p in self.into_param_values() {
             p.write_to(code)
         }
+    }
+}
+
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for IncStm<'s>
+where
+    E: From<AssembleError>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
+        Instruction::Add(
+            self.0.clone().into(),
+            ReadParam::Immediate(ImmediateParam {
+                value: Labelled {
+                    labels: BTreeSet::new(),
+                    content: Box::new(Expression::Num(1)),
+                },
+            }),
+            self.0.into(),
+        )
+        .write_to(code)
+    }
+}
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for DecStm<'s>
+where
+    E: From<AssembleError>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
+        Instruction::Add(
+            self.0.clone().into(),
+            ReadParam::Immediate(ImmediateParam {
+                value: Labelled {
+                    labels: BTreeSet::new(),
+                    content: Box::new(Expression::Num(-1)),
+                },
+            }),
+            self.0.into(),
+        )
+        .write_to(code)
     }
 }
 

@@ -38,6 +38,8 @@ LabelledPlus<T>: Labelled<'s, T> = {
 Statement: Statement<'s, AstErrorRecovery<'s>> = {
   "ints" <values: CommaSepExprs> => Statement::IntsStm(IntsStm{<>}),
   Instruction => Statement::Instruction(<>),
+  "inc" <UnlabelledWriteParam> => Statement::Inc(IncStm(<>)),
+  "dec" <UnlabelledWriteParam> => Statement::Dec(DecStm(<>)),
 }
 
 Instruction: Instruction<'s, AstErrorRecovery<'s>> = {
@@ -71,6 +73,27 @@ ReadParamNoComma: ReadParam<'s, AstErrorRecovery<'s>> = {
 }
 WriteParamNoComma: WriteParam<'s, AstErrorRecovery<'s>> = {
   <start:@L> <p: ReadParamNoComma> <end:@R> =>? WriteParam::from_read(p).ok_or(
+    lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite { span: start..end} }
+  )
+}
+
+UnlabelledReadParam: UnlabelledReadParam<'s, AstErrorRecovery<'s>> = {
+  <value: Expression> => UnlabelledReadParam::Absolute(UnlabelledAbsoluteParam{<>}),
+  "#" <value: Expression> => UnlabelledReadParam::Immediate(UnlabelledImmediateParam{<>}),
+  "@" <value: Expression> => UnlabelledReadParam::Relative(UnlabelledRelativeParam{<>})
+}
+UnlabelledWriteParam: UnlabelledWriteParam<'s, AstErrorRecovery<'s>> = {
+  <start:@L> <p: UnlabelledReadParam> <end:@R> =>? UnlabelledWriteParam::from_read(p).ok_or(
+    lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite { span: start..end} }
+  )
+}
+UnlabelledReadParamNoComma: UnlabelledReadParam<'s, AstErrorRecovery<'s>> = {
+  <value: ExpressionNonNeg> => UnlabelledReadParam::Absolute(UnlabelledAbsoluteParam{<>}),
+  "#" <value: Expression> => UnlabelledReadParam::Immediate(UnlabelledImmediateParam{<>}),
+  "@" <value: Expression> => UnlabelledReadParam::Relative(UnlabelledRelativeParam{<>})
+}
+UnlabelledWriteParamNoComma: UnlabelledWriteParam<'s, AstErrorRecovery<'s>> = {
+  <start:@L> <p: UnlabelledReadParamNoComma> <end:@R> =>? UnlabelledWriteParam::from_read(p).ok_or(
     lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite { span: start..end} }
   )
 }

@@ -140,6 +140,8 @@ pub enum LabelRef<'s, Error = !> {
 pub enum Statement<'s, Error = !> {
     IntsStm(IntsStm<'s, Error>),
     Instruction(Instruction<'s, Error>),
+    Inc(IncStm<'s, Error>),
+    Dec(DecStm<'s, Error>),
     Error(Error),
 }
 
@@ -235,6 +237,11 @@ impl<'s> Instruction<'s> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct IncStm<'s, Error = !>(pub UnlabelledWriteParam<'s, Error>);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DecStm<'s, Error = !>(pub UnlabelledWriteParam<'s, Error>);
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadParam<'s, Error = !> {
     Absolute(AbsoluteParam<'s, Error>),
     Immediate(ImmediateParam<'s, Error>),
@@ -265,6 +272,25 @@ impl<'s, E> From<WriteParam<'s, E>> for ReadParam<'s, E> {
             WriteParam::Absolute(a) => ReadParam::Absolute(a),
             WriteParam::Relative(r) => ReadParam::Relative(r),
             WriteParam::Error(e) => ReadParam::Error(e),
+        }
+    }
+}
+impl<'s, E> From<UnlabelledReadParam<'s, E>> for ReadParam<'s, E> {
+    fn from(value: UnlabelledReadParam<'s, E>) -> Self {
+        match value {
+            UnlabelledReadParam::Absolute(a) => ReadParam::Absolute(a.into()),
+            UnlabelledReadParam::Immediate(i) => ReadParam::Immediate(i.into()),
+            UnlabelledReadParam::Relative(r) => ReadParam::Relative(r.into()),
+            UnlabelledReadParam::Error(e) => ReadParam::Error(e),
+        }
+    }
+}
+impl<'s, E> From<UnlabelledWriteParam<'s, E>> for ReadParam<'s, E> {
+    fn from(value: UnlabelledWriteParam<'s, E>) -> Self {
+        match value {
+            UnlabelledWriteParam::Absolute(a) => ReadParam::Absolute(a.into()),
+            UnlabelledWriteParam::Relative(r) => ReadParam::Relative(r.into()),
+            UnlabelledWriteParam::Error(e) => ReadParam::Error(e),
         }
     }
 }
@@ -302,19 +328,142 @@ impl<'s> WriteParam<'s> {
         }
     }
 }
+impl<'s, E> From<UnlabelledWriteParam<'s, E>> for WriteParam<'s, E> {
+    fn from(value: UnlabelledWriteParam<'s, E>) -> Self {
+        match value {
+            UnlabelledWriteParam::Absolute(a) => WriteParam::Absolute(a.into()),
+            UnlabelledWriteParam::Relative(r) => WriteParam::Relative(r.into()),
+            UnlabelledWriteParam::Error(e) => WriteParam::Error(e),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ImmediateParam<'s, Error = !> {
-    value: Labelled<'s, Box<Expression<'s, Error>>>,
+    pub value: Labelled<'s, Box<Expression<'s, Error>>>,
+}
+impl<'s, E> From<UnlabelledImmediateParam<'s, E>> for ImmediateParam<'s, E> {
+    fn from(value: UnlabelledImmediateParam<'s, E>) -> Self {
+        Self {
+            value: Labelled {
+                labels: BTreeSet::new(),
+                content: value.value,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AbsoluteParam<'s, Error = !> {
-    value: Labelled<'s, Box<Expression<'s, Error>>>,
+    pub value: Labelled<'s, Box<Expression<'s, Error>>>,
 }
+impl<'s, E> From<UnlabelledAbsoluteParam<'s, E>> for AbsoluteParam<'s, E> {
+    fn from(value: UnlabelledAbsoluteParam<'s, E>) -> Self {
+        Self {
+            value: Labelled {
+                labels: BTreeSet::new(),
+                content: value.value,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RelativeParam<'s, Error = !> {
-    value: Labelled<'s, Box<Expression<'s, Error>>>,
+    pub value: Labelled<'s, Box<Expression<'s, Error>>>,
+}
+impl<'s, E> From<UnlabelledRelativeParam<'s, E>> for RelativeParam<'s, E> {
+    fn from(value: UnlabelledRelativeParam<'s, E>) -> Self {
+        Self {
+            value: Labelled {
+                labels: BTreeSet::new(),
+                content: value.value,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UnlabelledReadParam<'s, Error = !> {
+    Absolute(UnlabelledAbsoluteParam<'s, Error>),
+    Immediate(UnlabelledImmediateParam<'s, Error>),
+    Relative(UnlabelledRelativeParam<'s, Error>),
+    Error(Error),
+}
+impl<'s> UnlabelledReadParam<'s> {
+    pub fn mode(&self) -> VMInt {
+        match self {
+            UnlabelledReadParam::Absolute(_) => 0,
+            UnlabelledReadParam::Immediate(_) => 1,
+            UnlabelledReadParam::Relative(_) => 2,
+            UnlabelledReadParam::Error(e) => *e,
+        }
+    }
+    fn into_value(self) -> Box<Expression<'s>> {
+        match self {
+            UnlabelledReadParam::Absolute(UnlabelledAbsoluteParam { value })
+            | UnlabelledReadParam::Immediate(UnlabelledImmediateParam { value })
+            | UnlabelledReadParam::Relative(UnlabelledRelativeParam { value }) => value,
+            UnlabelledReadParam::Error(e) => e,
+        }
+    }
+}
+impl<'s, E> From<UnlabelledWriteParam<'s, E>> for UnlabelledReadParam<'s, E> {
+    fn from(value: UnlabelledWriteParam<'s, E>) -> Self {
+        match value {
+            UnlabelledWriteParam::Absolute(a) => UnlabelledReadParam::Absolute(a),
+            UnlabelledWriteParam::Relative(r) => UnlabelledReadParam::Relative(r),
+            UnlabelledWriteParam::Error(e) => UnlabelledReadParam::Error(e),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UnlabelledWriteParam<'s, Error = !> {
+    Absolute(UnlabelledAbsoluteParam<'s, Error>),
+    Relative(UnlabelledRelativeParam<'s, Error>),
+    Error(Error),
+}
+
+impl<'s, E> UnlabelledWriteParam<'s, E> {
+    pub fn from_read(p: UnlabelledReadParam<'s, E>) -> Option<Self> {
+        match p {
+            UnlabelledReadParam::Absolute(a) => Some(Self::Absolute(a)),
+            UnlabelledReadParam::Immediate(_) => None,
+            UnlabelledReadParam::Relative(r) => Some(Self::Relative(r)),
+            UnlabelledReadParam::Error(e) => Some(Self::Error(e)),
+        }
+    }
+}
+impl<'s> UnlabelledWriteParam<'s> {
+    pub fn mode(&self) -> VMInt {
+        match self {
+            UnlabelledWriteParam::Absolute(_) => 0,
+            UnlabelledWriteParam::Relative(_) => 2,
+            UnlabelledWriteParam::Error(e) => *e,
+        }
+    }
+    fn into_value(self) -> Box<Expression<'s>> {
+        match self {
+            UnlabelledWriteParam::Absolute(UnlabelledAbsoluteParam { value })
+            | UnlabelledWriteParam::Relative(UnlabelledRelativeParam { value }) => value,
+            UnlabelledWriteParam::Error(e) => e,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UnlabelledImmediateParam<'s, Error = !> {
+    pub value: Box<Expression<'s, Error>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UnlabelledAbsoluteParam<'s, Error = !> {
+    pub value: Box<Expression<'s, Error>>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UnlabelledRelativeParam<'s, Error = !> {
+    pub value: Box<Expression<'s, Error>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -557,6 +706,8 @@ impl<'s, E> AstNode<E> for Statement<'s, E> {
         match self {
             Statement::IntsStm(ints) => Self::IntsStm(ints.constant_folding()),
             Statement::Instruction(instr) => Statement::Instruction(instr.constant_folding()),
+            Statement::Inc(inc) => Statement::Inc(inc.constant_folding()),
+            Statement::Dec(dec) => Statement::Dec(dec.constant_folding()),
             Statement::Error(e) => Statement::Error(e),
         }
     }
@@ -572,6 +723,8 @@ impl<'s, E> AstNode<E> for Statement<'s, E> {
             Statement::Instruction(instr) => {
                 Some(Statement::Instruction(instr.extract_errs(accumulator)?))
             }
+            Statement::Inc(inc) => Some(Statement::Inc(inc.extract_errs(accumulator)?)),
+            Statement::Dec(dec) => Some(Statement::Dec(dec.extract_errs(accumulator)?)),
             Statement::Error(e) => {
                 accumulator.push(e);
                 None
@@ -685,6 +838,35 @@ impl<'s, E> AstNode<E> for Instruction<'s, E> {
     }
 }
 
+impl<'s, E> AstNode<E> for IncStm<'s, E> {
+    fn constant_folding(self) -> Self {
+        Self(self.0.constant_folding())
+    }
+
+    type ErrMapped<EE> = IncStm<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(IncStm(self.0.extract_errs(accumulator)?))
+    }
+}
+impl<'s, E> AstNode<E> for DecStm<'s, E> {
+    fn constant_folding(self) -> Self {
+        Self(self.0.constant_folding())
+    }
+
+    type ErrMapped<EE> = DecStm<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(DecStm(self.0.extract_errs(accumulator)?))
+    }
+}
+
 impl<'s, E> AstNode<E> for ReadParam<'s, E> {
     fn constant_folding(self) -> Self {
         match self {
@@ -789,6 +971,131 @@ impl<'s, E> AstNode<E> for RelativeParam<'s, E> {
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<!>> {
         Some(RelativeParam {
+            value: self.value.extract_errs(accumulator)?,
+        })
+    }
+}
+
+impl<'s, E> AstNode<E> for UnlabelledReadParam<'s, E> {
+    fn constant_folding(self) -> Self {
+        match self {
+            UnlabelledReadParam::Absolute(a) => UnlabelledReadParam::Absolute(a.constant_folding()),
+            UnlabelledReadParam::Immediate(i) => {
+                UnlabelledReadParam::Immediate(i.constant_folding())
+            }
+            UnlabelledReadParam::Relative(r) => UnlabelledReadParam::Relative(r.constant_folding()),
+            UnlabelledReadParam::Error(e) => UnlabelledReadParam::Error(e),
+        }
+    }
+
+    type ErrMapped<EE> = UnlabelledReadParam<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        match self {
+            UnlabelledReadParam::Absolute(a) => {
+                Some(UnlabelledReadParam::Absolute(a.extract_errs(accumulator)?))
+            }
+            UnlabelledReadParam::Immediate(i) => {
+                Some(UnlabelledReadParam::Immediate(i.extract_errs(accumulator)?))
+            }
+            UnlabelledReadParam::Relative(r) => {
+                Some(UnlabelledReadParam::Relative(r.extract_errs(accumulator)?))
+            }
+            UnlabelledReadParam::Error(e) => {
+                accumulator.push(e);
+                None
+            }
+        }
+    }
+}
+
+impl<'s, E> AstNode<E> for UnlabelledWriteParam<'s, E> {
+    fn constant_folding(self) -> Self {
+        match self {
+            UnlabelledWriteParam::Absolute(a) => {
+                UnlabelledWriteParam::Absolute(a.constant_folding())
+            }
+            UnlabelledWriteParam::Relative(r) => {
+                UnlabelledWriteParam::Relative(r.constant_folding())
+            }
+            UnlabelledWriteParam::Error(e) => UnlabelledWriteParam::Error(e),
+        }
+    }
+
+    type ErrMapped<EE> = UnlabelledWriteParam<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        match self {
+            UnlabelledWriteParam::Absolute(a) => {
+                Some(UnlabelledWriteParam::Absolute(a.extract_errs(accumulator)?))
+            }
+            UnlabelledWriteParam::Relative(r) => {
+                Some(UnlabelledWriteParam::Relative(r.extract_errs(accumulator)?))
+            }
+            UnlabelledWriteParam::Error(e) => {
+                accumulator.push(e);
+                None
+            }
+        }
+    }
+}
+
+impl<'s, E> AstNode<E> for UnlabelledAbsoluteParam<'s, E> {
+    fn constant_folding(self) -> Self {
+        Self {
+            value: self.value.constant_folding(),
+        }
+    }
+
+    type ErrMapped<EE> = UnlabelledAbsoluteParam<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(UnlabelledAbsoluteParam {
+            value: self.value.extract_errs(accumulator)?,
+        })
+    }
+}
+impl<'s, E> AstNode<E> for UnlabelledImmediateParam<'s, E> {
+    fn constant_folding(self) -> Self {
+        Self {
+            value: self.value.constant_folding(),
+        }
+    }
+
+    type ErrMapped<EE> = UnlabelledImmediateParam<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(UnlabelledImmediateParam {
+            value: self.value.extract_errs(accumulator)?,
+        })
+    }
+}
+impl<'s, E> AstNode<E> for UnlabelledRelativeParam<'s, E> {
+    fn constant_folding(self) -> Self {
+        Self {
+            value: self.value.constant_folding(),
+        }
+    }
+
+    type ErrMapped<EE> = UnlabelledRelativeParam<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(UnlabelledRelativeParam {
             value: self.value.extract_errs(accumulator)?,
         })
     }

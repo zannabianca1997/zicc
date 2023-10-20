@@ -472,6 +472,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "parse_from_rust"
+version = "0.1.0"
+dependencies = [
+ "either",
+ "itertools 0.11.0",
+ "keyword_expand_macro",
+ "parser",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "test_sources",
+]
+
+[[package]]
 name = "parser"
 version = "0.1.0"
 dependencies = [
@@ -483,9 +497,11 @@ dependencies = [
  "keyword_expand",
  "lalrpop",
  "lalrpop-util",
+ "lazy-regex",
  "lexer",
  "map_in_place",
  "proc-macro2",
+ "serde_json",
  "test_sources",
  "thiserror",
  "vm",
@@ -665,6 +681,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.107"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b420ce6e3d8bd882e9b243c6eed35dbc9a6110c9769e74b584e0d68d1f20c65"
+dependencies = [
+ "itoa",
+ "ryu",
+ "serde",
 ]
 
 [[package]]

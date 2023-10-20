@@ -3,7 +3,7 @@ members = [
     "assembler/lexer",
     "assembler/parser",
     "assembler/assembler",
-    #  "assembler/parse_from_rust",
+    "assembler/parse_from_rust",
     "assembler/test_sources",
     "assembler/keyword_expand",
     "assembler/keyword_expand_macro",
