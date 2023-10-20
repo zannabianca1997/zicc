@@ -1,0 +1,10 @@
+[package]
+name = "keyword_expand_macro"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+keyword_expand = { path = "../keyword_expand" }

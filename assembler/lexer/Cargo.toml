@@ -6,11 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-errors = { version = "0.1.0", path = "../../errors" }
+errors = { path = "../../errors" }
 itertools = "0.11.0"
+keyword_expand_macro = { path = "../keyword_expand_macro" }
 logos = "0.13.0"
 thiserror = "1.0.49"
-vm = { version = "0.1.0", path = "../../vm" }
+vm = { path = "../../vm" }
 
 [dev-dependencies]
-test_sources = { version = "0.1.0", path = "../test_sources" }
+test_sources = { path = "../test_sources" }

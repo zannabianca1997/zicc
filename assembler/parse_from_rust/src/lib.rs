@@ -197,6 +197,7 @@ mod impls {
 
     fn token_def(t: Token<'_>) -> TokenStream {
         match t {
+            // TODO
             Token::Ints(Identifier::Named(name)) => {
                 quote!(::lexer::Token::Ints(::lexer::Identifier::Named(#name)))
             }
@@ -275,6 +276,7 @@ mod impls {
             Token::Dec(Identifier::Unnamed(n)) => {
                 quote!(::lexer::Token::Dec(::lexer::Identifier::Unnamed(#n)))
             }
+
             Token::Identifier(Identifier::Named(name)) => {
                 quote!(::lexer::Token::Identifier(::lexer::Identifier::Named(#name)))
             }

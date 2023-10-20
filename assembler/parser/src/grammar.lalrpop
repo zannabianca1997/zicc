@@ -17,19 +17,7 @@ pub File: File<'s, AstErrorRecovery<'s>> = {
 // an identifier that can be defined
 DefinableIdentifier: Identifier<'s> = {
   "ident", 
-
-  "ints",
-  
-  "add",
-  "mul",
-  "in",
-  "out",
-  "jz",
-  "jnz",
-  "slt",
-  "seq",
-  "incb",
-  "halt"
+  $($kwd_str),kwds
 }
 
 LabelDef: LabelDef<'s> = {
@@ -181,20 +169,7 @@ extern {
   type Error = ParseErrorContent;
 
   enum Token<'s> {
-    "ints" => Token::Ints(<Identifier<'s>>),
-    
-    "add" => Token::Add(<Identifier<'s>>),
-    "mul" => Token::Mul(<Identifier<'s>>),
-    "in" => Token::In(<Identifier<'s>>),
-    "out" => Token::Out(<Identifier<'s>>),
-    "jz" => Token::Jz(<Identifier<'s>>),
-    "jnz" => Token::Jnz(<Identifier<'s>>),
-    "slt" => Token::Slt(<Identifier<'s>>),
-    "seq" => Token::Seq(<Identifier<'s>>),
-    "incb" => Token::Incb(<Identifier<'s>>),
-    "halt" => Token::Halt(<Identifier<'s>>),
-
-
+    $($kwd_str => Token::$Keyword(<Identifier<'s>>),)kwds
     "ident" => Token::Identifier(<Identifier<'s>>),
     "$ident" => Token::SpecialIdentifier(<SpecialIdentifier>),
     "num" => Token::Number(<VMInt>),

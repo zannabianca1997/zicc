@@ -5,6 +5,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use keyword_expand_macro::expand_keywords;
 use logos::{Logos, SpannedIter};
 use thiserror::Error;
 
@@ -292,38 +293,15 @@ fn parse_string_lit<'s>(lex: &mut logos::Lexer<'s, Token<'s>>) -> Result<StringL
     Ok(StringLit { content })
 }
 
+expand_keywords! {
 #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[logos(skip r"(?:[\s&&[^\n]]+|\\[\s&&[^\n]]*\n|//[^\n]*|/\*[^*]*\*+(?:[^*/][^*]*\*+)*/)+")]
 #[logos(error=LexError)]
 pub enum Token<'s> {
-    #[regex(r"(?i)ints", |lex| Identifier::Named(lex.slice()))]
-    Ints(Identifier<'s>),
-
-    #[regex(r"(?i)add", |lex| Identifier::Named(lex.slice()))]
-    Add(Identifier<'s>),
-    #[regex(r"(?i)mul", |lex| Identifier::Named(lex.slice()))]
-    Mul(Identifier<'s>),
-    #[regex(r"(?i)in", |lex| Identifier::Named(lex.slice()))]
-    In(Identifier<'s>),
-    #[regex(r"(?i)out", |lex| Identifier::Named(lex.slice()))]
-    Out(Identifier<'s>),
-    #[regex(r"(?i)jz", |lex| Identifier::Named(lex.slice()))]
-    Jz(Identifier<'s>),
-    #[regex(r"(?i)jnz", |lex| Identifier::Named(lex.slice()))]
-    Jnz(Identifier<'s>),
-    #[regex(r"(?i)slt", |lex| Identifier::Named(lex.slice()))]
-    Slt(Identifier<'s>),
-    #[regex(r"(?i)seq", |lex| Identifier::Named(lex.slice()))]
-    Seq(Identifier<'s>),
-    #[regex(r"(?i)incb", |lex| Identifier::Named(lex.slice()))]
-    Incb(Identifier<'s>),
-    #[regex(r"(?i)halt", |lex| Identifier::Named(lex.slice()))]
-    Halt(Identifier<'s>),
-
-    #[regex(r"(?i)inc", |lex| Identifier::Named(lex.slice()))]
-    Inc(Identifier<'s>),
-    #[regex(r"(?i)dec", |lex| Identifier::Named(lex.slice()))]
-    Dec(Identifier<'s>),
+    $(
+        #[regex($kwd_regex, |lex| Identifier::Named(lex.slice()))]
+        $Keyword(Identifier<'s>),
+    )kwds
 
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| Identifier::Named(lex.slice()))]
     #[regex(r"\$[0-9]+", parse_unnamed)]
@@ -374,6 +352,7 @@ pub enum Token<'s> {
     Div,
     #[token("%")]
     Mod,
+}
 }
 
 impl Display for Token<'_> {

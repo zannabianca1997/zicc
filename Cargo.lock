@@ -33,7 +33,6 @@ dependencies = [
  "either",
  "errors",
  "itertools 0.11.0",
- "lex_from_rust",
  "lexer",
  "parser",
  "test_sources",
@@ -105,6 +104,15 @@ dependencies = [
 [[package]]
 name = "compiler"
 version = "0.1.0"
+
+[[package]]
+name = "convert_case"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "crunchy"
@@ -259,6 +267,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
 
 [[package]]
+name = "keyword_expand"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "convert_case",
+ "either",
+ "itertools 0.11.0",
+ "lazy-regex",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "keyword_expand_macro"
+version = "0.1.0"
+dependencies = [
+ "keyword_expand",
+]
+
+[[package]]
 name = "lalrpop"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -291,16 +320,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "lex_from_rust"
-version = "0.1.0"
+name = "lazy-regex"
+version = "3.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e723bd417b2df60a0f6a2b6825f297ea04b245d4ba52b5a22cb679bdf58b05fa"
 dependencies = [
- "either",
- "itertools 0.11.0",
- "lexer",
+ "lazy-regex-proc_macros",
+ "once_cell",
+ "regex",
+]
+
+[[package]]
+name = "lazy-regex-proc_macros"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f0a1d9139f0ee2e862e08a9c5d0ba0470f2aa21cd1e1aa1b1562f83116c725f"
+dependencies = [
  "proc-macro2",
  "quote",
+ "regex",
  "syn",
- "test_sources",
 ]
 
 [[package]]
@@ -309,6 +348,7 @@ version = "0.1.0"
 dependencies = [
  "errors",
  "itertools 0.11.0",
+ "keyword_expand_macro",
  "logos",
  "test_sources",
  "thiserror",
@@ -439,10 +479,12 @@ dependencies = [
  "either",
  "errors",
  "itertools 0.11.0",
+ "keyword_expand",
  "lalrpop",
  "lalrpop-util",
  "lexer",
  "map_in_place",
+ "proc-macro2",
  "test_sources",
  "thiserror",
  "vm",
@@ -740,6 +782,12 @@ name = "unicode-ident"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15811caf2415fb889178633e7724bad2509101cde276048e013b9def5e51fa0"
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dd624098567895118886609431a7c3b8f516e41d30e0643f03d94592a147e36"
 
 [[package]]
 name = "unicode-width"
