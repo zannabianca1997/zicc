@@ -20,6 +20,7 @@ vm = { version = "0.1.0", path = "../../vm" }
 test_sources = { version = "0.1.0", path = "../test_sources" }
 
 [build-dependencies]
+cargo-emit = "0.2.1"
 keyword_expand = { path = "../keyword_expand" }
 lalrpop = { version = "0.20.0", features = ["unicode"] }
 proc-macro2 = "1.0.69"
