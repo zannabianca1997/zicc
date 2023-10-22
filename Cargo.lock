@@ -34,6 +34,7 @@ dependencies = [
  "errors",
  "itertools 0.11.0",
  "lexer",
+ "parse_from_rust",
  "parser",
  "test_sources",
  "thiserror",

@@ -13,7 +13,7 @@ lexer = { path = "../lexer" }
 parser = { path = "../parser" }
 thiserror = "1.0.49"
 vm = { path = "../../vm" }
-# parse_from_rust = { path = "../parse_from_rust" }
+parse_from_rust = { path = "../parse_from_rust" }
 
 
 [dev-dependencies]

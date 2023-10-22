@@ -464,15 +464,15 @@ mod impls {
     use itertools::Itertools;
     use lexer::StringLit;
     use parser::ast::{
-        Expression, File, Labelled, ReadParam, Statement, UnlabelledReadParam,
-        UnlabelledWriteParam, WriteParam,
+        Expression, Labelled, ReadParam, Statement, UnlabelledReadParam, UnlabelledWriteParam,
+        WriteParam,
     };
     use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
     use quote::{format_ident, quote, ToTokens, TokenStreamExt};
     use syn::{
         braced, ext::IdentExt, parse::Parse, punctuated::Punctuated, spanned::Spanned, Block,
-        ExprBinary, ExprBlock, ExprGroup, ExprLit, ExprMethodCall, ExprParen, ExprPath, ExprUnary,
-        Ident, Lit, LitInt, LitStr, Token,
+        ExprBinary, ExprBlock, ExprGroup, ExprLit, ExprParen, ExprPath, ExprUnary, Ident, Lit,
+        LitInt, LitStr, Token,
     };
     use uncased::AsUncased;
 

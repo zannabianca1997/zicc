@@ -399,14 +399,6 @@ impl<'s> UnlabelledReadParam<'s> {
             UnlabelledReadParam::Error(e) => *e,
         }
     }
-    fn into_value(self) -> Box<Expression<'s>> {
-        match self {
-            UnlabelledReadParam::Absolute(UnlabelledAbsoluteParam { value })
-            | UnlabelledReadParam::Immediate(UnlabelledImmediateParam { value })
-            | UnlabelledReadParam::Relative(UnlabelledRelativeParam { value }) => value,
-            UnlabelledReadParam::Error(e) => e,
-        }
-    }
 }
 impl<'s, E> From<UnlabelledWriteParam<'s, E>> for UnlabelledReadParam<'s, E> {
     fn from(value: UnlabelledWriteParam<'s, E>) -> Self {
@@ -441,13 +433,6 @@ impl<'s> UnlabelledWriteParam<'s> {
             UnlabelledWriteParam::Absolute(_) => 0,
             UnlabelledWriteParam::Relative(_) => 2,
             UnlabelledWriteParam::Error(e) => *e,
-        }
-    }
-    fn into_value(self) -> Box<Expression<'s>> {
-        match self {
-            UnlabelledWriteParam::Absolute(UnlabelledAbsoluteParam { value })
-            | UnlabelledWriteParam::Relative(UnlabelledRelativeParam { value }) => value,
-            UnlabelledWriteParam::Error(e) => e,
         }
     }
 }

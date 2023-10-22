@@ -8,6 +8,7 @@ use std::collections::{
 
 use either::Either;
 use itertools::Itertools;
+use parse_from_rust::ica;
 use thiserror::Error;
 
 use errors::{Accumulator, RootAccumulator};
@@ -231,15 +232,8 @@ where
     E: From<AssembleError>,
 {
     fn write_to(self, code: &mut Code<'s, 'e, E>) {
-        Instruction::Add(
-            self.0.clone().into(),
-            ReadParam::Immediate(ImmediateParam {
-                value: Labelled {
-                    labels: BTreeSet::new(),
-                    content: Box::new(Expression::Num(1)),
-                },
-            }),
-            self.0.into(),
+        ica!(
+            add {self.0.clone()} #1 {self.0}
         )
         .write_to(code)
     }
@@ -249,15 +243,8 @@ where
     E: From<AssembleError>,
 {
     fn write_to(self, code: &mut Code<'s, 'e, E>) {
-        Instruction::Add(
-            self.0.clone().into(),
-            ReadParam::Immediate(ImmediateParam {
-                value: Labelled {
-                    labels: BTreeSet::new(),
-                    content: Box::new(Expression::Num(-1)),
-                },
-            }),
-            self.0.into(),
+        ica!(
+            add {self.0.clone()} #-1 {self.0}
         )
         .write_to(code)
     }
