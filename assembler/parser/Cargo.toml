@@ -8,16 +8,16 @@ edition = "2021"
 [dependencies]
 arrayvec = "0.7.4"
 either = "1.9.0"
-errors = { version = "0.1.0", path = "../../errors" }
+errors = { path = "../../errors" }
 itertools = "0.11.0"
 lalrpop-util = { version = "0.20.0", features = ["unicode"] }
-lexer = { version = "0.1.0", path = "../lexer" }
+lexer = { path = "../lexer" }
 map_in_place = "0.1.0"
 thiserror = "1.0.49"
-vm = { version = "0.1.0", path = "../../vm" }
+vm = { path = "../../vm" }
 
 [dev-dependencies]
-test_sources = { version = "0.1.0", path = "../test_sources" }
+test_sources = { path = "../test_sources" }
 
 [build-dependencies]
 cargo-emit = "0.2.1"
