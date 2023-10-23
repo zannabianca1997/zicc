@@ -3,7 +3,7 @@
 
 use std::collections::{
     btree_map::Entry::{Occupied, Vacant},
-    BTreeMap, BTreeSet,
+    BTreeMap,
 };
 
 use either::Either;
@@ -14,8 +14,8 @@ use thiserror::Error;
 use errors::{Accumulator, RootAccumulator};
 use lexer::{Identifier, SpecialIdentifier, StringLit};
 use parser::ast::{
-    DecStm, Expression, File, ImmediateParam, IncStm, Instruction, IntsStm, JmpStm, LabelDef,
-    LabelRef, Labelled, ReadParam, Statement,
+    DecStm, Expression, File, IncStm, Instruction, IntsStm, JmpStm, LabelDef, LabelRef, Labelled,
+    Statement,
 };
 use vm::VMInt;
 
