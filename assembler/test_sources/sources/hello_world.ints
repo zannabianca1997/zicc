@@ -4,7 +4,7 @@ tests:
 loop:
     add ptr #0 out
     out out:0
-    add ptr #1 ptr
+    inc ptr
     add ptr #0 cmp
 jnz cmp:0 #loop
 halt

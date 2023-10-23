@@ -14,8 +14,8 @@ use thiserror::Error;
 use errors::{Accumulator, RootAccumulator};
 use lexer::{Identifier, SpecialIdentifier, StringLit};
 use parser::ast::{
-    DecStm, Expression, File, ImmediateParam, IncStm, Instruction, IntsStm, LabelDef, LabelRef,
-    Labelled, ReadParam, Statement,
+    DecStm, Expression, File, ImmediateParam, IncStm, Instruction, IntsStm, JmpStm, LabelDef,
+    LabelRef, Labelled, ReadParam, Statement,
 };
 use vm::VMInt;
 
@@ -188,6 +188,7 @@ where
             Statement::Instruction(instr) => instr.write_to(code),
             Statement::Inc(inc) => inc.write_to(code),
             Statement::Dec(dec) => dec.write_to(code),
+            Statement::Jmp(jmp) => jmp.write_to(code),
             Statement::Error(e) => e,
         }
     }
@@ -245,6 +246,17 @@ where
     fn write_to(self, code: &mut Code<'s, 'e, E>) {
         ica!(
             add {self.0.clone()} #-1 {self.0}
+        )
+        .write_to(code)
+    }
+}
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for JmpStm<'s>
+where
+    E: From<AssembleError>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
+        ica!(
+            jz #0 {self.0}
         )
         .write_to(code)
     }

@@ -21,11 +21,11 @@ in n       // input the number of number to output
 jz n #end
 
 out a
-add n #-1 n
+dec n
 jz n #end
 
 out b
-add n #-1 n
+dec n
 jz n #end
 
 loop:
@@ -35,7 +35,7 @@ loop:
     // shifting the values
     add b #0 a
     add c #0 b
-add n #-1 n
+dec n
 jnz n #loop
 
 end: halt

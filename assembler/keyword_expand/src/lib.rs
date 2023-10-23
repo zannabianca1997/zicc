@@ -1,5 +1,6 @@
 pub static KEYWORDS: &[&str] = &[
     "ints", "add", "mul", "in", "out", "jz", "jnz", "slt", "seq", "incb", "halt", "inc", "dec",
+    "jmp",
 ];
 
 mod expand_string;

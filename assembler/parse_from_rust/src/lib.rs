@@ -778,6 +778,14 @@ mod impls {
                     ))),
                     PhantomData,
                 ))
+            } else if cmd == "dec" {
+                let p: AstOrBrace<ReadParam<'static>> = input.parse()?;
+                Ok(Ast(
+                    quote!(::parser::ast::Statement::Jmp(::parser::ast::JmpStm(
+                        #p
+                    ))),
+                    PhantomData,
+                ))
             } else {
                 Err(syn::Error::new_spanned(
                     cmd_ident,

@@ -12,5 +12,5 @@ in  input
 add input #1 cmp
 jz # cmp:0  #end
 out # input:0
-jnz #1 #start
+jmp #start
 end: halt

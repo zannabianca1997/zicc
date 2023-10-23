@@ -142,6 +142,7 @@ pub enum Statement<'s, Error = !> {
     Instruction(Instruction<'s, Error>),
     Inc(IncStm<'s, Error>),
     Dec(DecStm<'s, Error>),
+    Jmp(JmpStm<'s, Error>),
     Error(Error),
 }
 
@@ -240,6 +241,8 @@ impl<'s> Instruction<'s> {
 pub struct IncStm<'s, Error = !>(pub UnlabelledWriteParam<'s, Error>);
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DecStm<'s, Error = !>(pub UnlabelledWriteParam<'s, Error>);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct JmpStm<'s, Error = !>(pub ReadParam<'s, Error>);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadParam<'s, Error = !> {
@@ -693,6 +696,7 @@ impl<'s, E> AstNode<E> for Statement<'s, E> {
             Statement::Instruction(instr) => Statement::Instruction(instr.constant_folding()),
             Statement::Inc(inc) => Statement::Inc(inc.constant_folding()),
             Statement::Dec(dec) => Statement::Dec(dec.constant_folding()),
+            Statement::Jmp(jmp) => Statement::Jmp(jmp.constant_folding()),
             Statement::Error(e) => Statement::Error(e),
         }
     }
@@ -710,6 +714,7 @@ impl<'s, E> AstNode<E> for Statement<'s, E> {
             }
             Statement::Inc(inc) => Some(Statement::Inc(inc.extract_errs(accumulator)?)),
             Statement::Dec(dec) => Some(Statement::Dec(dec.extract_errs(accumulator)?)),
+            Statement::Jmp(jmp) => Some(Statement::Jmp(jmp.extract_errs(accumulator)?)),
             Statement::Error(e) => {
                 accumulator.push(e);
                 None
@@ -849,6 +854,20 @@ impl<'s, E> AstNode<E> for DecStm<'s, E> {
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<!>> {
         Some(DecStm(self.0.extract_errs(accumulator)?))
+    }
+}
+impl<'s, E> AstNode<E> for JmpStm<'s, E> {
+    fn constant_folding(self) -> Self {
+        Self(self.0.constant_folding())
+    }
+
+    type ErrMapped<EE> = JmpStm<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(JmpStm(self.0.extract_errs(accumulator)?))
     }
 }
 

@@ -40,6 +40,7 @@ Statement: Statement<'s, AstErrorRecovery<'s>> = {
   Instruction => Statement::Instruction(<>),
   "inc" <UnlabelledWriteParam> => Statement::Inc(IncStm(<>)),
   "dec" <UnlabelledWriteParam> => Statement::Dec(DecStm(<>)),
+  "jmp" <ReadParam> => Statement::Jmp(JmpStm(<>))
 }
 
 Instruction: Instruction<'s, AstErrorRecovery<'s>> = {
