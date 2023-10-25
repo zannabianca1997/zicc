@@ -15,7 +15,7 @@ use errors::{Accumulator, RootAccumulator};
 use lexer::{Identifier, SpecialIdentifier, StringLit};
 use parser::ast::{
     DecStm, Expression, File, IncStm, Instruction, IntsStm, JmpStm, LabelDef, LabelRef, Labelled,
-    Statement,
+    MovStm, Statement,
 };
 use vm::VMInt;
 
@@ -88,27 +88,44 @@ impl<'s, 'e, E> Code<'s, 'e, E> {
         self.values
             .into_iter()
             .flat_map(|e| {
+                self.errors.handle(
                 e.calculate(&mut |id| match id {
                     LabelRef::Identifier(id) => match self.labels.get(&id) {
-                        Some(pos) => Some(
+                        Some(pos) => Ok(
                             (*pos)
                                 .try_into()
                                 .expect("The lenght should not overflow VMInt"),
                         ),
                         None => {
-                            self.errors.push(AssembleError::UnknowLabel(id.to_string()));
-                            None
+                            Err(AssembleError::UnknowLabel(id.to_string()))
                         }
                     },
-                    LabelRef::SpecialIdentifier(SpecialIdentifier::Start) => Some(0),
-                    LabelRef::SpecialIdentifier(SpecialIdentifier::End) => Some(code_end),
+                    LabelRef::SpecialIdentifier(SpecialIdentifier::Start) => Ok(0),
+                    LabelRef::SpecialIdentifier(SpecialIdentifier::End) => Ok(code_end),
                     LabelRef::SpecialIdentifier(
                         SpecialIdentifier::UnitEnd | SpecialIdentifier::UnitStart,
                     ) => unreachable!(),
                     LabelRef::Error(e) => *e,
-                })
+                }))
             })
             .collect_vec()
+    }
+
+    fn eval_expr(&self, e: Box<Expression<'_>>) -> Result<i64, AssembleError>  {
+        e.calculate(&mut |id| match id {
+            LabelRef::Identifier(id) => match self.labels.get(&id) {
+                Some(pos) => Ok(
+                    (*pos)
+                        .try_into()
+                        .expect("The lenght should not overflow VMInt"),
+                ),
+                None => {
+                    Err(AssembleError::UnknowLabel(id.to_string()))
+                }
+            },
+            LabelRef::SpecialIdentifier(s) => Err(AssembleError::SpecialIdentifierInConstExpr(*s)),
+            LabelRef::Error(e) => *e,
+        })
     }
 }
 
@@ -190,6 +207,7 @@ where
             Statement::Dec(dec) => dec.write_to(code),
             Statement::Jmp(jmp) => jmp.write_to(code),
             Statement::Error(e) => e,
+            Statement::Mov(mov) => mov.write_to(code),
         }
     }
 }
@@ -261,6 +279,36 @@ where
         .write_to(code)
     }
 }
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for MovStm<'s>
+where
+    E: From<AssembleError>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
+        match self {
+            MovStm::Single(a, b) => ica!(
+                add {a} #0 {b}
+            )
+            .write_to(code),
+            MovStm::Multiple(a, b, n) => {
+                if let Some(n) = code.errors.handle(code.eval_expr(n)){
+                for i in 0..n  {
+                    ica!(
+                        mov 
+                            {
+                                a.clone()
+                                 .map_value(|v| Box::new(Expression::Sum(v, Box::new(Expression::Num(i)))))
+                            } 
+                            {
+                                b.clone()
+                                 .map_value(|v| Box::new(Expression::Sum(v, Box::new(Expression::Num(i)))))
+                            }
+                    )
+                    .write_to(code)
+                }}
+            }
+        }
+    }
+}
 
 impl<'s, 'e, E> WriteTo<'s, 'e, E> for Expression<'s> {
     fn write_to(self, code: &mut Code<'s, 'e, E>) {
@@ -278,10 +326,12 @@ where
 
 #[derive(Debug, Clone, Error)]
 pub enum AssembleError {
-    #[error("Label was already in use")]
+    #[error("Label {0} was already in use")]
     DoubleDef(String),
-    #[error("Unknow label")]
+    #[error("Unknow label {0}")]
     UnknowLabel(String),
+    #[error("Special identifiers are not supported in const expession")]
+    SpecialIdentifierInConstExpr(SpecialIdentifier),
 }
 
 #[cfg(test)]

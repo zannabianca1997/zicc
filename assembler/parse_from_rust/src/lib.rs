@@ -464,15 +464,19 @@ mod impls {
     use itertools::Itertools;
     use lexer::StringLit;
     use parser::ast::{
-        Expression, Labelled, ReadParam, Statement, UnlabelledReadParam, UnlabelledWriteParam,
-        WriteParam,
+        Expression, Labelled, ReadParam, Statement, UnlabelledNonImmediateReadParam,
+        UnlabelledReadParam, UnlabelledWriteParam, WriteParam,
     };
     use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
     use quote::{format_ident, quote, ToTokens, TokenStreamExt};
     use syn::{
-        braced, ext::IdentExt, parse::Parse, punctuated::Punctuated, spanned::Spanned, Block,
-        ExprBinary, ExprBlock, ExprGroup, ExprLit, ExprParen, ExprPath, ExprUnary, Ident, Lit,
-        LitInt, LitStr, Token,
+        braced,
+        ext::IdentExt,
+        parse::{discouraged::Speculative, Parse},
+        punctuated::Punctuated,
+        spanned::Spanned,
+        Block, ExprBinary, ExprBlock, ExprGroup, ExprLit, ExprParen, ExprPath, ExprUnary, Ident,
+        Lit, LitInt, LitStr, Token,
     };
     use uncased::AsUncased;
 
@@ -564,14 +568,14 @@ mod impls {
                     let _: Token![$] = input.parse().unwrap();
                     let n: LitInt = input.parse()?;
                     let _: Token![:] = input.parse().unwrap();
-                    quote!(::parser::ast::LabelDef { label: ::lexer::Identifier::Unnamed(#n)})
+                    quote!(::parser::ast::LabelDef { label: ::lexer::Identifier::Unnamed(#n, (0,0))})
                 } else {
                     let tt: TokenTree = input.parse()?;
                     let _: Token![:] = input.parse().unwrap();
                     match tt {
                         TokenTree::Ident(ident) if !ident.to_string().contains('#') => {
                             let ident = ident.to_string();
-                            quote!(::parser::ast::LabelDef { label: ::lexer::Identifier::Named(#ident)})
+                            quote!(::parser::ast::LabelDef { label: ::lexer::Identifier::Named(#ident, 0)})
                         },
                         TokenTree::Group( group) if group.delimiter() == Delimiter::Brace => {
                             // cleaning eventual `unused braces` warning
@@ -778,7 +782,7 @@ mod impls {
                     ))),
                     PhantomData,
                 ))
-            } else if cmd == "dec" {
+            } else if cmd == "jmp" {
                 let p: AstOrBrace<ReadParam<'static>> = input.parse()?;
                 Ok(Ast(
                     quote!(::parser::ast::Statement::Jmp(::parser::ast::JmpStm(
@@ -786,6 +790,40 @@ mod impls {
                     ))),
                     PhantomData,
                 ))
+            } else if cmd == "mov" {
+                let forked = input.fork();
+                let a: AstOrBrace<ReadParam<'static>> = forked.parse()?;
+                let _: Option<Token![,]> = forked.parse().unwrap();
+                let b: AstOrBrace<WriteParam<'static>> = forked.parse()?;
+                let _: Option<Token![,]> = forked.parse().unwrap();
+                match forked.parse::<LitInt>() {
+                    Ok(_) => {
+                        // need to reparse as the stricter version
+                        // this could be avoided by building an ast
+                        let a: AstOrBrace<UnlabelledNonImmediateReadParam<'static>> =
+                            input.parse()?;
+                        let _: Option<Token![,]> = input.parse().unwrap();
+                        let b: AstOrBrace<UnlabelledWriteParam<'static>> = input.parse()?;
+                        let _: Option<Token![,]> = input.parse().unwrap();
+                        let n: LitInt = input.parse()?;
+                        Ok(Ast(
+                            quote!(::parser::ast::Statement::Mov(::parser::ast::MovStm::Multiple(
+                                #a,#b,#n
+                            ))),
+                            PhantomData,
+                        ))
+                    }
+                    Err(_) => {
+                        // joining the stream
+                        input.advance_to(&forked);
+                        Ok(Ast(
+                            quote!(::parser::ast::Statement::Mov(::parser::ast::MovStm::Single(
+                                #a,#b
+                            ))),
+                            PhantomData,
+                        ))
+                    }
+                }
             } else {
                 Err(syn::Error::new_spanned(
                     cmd_ident,
@@ -928,7 +966,7 @@ mod impls {
                     }
                     let ident = path.require_ident()?.to_string();
                     Ok(Self(
-                        quote!(::std::boxed::Box::new(::parser::ast::Expression::Ref(::parser::ast::LabelRef::Identifier(::lexer::Identifier::Named(#ident))))),
+                        quote!(::std::boxed::Box::new(::parser::ast::Expression::Ref(::parser::ast::LabelRef::Identifier(::lexer::Identifier::Named(#ident,0))))),
                         PhantomData,
                     ))
                 }

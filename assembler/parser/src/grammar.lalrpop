@@ -40,7 +40,8 @@ Statement: Statement<'s, AstErrorRecovery<'s>> = {
   Instruction => Statement::Instruction(<>),
   "inc" <UnlabelledWriteParam> => Statement::Inc(IncStm(<>)),
   "dec" <UnlabelledWriteParam> => Statement::Dec(DecStm(<>)),
-  "jmp" <ReadParam> => Statement::Jmp(JmpStm(<>))
+  "jmp" <ReadParam> => Statement::Jmp(JmpStm(<>)),
+  "mov" <ParamMov> => Statement::Mov(<>),
 }
 
 Instruction: Instruction<'s, AstErrorRecovery<'s>> = {
@@ -56,11 +57,21 @@ Instruction: Instruction<'s, AstErrorRecovery<'s>> = {
     "halt"              => Instruction::Halt,
 }
 
+ParamMov: MovStm<'s, AstErrorRecovery<'s>> = {
+  <a: ReadParam> "," <b: WriteParam> => MovStm::Single(a, b),
+  <a: ReadParam> <b: WriteParamNoComma> => MovStm::Single(a, b),
+  <a: WriteParam> "," <b: WriteParam> "," <l:Expression> =>? Ok(MovStm::Multiple(a.try_into()?,b.try_into()?,l)),
+  <a: WriteParam> <b: WriteParamNoComma> "," <l:Expression> =>? Ok(MovStm::Multiple(a.try_into()?,b.try_into()?,l)),
+  <a: WriteParam> "," <b: WriteParam> <l:ExpressionNonNeg> =>? Ok(MovStm::Multiple(a.try_into()?,b.try_into()?,l)),
+  <a: WriteParam> <b: WriteParamNoComma> <l:ExpressionNonNeg> =>? Ok(MovStm::Multiple(a.try_into()?,b.try_into()?,l))
+}
+
 ReadParam: ReadParam<'s, AstErrorRecovery<'s>> = {
   <value: Labelled<Expression>> => ReadParam::Absolute(AbsoluteParam{<>}),
   "#" <value: Labelled<Expression>> => ReadParam::Immediate(ImmediateParam{<>}),
   "@" <value: Labelled<Expression>> => ReadParam::Relative(RelativeParam{<>})
 }
+#[inline]
 WriteParam: WriteParam<'s, AstErrorRecovery<'s>> = {
   <start:@L> <p: ReadParam> <end:@R> =>? WriteParam::from_read(p).ok_or(
     lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite { span: start..end} }
@@ -83,6 +94,7 @@ UnlabelledReadParam: UnlabelledReadParam<'s, AstErrorRecovery<'s>> = {
   "#" <value: Expression> => UnlabelledReadParam::Immediate(UnlabelledImmediateParam{<>}),
   "@" <value: Expression> => UnlabelledReadParam::Relative(UnlabelledRelativeParam{<>})
 }
+UnlabelledNonImmediateReadParam: UnlabelledNonImmediateReadParam<'s, AstErrorRecovery<'s>> = { <UnlabelledWriteParam> }
 UnlabelledWriteParam: UnlabelledWriteParam<'s, AstErrorRecovery<'s>> = {
   <start:@L> <p: UnlabelledReadParam> <end:@R> =>? UnlabelledWriteParam::from_read(p).ok_or(
     lalrpop_util::ParseError::User { error: ParseErrorContent::ImmediateInWrite { span: start..end} }
@@ -127,7 +139,6 @@ CommaSepExprs: Vec<Labelled<'s, Either<Box<Expression<'s, AstErrorRecovery<'s>>>
   Labelled<Expression> => vec![<>.map(Left)],
 }
  
-
 
 Expression: Box<Expression<'s, AstErrorRecovery<'s>>> = {
   <l:Expression> "+" <r:Factor> => Box::new(Expression::Sum(l,r)),

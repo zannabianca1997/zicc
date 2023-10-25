@@ -1,4 +1,4 @@
-descr: Amit the first N fibonacci number, with given seed
+descr: Emit the first N fibonacci number, with given seed
 tests:
     empty:
         in: [1, 1, 0]

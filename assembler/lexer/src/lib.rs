@@ -1,5 +1,7 @@
 use std::{
+    f64::consts::E,
     fmt::{Debug, Display},
+    hash::Hash,
     num::{IntErrorKind, ParseIntError},
     ops::Range,
 };
@@ -12,19 +14,69 @@ use thiserror::Error;
 use errors::Spanned;
 use vm::VMInt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy)]
 pub enum Identifier<'s> {
-    Unnamed(usize),
-    Named(&'s str),
+    Unnamed(usize, (usize, usize)),
+    Named(&'s str, usize),
 }
 impl Display for Identifier<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Identifier::Unnamed(n) => write!(f, "${n}"),
-            Identifier::Named(n) => write!(f, "{n}"),
+            Identifier::Unnamed(n, ..) => write!(f, "${n}"),
+            Identifier::Named(n, ..) => write!(f, "{n}"),
         }
     }
 }
+impl Spanned for Identifier<'_> {
+    fn span(&self) -> Range<usize> {
+        match self {
+            Identifier::Unnamed(_, (start, end)) => *start..*end,
+            Identifier::Named(s, start) => *start..(start + s.len()),
+        }
+    }
+}
+impl PartialEq for Identifier<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Unnamed(l0, ..), Self::Unnamed(r0, ..)) => l0 == r0,
+            (Self::Named(l0, ..), Self::Named(r0, ..)) => l0 == r0,
+            _ => false,
+        }
+    }
+}
+impl Eq for Identifier<'_> {}
+impl PartialOrd for Identifier<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Self::Unnamed(l0, ..), Self::Unnamed(r0, ..)) => l0.partial_cmp(r0),
+            (Self::Named(l0, ..), Self::Named(r0, ..)) => l0.partial_cmp(r0),
+            (Identifier::Unnamed(_, _), Identifier::Named(_, _)) => {
+                Some(std::cmp::Ordering::Greater)
+            }
+            (Identifier::Named(_, _), Identifier::Unnamed(_, _)) => Some(std::cmp::Ordering::Less),
+        }
+    }
+}
+impl Ord for Identifier<'_> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Self::Unnamed(l0, ..), Self::Unnamed(r0, ..)) => l0.cmp(r0),
+            (Self::Named(l0, ..), Self::Named(r0, ..)) => l0.cmp(r0),
+            (Identifier::Unnamed(_, _), Identifier::Named(_, _)) => std::cmp::Ordering::Greater,
+            (Identifier::Named(_, _), Identifier::Unnamed(_, _)) => std::cmp::Ordering::Less,
+        }
+    }
+}
+impl Hash for Identifier<'_> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Identifier::Unnamed(n, ..) => n.hash(state),
+            Identifier::Named(n, ..) => n.hash(state),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SpecialIdentifier {
     Start,
@@ -109,7 +161,7 @@ fn parse_unnamed<'s>(
     lex: &mut logos::Lexer<'s, Token<'s>>,
 ) -> Result<Identifier<'static>, LexError> {
     match lex.slice().strip_prefix('$').unwrap().parse() {
-        Ok(n) => Ok(Identifier::Unnamed(n)),
+        Ok(n) => Ok(Identifier::Unnamed(n, (lex.span().start, lex.span().end))),
         Err(err) if *err.kind() == IntErrorKind::PosOverflow => Err(LexError::UnnamedTooLong {
             span: Default::default(),
         }),
@@ -299,11 +351,11 @@ expand_keywords! {
 #[logos(error=LexError)]
 pub enum Token<'s> {
     $(
-        #[regex($kwd_regex, |lex| Identifier::Named(lex.slice()))]
+        #[regex($kwd_regex, |lex| Identifier::Named(lex.slice(), lex.span().start))]
         $Keyword(Identifier<'s>),
     )kwds
 
-    #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| Identifier::Named(lex.slice()))]
+    #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| Identifier::Named(lex.slice(), lex.span().start))]
     #[regex(r"\$[0-9]+", parse_unnamed)]
     Identifier(Identifier<'s>),
 

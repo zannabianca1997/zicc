@@ -1,0 +1,26 @@
+descr: Input 5 numbers, then emit them twice
+tests:
+    - in: [1,2,5,2,2]
+      out: [1,2,5,2,2,1,2,5,2,2]
+---
+in mem + 0
+in mem + 1
+in mem + 2
+in mem + 3
+in mem + 4
+
+mov mem mem+5 5
+
+out mem + 0
+out mem + 1
+out mem + 2
+out mem + 3
+out mem + 4
+out mem + 5
+out mem + 6
+out mem + 7
+out mem + 8
+out mem + 9
+
+
+mem: ints 0,0,0,0,0

@@ -20,12 +20,15 @@ pub enum ParseErrorContent {
     Lex(#[from] LexError),
     #[error("Immediate mode is invalid in a write param")]
     ImmediateInWrite { span: Range<usize> },
+    #[error("Labels are valid only on parameters that corrispond to a single memory location")]
+    LabelsOnUnlabelled { span: Range<usize> },
 }
 impl Spanned for ParseErrorContent {
     fn span(&self) -> Range<usize> {
         match self {
             ParseErrorContent::Lex(err) => err.span(),
             ParseErrorContent::ImmediateInWrite { span } => span.clone(),
+            ParseErrorContent::LabelsOnUnlabelled { span } => span.clone(),
         }
     }
 }
@@ -143,6 +146,7 @@ pub enum Statement<'s, Error = !> {
     Inc(IncStm<'s, Error>),
     Dec(DecStm<'s, Error>),
     Jmp(JmpStm<'s, Error>),
+    Mov(MovStm<'s, Error>),
     Error(Error),
 }
 
@@ -245,6 +249,18 @@ pub struct DecStm<'s, Error = !>(pub UnlabelledWriteParam<'s, Error>);
 pub struct JmpStm<'s, Error = !>(pub ReadParam<'s, Error>);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MovStm<'s, Error = !> {
+    /// Moves a single memory cell
+    Single(ReadParam<'s, Error>, WriteParam<'s, Error>),
+    /// Moves multiple consecutive memory cells
+    Multiple(
+        UnlabelledNonImmediateReadParam<'s, Error>,
+        UnlabelledWriteParam<'s, Error>,
+        Box<Expression<'s, Error>>,
+    ),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadParam<'s, Error = !> {
     Absolute(AbsoluteParam<'s, Error>),
     Immediate(ImmediateParam<'s, Error>),
@@ -297,6 +313,8 @@ impl<'s, E> From<UnlabelledWriteParam<'s, E>> for ReadParam<'s, E> {
         }
     }
 }
+
+pub type NonImmediateReadParam<'s, Error = !> = WriteParam<'s, Error>;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WriteParam<'s, Error = !> {
@@ -413,6 +431,8 @@ impl<'s, E> From<UnlabelledWriteParam<'s, E>> for UnlabelledReadParam<'s, E> {
     }
 }
 
+pub type UnlabelledNonImmediateReadParam<'s, Error = !> = UnlabelledWriteParam<'s, Error>;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum UnlabelledWriteParam<'s, Error = !> {
     Absolute(UnlabelledAbsoluteParam<'s, Error>),
@@ -421,6 +441,16 @@ pub enum UnlabelledWriteParam<'s, Error = !> {
 }
 
 impl<'s, E> UnlabelledWriteParam<'s, E> {
+    pub fn map_value(
+        self,
+        f: impl FnOnce(Box<Expression<'s, E>>) -> Box<Expression<'s, E>>,
+    ) -> Self {
+        match self {
+            UnlabelledWriteParam::Absolute(a) => UnlabelledWriteParam::Absolute(a.map_value(f)),
+            UnlabelledWriteParam::Relative(r) => UnlabelledWriteParam::Relative(r.map_value(f)),
+            UnlabelledWriteParam::Error(e) => UnlabelledWriteParam::Error(e),
+        }
+    }
     pub fn from_read(p: UnlabelledReadParam<'s, E>) -> Option<Self> {
         match p {
             UnlabelledReadParam::Absolute(a) => Some(Self::Absolute(a)),
@@ -440,6 +470,20 @@ impl<'s> UnlabelledWriteParam<'s> {
     }
 }
 
+impl<'s, E> TryFrom<WriteParam<'s, E>> for UnlabelledWriteParam<'s, E> {
+    type Error = ParseErrorContent;
+
+    fn try_from(
+        value: WriteParam<'s, E>,
+    ) -> Result<Self, <Self as TryFrom<WriteParam<'s, E>>>::Error> {
+        Ok(match value {
+            WriteParam::Absolute(a) => Self::Absolute(a.try_into()?),
+            WriteParam::Relative(r) => Self::Relative(r.try_into()?),
+            WriteParam::Error(e) => Self::Error(e),
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UnlabelledImmediateParam<'s, Error = !> {
     pub value: Box<Expression<'s, Error>>,
@@ -449,9 +493,73 @@ pub struct UnlabelledImmediateParam<'s, Error = !> {
 pub struct UnlabelledAbsoluteParam<'s, Error = !> {
     pub value: Box<Expression<'s, Error>>,
 }
+impl<'s, E> UnlabelledAbsoluteParam<'s, E> {
+    pub fn map_value(
+        self,
+        f: impl FnOnce(Box<Expression<'s, E>>) -> Box<Expression<'s, E>>,
+    ) -> Self {
+        Self {
+            value: f(self.value),
+        }
+    }
+}
+impl<'s, E> TryFrom<AbsoluteParam<'s, E>> for UnlabelledAbsoluteParam<'s, E> {
+    type Error = ParseErrorContent;
+
+    fn try_from(
+        value: AbsoluteParam<'s, E>,
+    ) -> Result<Self, <Self as TryFrom<AbsoluteParam<'s, E>>>::Error> {
+        let AbsoluteParam {
+            value: Labelled { labels, content },
+        } = value;
+        if labels.is_empty() {
+            Ok(Self { value: content })
+        } else {
+            Err(ParseErrorContent::LabelsOnUnlabelled {
+                span: labels
+                    .into_iter()
+                    .map(|LabelDef { label }| label.span())
+                    .reduce(|s1, s2| (s1.start.min(s2.start))..(s1.end.min(s2.end)))
+                    .unwrap(),
+            })
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UnlabelledRelativeParam<'s, Error = !> {
     pub value: Box<Expression<'s, Error>>,
+}
+impl<'s, E> TryFrom<RelativeParam<'s, E>> for UnlabelledRelativeParam<'s, E> {
+    type Error = ParseErrorContent;
+
+    fn try_from(
+        value: RelativeParam<'s, E>,
+    ) -> Result<Self, <Self as TryFrom<RelativeParam<'s, E>>>::Error> {
+        let RelativeParam {
+            value: Labelled { labels, content },
+        } = value;
+        if labels.is_empty() {
+            Ok(Self { value: content })
+        } else {
+            Err(ParseErrorContent::LabelsOnUnlabelled {
+                span: labels
+                    .into_iter()
+                    .map(|LabelDef { label }| label.span())
+                    .reduce(|s1, s2| (s1.start.min(s2.start))..(s1.end.min(s2.end)))
+                    .unwrap(),
+            })
+        }
+    }
+}
+impl<'s, E> UnlabelledRelativeParam<'s, E> {
+    pub fn map_value(
+        self,
+        f: impl FnOnce(Box<Expression<'s, E>>) -> Box<Expression<'s, E>>,
+    ) -> Self {
+        Self {
+            value: f(self.value),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -467,11 +575,11 @@ pub enum Expression<'s, Error = !> {
     Error(Error),
 }
 impl<'s> Expression<'s> {
-    pub fn calculate(
+    pub fn calculate<E>(
         &self,
-        solver: &mut impl FnMut(&LabelRef<'s>) -> Option<VMInt>,
-    ) -> Option<VMInt> {
-        Some(match self {
+        solver: &mut impl FnMut(&LabelRef<'s>) -> Result<VMInt, E>,
+    ) -> Result<VMInt, E> {
+        Ok(match self {
             Expression::Sum(a, b) => a.calculate(solver)? + b.calculate(solver)?,
             Expression::Sub(a, b) => a.calculate(solver)? - b.calculate(solver)?,
             Expression::Mul(a, b) => a.calculate(solver)? * b.calculate(solver)?,
@@ -698,6 +806,7 @@ impl<'s, E> AstNode<E> for Statement<'s, E> {
             Statement::Dec(dec) => Statement::Dec(dec.constant_folding()),
             Statement::Jmp(jmp) => Statement::Jmp(jmp.constant_folding()),
             Statement::Error(e) => Statement::Error(e),
+            Statement::Mov(mov) => Statement::Mov(mov.constant_folding()),
         }
     }
 
@@ -715,6 +824,7 @@ impl<'s, E> AstNode<E> for Statement<'s, E> {
             Statement::Inc(inc) => Some(Statement::Inc(inc.extract_errs(accumulator)?)),
             Statement::Dec(dec) => Some(Statement::Dec(dec.extract_errs(accumulator)?)),
             Statement::Jmp(jmp) => Some(Statement::Jmp(jmp.extract_errs(accumulator)?)),
+            Statement::Mov(mov) => Some(Statement::Mov(mov.extract_errs(accumulator)?)),
             Statement::Error(e) => {
                 accumulator.push(e);
                 None
@@ -868,6 +978,37 @@ impl<'s, E> AstNode<E> for JmpStm<'s, E> {
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<!>> {
         Some(JmpStm(self.0.extract_errs(accumulator)?))
+    }
+}
+impl<'s, E> AstNode<E> for MovStm<'s, E> {
+    fn constant_folding(self) -> Self {
+        match self {
+            MovStm::Single(a, b) => Self::Single(a.constant_folding(), b.constant_folding()),
+            MovStm::Multiple(a, b, n) => Self::Multiple(
+                a.constant_folding(),
+                b.constant_folding(),
+                n.constant_folding(),
+            ),
+        }
+    }
+
+    type ErrMapped<EE> = MovStm<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        match self {
+            MovStm::Single(a, b) => Some(MovStm::Single(
+                a.extract_errs(accumulator)?,
+                b.extract_errs(accumulator)?,
+            )),
+            MovStm::Multiple(a, b, n) => Some(MovStm::Multiple(
+                a.extract_errs(accumulator)?,
+                b.extract_errs(accumulator)?,
+                n.extract_errs(accumulator)?,
+            )),
+        }
     }
 }
 
