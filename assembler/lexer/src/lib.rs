@@ -1,5 +1,4 @@
 use std::{
-    f64::consts::E,
     fmt::{Debug, Display},
     hash::Hash,
     num::{IntErrorKind, ParseIntError},

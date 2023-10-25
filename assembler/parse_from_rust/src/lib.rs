@@ -796,7 +796,7 @@ mod impls {
                 let _: Option<Token![,]> = forked.parse().unwrap();
                 let b: AstOrBrace<WriteParam<'static>> = forked.parse()?;
                 let _: Option<Token![,]> = forked.parse().unwrap();
-                match forked.parse::<LitInt>() {
+                match forked.parse::<AstOrBrace<Box<Expression<'static>>>>() {
                     Ok(_) => {
                         // need to reparse as the stricter version
                         // this could be avoided by building an ast
@@ -805,7 +805,7 @@ mod impls {
                         let _: Option<Token![,]> = input.parse().unwrap();
                         let b: AstOrBrace<UnlabelledWriteParam<'static>> = input.parse()?;
                         let _: Option<Token![,]> = input.parse().unwrap();
-                        let n: LitInt = input.parse()?;
+                        let n: AstOrBrace<Box<Expression<'static>>> = input.parse()?;
                         Ok(Ast(
                             quote!(::parser::ast::Statement::Mov(::parser::ast::MovStm::Multiple(
                                 #a,#b,#n
@@ -825,6 +825,7 @@ mod impls {
                     }
                 }
             } else {
+                // TODO: add push,pop,call,ret
                 Err(syn::Error::new_spanned(
                     cmd_ident,
                     "Expected command keyword",
