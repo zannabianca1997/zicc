@@ -42,6 +42,7 @@ Statement: Statement<'s, AstErrorRecovery<'s>> = {
   "dec" <UnlabelledWriteParam> => Statement::Dec(DecStm(<>)),
   "jmp" <ReadParam> => Statement::Jmp(JmpStm(<>)),
   "mov" <ParamMov> => Statement::Mov(<>),
+  "zeros" <Expression> => Statement::Zeros(ZerosStm(<>))
 }
 
 Instruction: Instruction<'s, AstErrorRecovery<'s>> = {

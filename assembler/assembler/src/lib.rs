@@ -3,10 +3,10 @@
 
 use std::collections::{
     btree_map::Entry::{Occupied, Vacant},
-    BTreeMap,
+    BTreeMap, BTreeSet,
 };
 
-use either::Either;
+use either::Either::{self, Left};
 use itertools::Itertools;
 use parse_from_rust::ica;
 use thiserror::Error;
@@ -15,7 +15,7 @@ use errors::{Accumulator, RootAccumulator};
 use lexer::{Identifier, SpecialIdentifier, StringLit};
 use parser::ast::{
     DecStm, Expression, File, IncStm, Instruction, IntsStm, JmpStm, LabelDef, LabelRef, Labelled,
-    MovStm, Statement,
+    MovStm, Statement, ZerosStm,
 };
 use vm::VMInt;
 
@@ -208,6 +208,7 @@ where
             Statement::Jmp(jmp) => jmp.write_to(code),
             Statement::Error(e) => e,
             Statement::Mov(mov) => mov.write_to(code),
+            Statement::Zeros(z) => z.write_to(code),
         }
     }
 }
@@ -309,6 +310,20 @@ where
         }
     }
 }
+impl<'s, 'e, E> WriteTo<'s, 'e, E> for ZerosStm<'s>
+where
+    E: From<AssembleError>,
+{
+    fn write_to(self, code: &mut Code<'s, 'e, E>) {
+        if let Some(n) = code.errors.handle(code.eval_expr(self.0)){
+            if let Ok(n) = usize::try_from(n) {
+            IntsStm{
+                values: vec![Labelled { labels: BTreeSet::new(), content: Left(Box::new(Expression::Num(0))) }; n]
+            }.write_to(code)
+        }
+        }
+    }
+}
 
 impl<'s, 'e, E> WriteTo<'s, 'e, E> for Expression<'s> {
     fn write_to(self, code: &mut Code<'s, 'e, E>) {
@@ -365,7 +380,7 @@ mod sources {
         let code = code.codegen();
         mem::drop(errors);
 
-        let mut vm = vm::ICMachineData::new(&code);
+        let mut vm = vm::ICMachineData::new(dbg!(&code));
         for &v in r#in {
             vm.give_input(v).into_ok();
         }

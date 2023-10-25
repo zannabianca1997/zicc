@@ -9,7 +9,7 @@ in mem + 2
 in mem + 3
 in mem + 4
 
-mov mem mem+5 5
+mov mem mem+5 3+2
 
 out mem + 0
 out mem + 1
@@ -22,5 +22,12 @@ out mem + 7
 out mem + 8
 out mem + 9
 
+// jumping just to check that zeros made the right number of places
+mov halt_code mem + 10 
+jmp #halt
 
-mem: ints 0,0,0,0,0
+halt_code : halt
+
+mem: zeros 10
+
+halt: ints 0

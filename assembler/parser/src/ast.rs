@@ -147,6 +147,7 @@ pub enum Statement<'s, Error = !> {
     Dec(DecStm<'s, Error>),
     Jmp(JmpStm<'s, Error>),
     Mov(MovStm<'s, Error>),
+    Zeros(ZerosStm<'s, Error>),
     Error(Error),
 }
 
@@ -247,6 +248,8 @@ pub struct IncStm<'s, Error = !>(pub UnlabelledWriteParam<'s, Error>);
 pub struct DecStm<'s, Error = !>(pub UnlabelledWriteParam<'s, Error>);
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct JmpStm<'s, Error = !>(pub ReadParam<'s, Error>);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ZerosStm<'s, Error = !>(pub Box<Expression<'s, Error>>);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MovStm<'s, Error = !> {
@@ -807,6 +810,7 @@ impl<'s, E> AstNode<E> for Statement<'s, E> {
             Statement::Jmp(jmp) => Statement::Jmp(jmp.constant_folding()),
             Statement::Error(e) => Statement::Error(e),
             Statement::Mov(mov) => Statement::Mov(mov.constant_folding()),
+            Statement::Zeros(z) => Statement::Zeros(z.constant_folding()),
         }
     }
 
@@ -829,6 +833,7 @@ impl<'s, E> AstNode<E> for Statement<'s, E> {
                 accumulator.push(e);
                 None
             }
+            Statement::Zeros(z) => Some(Statement::Zeros(z.extract_errs(accumulator)?)),
         }
     }
 }
@@ -1009,6 +1014,20 @@ impl<'s, E> AstNode<E> for MovStm<'s, E> {
                 n.extract_errs(accumulator)?,
             )),
         }
+    }
+}
+impl<'s, E> AstNode<E> for ZerosStm<'s, E> {
+    fn constant_folding(self) -> Self {
+        Self(self.0.constant_folding())
+    }
+
+    type ErrMapped<EE> = ZerosStm<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(ZerosStm(self.0.extract_errs(accumulator)?))
     }
 }
 
