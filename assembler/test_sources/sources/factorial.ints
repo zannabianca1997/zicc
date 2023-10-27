@@ -1,0 +1,50 @@
+descr: Test the call stack with a factorial function
+tests:
+    zero:
+        in: [0]
+        out: [1]
+    one:
+        in: [1]
+        out: [1]
+    four:
+        in: [4]
+        out: [24]
+---
+incb # $end // set up stack at the end of the program memory
+call # main // call main with no arguments
+halt
+
+factorial:
+    /*
+        Stack now:
+            -2: input parameter
+            -1: return address
+    */
+    jnz @-2 #recurse
+    // 0! case
+    mov #1 @-2
+    ret 
+    recurse:
+    push @-2
+    dec @-1
+    call #factorial
+    mul @-1 @-3 @-1
+    pop @-3
+    ret
+
+
+main:
+    /*
+        Local variables:
+            -1 => input
+    */
+    incb #1
+    in @-1
+    // call factorial with a single argument, input.
+    // It's already on top of the stack, so:
+    call #factorial
+    // out the top of the stack
+    out @-1
+    incb #-1
+    ret
+

@@ -103,6 +103,10 @@ impl<'s, T> Labelled<'s, T> {
             content: f(self.content),
         }
     }
+
+    pub fn map_in_place(&mut self, f: impl FnOnce(&mut T)) {
+        f(&mut self.content)
+    }
 }
 impl<'s, T> Labelled<'s, Option<T>> {
     pub fn transpose(self) -> Option<Labelled<'s, T>> {
@@ -127,6 +131,15 @@ impl<'s, T: std::ops::Deref> std::ops::Deref for Labelled<'s, T> {
     }
 }
 
+impl<'s, T> From<T> for Labelled<'s, T> {
+    fn from(value: T) -> Self {
+        Self {
+            labels: BTreeSet::new(),
+            content: value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LabelDef<'s> {
     pub label: Identifier<'s>,
@@ -141,13 +154,17 @@ pub enum LabelRef<'s, Error = !> {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Statement<'s, Error = !> {
-    IntsStm(IntsStm<'s, Error>),
+    Ints(IntsStm<'s, Error>),
     Instruction(Instruction<'s, Error>),
     Inc(IncStm<'s, Error>),
     Dec(DecStm<'s, Error>),
     Jmp(JmpStm<'s, Error>),
     Mov(MovStm<'s, Error>),
     Zeros(ZerosStm<'s, Error>),
+    Push(PushStm<'s, Error>),
+    Pop(PopStm<'s, Error>),
+    Call(CallStm<'s, Error>),
+    Ret(RetStm),
     Error(Error),
 }
 
@@ -264,6 +281,28 @@ pub enum MovStm<'s, Error = !> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PushStm<'s, Error = !> {
+    /// Push a single memory cell
+    Single(ReadParam<'s, Error>),
+    /// Pushes multiple consecutive memory cells
+    Multiple(
+        UnlabelledNonImmediateReadParam<'s, Error>,
+        Box<Expression<'s, Error>>,
+    ),
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PopStm<'s, Error = !> {
+    /// Pop a single memory cell
+    Single(WriteParam<'s, Error>),
+    /// Pop multiple consecutive memory cells
+    Multiple(UnlabelledWriteParam<'s, Error>, Box<Expression<'s, Error>>),
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CallStm<'s, Error = !>(pub ReadParam<'s, Error>);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RetStm;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadParam<'s, Error = !> {
     Absolute(AbsoluteParam<'s, Error>),
     Immediate(ImmediateParam<'s, Error>),
@@ -316,6 +355,16 @@ impl<'s, E> From<UnlabelledWriteParam<'s, E>> for ReadParam<'s, E> {
         }
     }
 }
+impl<'s, E> From<Box<Expression<'s, E>>> for ReadParam<'s, E> {
+    fn from(value: Box<Expression<'s, E>>) -> Self {
+        Self::Absolute(AbsoluteParam {
+            value: Labelled {
+                labels: BTreeSet::new(),
+                content: value,
+            },
+        })
+    }
+}
 
 pub type NonImmediateReadParam<'s, Error = !> = WriteParam<'s, Error>;
 
@@ -361,7 +410,16 @@ impl<'s, E> From<UnlabelledWriteParam<'s, E>> for WriteParam<'s, E> {
         }
     }
 }
-
+impl<'s, E> From<Box<Expression<'s, E>>> for WriteParam<'s, E> {
+    fn from(value: Box<Expression<'s, E>>) -> Self {
+        Self::Absolute(AbsoluteParam {
+            value: Labelled {
+                labels: BTreeSet::new(),
+                content: value,
+            },
+        })
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ImmediateParam<'s, Error = !> {
     pub value: Labelled<'s, Box<Expression<'s, Error>>>,
@@ -622,6 +680,8 @@ pub trait AstNode<E> {
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<!>>;
+
+    fn max_unnamed_label(&self) -> Option<usize>;
 }
 
 impl<'s, E> AstNode<E> for File<'s, E> {
@@ -661,6 +721,13 @@ impl<'s, E> AstNode<E> for File<'s, E> {
             statements: self.statements.extract_errs(accumulator)?,
         })
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.statements
+            .iter()
+            .flat_map(AstNode::max_unnamed_label)
+            .max()
+    }
 }
 
 impl<'s, E, T: AstNode<E>> AstNode<E> for Labelled<'s, T> {
@@ -682,6 +749,17 @@ impl<'s, E, T: AstNode<E>> AstNode<E> for Labelled<'s, T> {
             content: self.content.extract_errs(accumulator)?,
         })
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.labels
+            .iter()
+            .flat_map(|ldef| match ldef.label {
+                Identifier::Unnamed(n, _) => Some(n),
+                Identifier::Named(_, _) => None,
+            })
+            .chain(self.content.max_unnamed_label())
+            .max()
+    }
 }
 
 impl<E, T: AstNode<E>> AstNode<E> for Option<T> {
@@ -700,6 +778,10 @@ impl<E, T: AstNode<E>> AstNode<E> for Option<T> {
             None => Some(None),
         }
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.as_ref().and_then(AstNode::max_unnamed_label)
+    }
 }
 
 impl<E, T: AstNode<E>> AstNode<E> for Box<T> {
@@ -716,6 +798,10 @@ impl<E, T: AstNode<E>> AstNode<E> for Box<T> {
         // we have to take it on the stack cause it will change size
         let inner = Box::into_inner(self);
         inner.extract_errs(accumulator).map(Box::new)
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        Box::as_ref(self).max_unnamed_label()
     }
 }
 
@@ -743,6 +829,10 @@ impl<E, T: AstNode<E>> AstNode<E> for Vec<T> {
             .collect_vec();
         (!error_present).then_some(res)
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.iter().flat_map(AstNode::max_unnamed_label).max()
+    }
 }
 
 impl<E, L: AstNode<E>, R: AstNode<E>> AstNode<E> for Either<L, R> {
@@ -761,6 +851,12 @@ impl<E, L: AstNode<E>, R: AstNode<E>> AstNode<E> for Either<L, R> {
             Either::Right(r) => r.extract_errs(accumulator).map(Right),
         }
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.as_ref()
+            .map_either(AstNode::max_unnamed_label, AstNode::max_unnamed_label)
+            .into_inner()
+    }
 }
 
 impl<E> AstNode<E> for StringLit<'_> {
@@ -775,6 +871,10 @@ impl<E> AstNode<E> for StringLit<'_> {
         _accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<!>> {
         Some(self)
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        None
     }
 }
 
@@ -798,44 +898,60 @@ impl<'s, E> AstNode<E> for LabelRef<'s, E> {
             }
         }
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        if let LabelRef::Identifier(Identifier::Unnamed(n, ..)) = self {
+            Some(*n)
+        } else {
+            None
+        }
+    }
 }
 
-impl<'s, E> AstNode<E> for Statement<'s, E> {
-    fn constant_folding(self) -> Self {
-        match self {
-            Statement::IntsStm(ints) => Self::IntsStm(ints.constant_folding()),
-            Statement::Instruction(instr) => Statement::Instruction(instr.constant_folding()),
-            Statement::Inc(inc) => Statement::Inc(inc.constant_folding()),
-            Statement::Dec(dec) => Statement::Dec(dec.constant_folding()),
-            Statement::Jmp(jmp) => Statement::Jmp(jmp.constant_folding()),
-            Statement::Error(e) => Statement::Error(e),
-            Statement::Mov(mov) => Statement::Mov(mov.constant_folding()),
-            Statement::Zeros(z) => Statement::Zeros(z.constant_folding()),
-        }
-    }
-
-    type ErrMapped<EE> = Statement<'s, EE>;
-
-    fn extract_errs(
-        self,
-        accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
-        match self {
-            Statement::IntsStm(ints) => Some(Statement::IntsStm(ints.extract_errs(accumulator)?)),
-            Statement::Instruction(instr) => {
-                Some(Statement::Instruction(instr.extract_errs(accumulator)?))
+macro_rules! ast_node_for_statement {
+    (
+        $($variant:ident)*
+    ) => {
+        impl<'s, E> AstNode<E> for Statement<'s, E> {
+            fn constant_folding(self) -> Self {
+                match self {
+                    $(
+                    Statement::$variant(stm) => Self::$variant(AstNode::<E>::constant_folding(stm)),
+                    )*
+                    Statement::Error(e) => Statement::Error(e)
+                }
             }
-            Statement::Inc(inc) => Some(Statement::Inc(inc.extract_errs(accumulator)?)),
-            Statement::Dec(dec) => Some(Statement::Dec(dec.extract_errs(accumulator)?)),
-            Statement::Jmp(jmp) => Some(Statement::Jmp(jmp.extract_errs(accumulator)?)),
-            Statement::Mov(mov) => Some(Statement::Mov(mov.extract_errs(accumulator)?)),
-            Statement::Error(e) => {
-                accumulator.push(e);
-                None
+
+            type ErrMapped<EE> = Statement<'s, EE>;
+
+            fn extract_errs(
+                self,
+                accumulator: &mut impl Accumulator<Error = impl From<E>>,
+            ) -> Option<Self::ErrMapped<!>> {
+                match self {
+                    $(
+                    Statement::$variant(stm) => Some(Statement::$variant(AstNode::<E>::extract_errs(stm, accumulator)?)),
+                    )*
+                    Statement::Error(e) => {
+                        accumulator.push(e);
+                        None
+                    }
+                }
             }
-            Statement::Zeros(z) => Some(Statement::Zeros(z.extract_errs(accumulator)?)),
+
+            fn max_unnamed_label(&self) -> Option<usize> {
+                match self {
+                    $(
+                    Statement::$variant(stm) => AstNode::<E>::max_unnamed_label(stm),
+                    )*
+                    Statement::Error(_) => None
+                }
+            }
         }
-    }
+    };
+}
+ast_node_for_statement! {
+    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret
 }
 
 impl<'s, E> AstNode<E> for IntsStm<'s, E> {
@@ -854,6 +970,13 @@ impl<'s, E> AstNode<E> for IntsStm<'s, E> {
         Some(IntsStm {
             values: self.values.extract_errs(accumulator)?,
         })
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.values
+            .iter()
+            .flat_map(AstNode::max_unnamed_label)
+            .max()
     }
 }
 
@@ -941,6 +1064,33 @@ impl<'s, E> AstNode<E> for Instruction<'s, E> {
             }
         }
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            Instruction::Add(a, b, c)
+            | Instruction::Mul(a, b, c)
+            | Instruction::Slt(a, b, c)
+            | Instruction::Seq(a, b, c) => [
+                a.max_unnamed_label(),
+                b.max_unnamed_label(),
+                c.max_unnamed_label(),
+            ]
+            .into_iter()
+            .flatten()
+            .max(),
+            Instruction::In(a) => a.max_unnamed_label(),
+            Instruction::Out(a) => a.max_unnamed_label(),
+            Instruction::Jz(a, b) | Instruction::Jnz(a, b) => {
+                [a.max_unnamed_label(), b.max_unnamed_label()]
+                    .into_iter()
+                    .flatten()
+                    .max()
+            }
+            Instruction::Incb(a) => a.max_unnamed_label(),
+            Instruction::Halt => None,
+            Instruction::Error(_) => None,
+        }
+    }
 }
 
 impl<'s, E> AstNode<E> for IncStm<'s, E> {
@@ -956,6 +1106,10 @@ impl<'s, E> AstNode<E> for IncStm<'s, E> {
     ) -> Option<Self::ErrMapped<!>> {
         Some(IncStm(self.0.extract_errs(accumulator)?))
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.0.max_unnamed_label()
+    }
 }
 impl<'s, E> AstNode<E> for DecStm<'s, E> {
     fn constant_folding(self) -> Self {
@@ -970,6 +1124,10 @@ impl<'s, E> AstNode<E> for DecStm<'s, E> {
     ) -> Option<Self::ErrMapped<!>> {
         Some(DecStm(self.0.extract_errs(accumulator)?))
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.0.max_unnamed_label()
+    }
 }
 impl<'s, E> AstNode<E> for JmpStm<'s, E> {
     fn constant_folding(self) -> Self {
@@ -983,6 +1141,10 @@ impl<'s, E> AstNode<E> for JmpStm<'s, E> {
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<!>> {
         Some(JmpStm(self.0.extract_errs(accumulator)?))
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.0.max_unnamed_label()
     }
 }
 impl<'s, E> AstNode<E> for MovStm<'s, E> {
@@ -1015,6 +1177,23 @@ impl<'s, E> AstNode<E> for MovStm<'s, E> {
             )),
         }
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            MovStm::Single(a, b) => [a.max_unnamed_label(), b.max_unnamed_label()]
+                .into_iter()
+                .flatten()
+                .max(),
+            MovStm::Multiple(a, b, c) => [
+                a.max_unnamed_label(),
+                b.max_unnamed_label(),
+                c.max_unnamed_label(),
+            ]
+            .into_iter()
+            .flatten()
+            .max(),
+        }
+    }
 }
 impl<'s, E> AstNode<E> for ZerosStm<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1028,6 +1207,110 @@ impl<'s, E> AstNode<E> for ZerosStm<'s, E> {
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<!>> {
         Some(ZerosStm(self.0.extract_errs(accumulator)?))
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.0.max_unnamed_label()
+    }
+}
+impl<'s, E> AstNode<E> for PushStm<'s, E> {
+    fn constant_folding(self) -> Self {
+        match self {
+            PushStm::Single(a) => Self::Single(a.constant_folding()),
+            PushStm::Multiple(a, n) => Self::Multiple(a.constant_folding(), n.constant_folding()),
+        }
+    }
+
+    type ErrMapped<EE> = PushStm<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(match self {
+            PushStm::Single(a) => PushStm::Single(a.extract_errs(accumulator)?),
+            PushStm::Multiple(a, n) => {
+                PushStm::Multiple(a.extract_errs(accumulator)?, n.extract_errs(accumulator)?)
+            }
+        })
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            Self::Single(a) => a.max_unnamed_label(),
+            Self::Multiple(a, b) => [a.max_unnamed_label(), b.max_unnamed_label()]
+                .into_iter()
+                .flatten()
+                .max(),
+        }
+    }
+}
+impl<'s, E> AstNode<E> for PopStm<'s, E> {
+    fn constant_folding(self) -> Self {
+        match self {
+            PopStm::Single(a) => Self::Single(a.constant_folding()),
+            PopStm::Multiple(a, n) => Self::Multiple(a.constant_folding(), n.constant_folding()),
+        }
+    }
+
+    type ErrMapped<EE> = PopStm<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(match self {
+            PopStm::Single(a) => PopStm::Single(a.extract_errs(accumulator)?),
+            PopStm::Multiple(a, n) => {
+                PopStm::Multiple(a.extract_errs(accumulator)?, n.extract_errs(accumulator)?)
+            }
+        })
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            Self::Single(a) => a.max_unnamed_label(),
+            Self::Multiple(a, b) => [a.max_unnamed_label(), b.max_unnamed_label()]
+                .into_iter()
+                .flatten()
+                .max(),
+        }
+    }
+}
+impl<'s, E> AstNode<E> for CallStm<'s, E> {
+    fn constant_folding(self) -> Self {
+        Self(self.0.constant_folding())
+    }
+
+    type ErrMapped<EE> = CallStm<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(CallStm(self.0.extract_errs(accumulator)?))
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.0.max_unnamed_label()
+    }
+}
+impl<E> AstNode<E> for RetStm {
+    fn constant_folding(self) -> Self {
+        self
+    }
+
+    type ErrMapped<EE> = Self;
+
+    fn extract_errs(
+        self,
+        _accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(self)
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        None
     }
 }
 
@@ -1057,6 +1340,15 @@ impl<'s, E> AstNode<E> for ReadParam<'s, E> {
             }
         }
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            Self::Absolute(a) => a.max_unnamed_label(),
+            Self::Immediate(i) => i.max_unnamed_label(),
+            Self::Relative(r) => r.max_unnamed_label(),
+            Self::Error(_) => None,
+        }
+    }
 }
 
 impl<'s, E> AstNode<E> for WriteParam<'s, E> {
@@ -1083,6 +1375,14 @@ impl<'s, E> AstNode<E> for WriteParam<'s, E> {
             }
         }
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            Self::Absolute(a) => a.max_unnamed_label(),
+            Self::Relative(r) => r.max_unnamed_label(),
+            Self::Error(_) => None,
+        }
+    }
 }
 
 impl<'s, E> AstNode<E> for AbsoluteParam<'s, E> {
@@ -1102,6 +1402,10 @@ impl<'s, E> AstNode<E> for AbsoluteParam<'s, E> {
             value: self.value.extract_errs(accumulator)?,
         })
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.value.max_unnamed_label()
+    }
 }
 impl<'s, E> AstNode<E> for ImmediateParam<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1120,6 +1424,10 @@ impl<'s, E> AstNode<E> for ImmediateParam<'s, E> {
             value: self.value.extract_errs(accumulator)?,
         })
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.value.max_unnamed_label()
+    }
 }
 impl<'s, E> AstNode<E> for RelativeParam<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1137,6 +1445,10 @@ impl<'s, E> AstNode<E> for RelativeParam<'s, E> {
         Some(RelativeParam {
             value: self.value.extract_errs(accumulator)?,
         })
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.value.max_unnamed_label()
     }
 }
 
@@ -1174,6 +1486,15 @@ impl<'s, E> AstNode<E> for UnlabelledReadParam<'s, E> {
             }
         }
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            Self::Absolute(a) => a.max_unnamed_label(),
+            Self::Immediate(i) => i.max_unnamed_label(),
+            Self::Relative(r) => r.max_unnamed_label(),
+            Self::Error(_) => None,
+        }
+    }
 }
 
 impl<'s, E> AstNode<E> for UnlabelledWriteParam<'s, E> {
@@ -1208,6 +1529,13 @@ impl<'s, E> AstNode<E> for UnlabelledWriteParam<'s, E> {
             }
         }
     }
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            Self::Absolute(a) => a.max_unnamed_label(),
+            Self::Relative(r) => r.max_unnamed_label(),
+            Self::Error(_) => None,
+        }
+    }
 }
 
 impl<'s, E> AstNode<E> for UnlabelledAbsoluteParam<'s, E> {
@@ -1227,6 +1555,10 @@ impl<'s, E> AstNode<E> for UnlabelledAbsoluteParam<'s, E> {
             value: self.value.extract_errs(accumulator)?,
         })
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.value.max_unnamed_label()
+    }
 }
 impl<'s, E> AstNode<E> for UnlabelledImmediateParam<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1244,6 +1576,10 @@ impl<'s, E> AstNode<E> for UnlabelledImmediateParam<'s, E> {
         Some(UnlabelledImmediateParam {
             value: self.value.extract_errs(accumulator)?,
         })
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.value.max_unnamed_label()
     }
 }
 impl<'s, E> AstNode<E> for UnlabelledRelativeParam<'s, E> {
@@ -1263,6 +1599,10 @@ impl<'s, E> AstNode<E> for UnlabelledRelativeParam<'s, E> {
             value: self.value.extract_errs(accumulator)?,
         })
     }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.value.max_unnamed_label()
+    }
 }
 
 impl<'s, E> AstNode<E> for Expression<'s, E> {
@@ -1270,22 +1610,32 @@ impl<'s, E> AstNode<E> for Expression<'s, E> {
         match self {
             Expression::Sum(a, b) => match (a.constant_folding(), b.constant_folding()) {
                 (box Expression::Num(a), box Expression::Num(b)) => Expression::Num(a + b),
+                (box Expression::Num(0), a) | (a, box Expression::Num(0)) => *a,
                 (a, b) => Expression::Sum(a, b),
             },
             Expression::Sub(a, b) => match (a.constant_folding(), b.constant_folding()) {
                 (box Expression::Num(a), box Expression::Num(b)) => Expression::Num(a - b),
+                (a, box Expression::Num(0)) => *a,
+                (box Expression::Num(0), box Expression::Neg(a)) => *a,
+                (a, box Expression::Neg(b)) => Expression::Sum(a, b),
+                (box Expression::Num(0), a) => Expression::Neg(a),
                 (a, b) => Expression::Sub(a, b),
             },
             Expression::Mul(a, b) => match (a.constant_folding(), b.constant_folding()) {
                 (box Expression::Num(a), box Expression::Num(b)) => Expression::Num(a * b),
+                (box Expression::Num(0), _) | (_, box Expression::Num(0)) => Expression::Num(0),
+                (box Expression::Num(1), a) | (a, box Expression::Num(1)) => *a,
                 (a, b) => Expression::Mul(a, b),
             },
             Expression::Div(a, b) => match (a.constant_folding(), b.constant_folding()) {
                 (box Expression::Num(a), box Expression::Num(b)) => Expression::Num(a / b),
+                (box Expression::Num(0), _) => Expression::Num(0),
+                (a, box Expression::Num(1)) => *a,
                 (a, b) => Expression::Div(a, b),
             },
             Expression::Mod(a, b) => match (a.constant_folding(), b.constant_folding()) {
                 (box Expression::Num(a), box Expression::Num(b)) => Expression::Num(a % b),
+                (box Expression::Num(0), _) | (_, box Expression::Num(1)) => Expression::Num(0),
                 (a, b) => Expression::Mod(a, b),
             },
             Expression::Neg(a) => match a.constant_folding() {
@@ -1338,6 +1688,24 @@ impl<'s, E> AstNode<E> for Expression<'s, E> {
                 accumulator.push(e);
                 None
             }
+        }
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            Expression::Sum(a, b)
+            | Expression::Sub(a, b)
+            | Expression::Mul(a, b)
+            | Expression::Div(a, b)
+            | Expression::Mod(a, b) => [a.max_unnamed_label(), b.max_unnamed_label()]
+                .into_iter()
+                .flatten()
+                .max(),
+            Expression::Neg(a) => a.max_unnamed_label(),
+            Expression::Num(_) => None,
+            Expression::Ref(LabelRef::Identifier(Identifier::Unnamed(n, ..))) => Some(*n),
+            Expression::Ref(_) => None,
+            Expression::Error(_) => None,
         }
     }
 }

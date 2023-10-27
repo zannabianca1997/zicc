@@ -36,13 +36,17 @@ LabelledPlus<T>: Labelled<'s, T> = {
 }
 
 Statement: Statement<'s, AstErrorRecovery<'s>> = {
-  "ints" <values: CommaSepExprs> => Statement::IntsStm(IntsStm{<>}),
+  "ints" <values: CommaSepExprs> => Statement::Ints(IntsStm{<>}),
   Instruction => Statement::Instruction(<>),
   "inc" <UnlabelledWriteParam> => Statement::Inc(IncStm(<>)),
   "dec" <UnlabelledWriteParam> => Statement::Dec(DecStm(<>)),
   "jmp" <ReadParam> => Statement::Jmp(JmpStm(<>)),
   "mov" <ParamMov> => Statement::Mov(<>),
-  "zeros" <Expression> => Statement::Zeros(ZerosStm(<>))
+  "zeros" <Expression> => Statement::Zeros(ZerosStm(<>)),
+  "push"  <ParamPush> => Statement::Push(<>),
+  "pop"   <ParamPop> => Statement::Pop(<>),
+  "call"  <ReadParam> => Statement::Call(CallStm(<>)),
+  "ret"   => Statement::Ret(RetStm),
 }
 
 Instruction: Instruction<'s, AstErrorRecovery<'s>> = {
@@ -65,6 +69,18 @@ ParamMov: MovStm<'s, AstErrorRecovery<'s>> = {
   <a: WriteParam> <b: WriteParamNoComma> "," <l:Expression> =>? Ok(MovStm::Multiple(a.try_into()?,b.try_into()?,l)),
   <a: WriteParam> "," <b: WriteParam> <l:ExpressionNonNeg> =>? Ok(MovStm::Multiple(a.try_into()?,b.try_into()?,l)),
   <a: WriteParam> <b: WriteParamNoComma> <l:ExpressionNonNeg> =>? Ok(MovStm::Multiple(a.try_into()?,b.try_into()?,l))
+}
+
+ParamPop: PopStm<'s, AstErrorRecovery<'s>> = {
+  <a: WriteParam>  => PopStm::Single(a),
+  <a: WriteParam>  "," <l:Expression> =>? Ok(PopStm::Multiple(a.try_into()?,l)),
+  <a: WriteParam>  <l:ExpressionNonNeg> =>? Ok(PopStm::Multiple(a.try_into()?,l)),
+}
+
+ParamPush: PushStm<'s, AstErrorRecovery<'s>> = {
+  <b: ReadParam> => PushStm::Single(b),
+  <b: WriteParam> "," <l:Expression> =>? Ok(PushStm::Multiple(b.try_into()?,l)),
+  <b: WriteParam> <l:ExpressionNonNeg> =>? Ok(PushStm::Multiple(b.try_into()?,l)),
 }
 
 ReadParam: ReadParam<'s, AstErrorRecovery<'s>> = {

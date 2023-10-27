@@ -652,7 +652,7 @@ mod impls {
                     )?
                     .into_iter();
                 Ok(Ast(
-                    quote!(::parser::ast::Statement::IntsStm(::parser::ast::IntsStm {
+                    quote!(::parser::ast::Statement::Ints(::parser::ast::IntsStm {
                         values: vec![#(#values),*]
                     })),
                     PhantomData,
@@ -754,7 +754,7 @@ mod impls {
             } else if cmd == "incb" {
                 let p: AstOrBrace<ReadParam<'static>> = input.parse()?;
                 Ok(Ast(
-                    quote!(::parser::ast::Statement::Instruction(::parser::ast::Instruction::Out(
+                    quote!(::parser::ast::Statement::Instruction(::parser::ast::Instruction::Incb(
                         #p
                     ))),
                     PhantomData,
@@ -824,8 +824,79 @@ mod impls {
                         ))
                     }
                 }
+            } else if cmd == "push" {
+                let forked = input.fork();
+                let a: AstOrBrace<ReadParam<'static>> = forked.parse()?;
+                let _: Option<Token![,]> = forked.parse().unwrap();
+                match forked.parse::<AstOrBrace<Box<Expression<'static>>>>() {
+                    Ok(_) => {
+                        // need to reparse as the stricter version
+                        // this could be avoided by building an ast
+                        let a: AstOrBrace<UnlabelledNonImmediateReadParam<'static>> =
+                            input.parse()?;
+                        let _: Option<Token![,]> = input.parse().unwrap();
+                        let n: AstOrBrace<Box<Expression<'static>>> = input.parse()?;
+                        Ok(Ast(
+                            quote!(::parser::ast::Statement::Push(::parser::ast::PushStm::Multiple(
+                                #a,#n
+                            ))),
+                            PhantomData,
+                        ))
+                    }
+                    Err(_) => {
+                        // joining the stream
+                        input.advance_to(&forked);
+                        Ok(Ast(
+                            quote!(::parser::ast::Statement::Push(::parser::ast::PushStm::Single(
+                                #a
+                            ))),
+                            PhantomData,
+                        ))
+                    }
+                }
+            } else if cmd == "pop" {
+                let forked = input.fork();
+                let a: AstOrBrace<WriteParam<'static>> = forked.parse()?;
+                let _: Option<Token![,]> = forked.parse().unwrap();
+                match forked.parse::<AstOrBrace<Box<Expression<'static>>>>() {
+                    Ok(_) => {
+                        // need to reparse as the stricter version
+                        // this could be avoided by building an ast
+                        let a: AstOrBrace<UnlabelledWriteParam<'static>> = input.parse()?;
+                        let _: Option<Token![,]> = input.parse().unwrap();
+                        let n: AstOrBrace<Box<Expression<'static>>> = input.parse()?;
+                        Ok(Ast(
+                            quote!(::parser::ast::Statement::Pop(::parser::ast::PopStm::Multiple(
+                                #a,#n
+                            ))),
+                            PhantomData,
+                        ))
+                    }
+                    Err(_) => {
+                        // joining the stream
+                        input.advance_to(&forked);
+                        Ok(Ast(
+                            quote!(::parser::ast::Statement::Pop(::parser::ast::PopStm::Single(
+                                #a
+                            ))),
+                            PhantomData,
+                        ))
+                    }
+                }
+            } else if cmd == "call" {
+                let p: AstOrBrace<ReadParam<'static>> = input.parse()?;
+                Ok(Ast(
+                    quote!(::parser::ast::Statement::Call(::parser::ast::CallStm(
+                        #p
+                    ))),
+                    PhantomData,
+                ))
+            } else if cmd == "ret" {
+                Ok(Ast(
+                    quote!(::parser::ast::Statement::Ret(::parser::ast::RetStm)),
+                    PhantomData,
+                ))
             } else {
-                // TODO: add push,pop,call,ret
                 Err(syn::Error::new_spanned(
                     cmd_ident,
                     "Expected command keyword",

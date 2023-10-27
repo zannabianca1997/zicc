@@ -1,0 +1,29 @@
+descr: stack testing => reverse a string using a stack
+tests:
+    - in: [1,2,3,4,0]
+      out: [4,3,2,1]
+---
+incb #$end
+
+push #0 // canary to detect stack bottom
+
+input_loop:
+    in input
+    jz input #start_output
+    push input
+jmp #input_loop
+
+
+start_output:
+
+output_loop:
+    pop input
+    jz input #end
+    out input
+jmp #output_loop
+
+    
+
+end: halt
+
+input: zeros 1
