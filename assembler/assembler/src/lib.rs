@@ -504,7 +504,7 @@ mod tests {
     use errors::RootAccumulator;
     use parser::ParseError;
     use test_sources::{test_io, test_sources};
-    use vm::VMInt;
+    
 
     use crate::{AssembleError, Code, Unit};
 

@@ -925,7 +925,7 @@ impl<E> AstNode<E> for StringLit<'_> {
         None
     }
 
-    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+    fn map_err<EE>(self, _f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
         self
     }
 }
@@ -1144,55 +1144,43 @@ impl<'s, E> AstNode<E> for Instruction<'s, E> {
     fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
         match self {
             Instruction::Add(a, b, c) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    let c = c.map_err(f);
-                    Instruction::Add(a, b, c)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                let c = c.map_err(f);
+                Instruction::Add(a, b, c)
             }
             Instruction::Mul(a, b, c) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    let c = c.map_err(f);
-                    Instruction::Mul(a, b, c)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                let c = c.map_err(f);
+                Instruction::Mul(a, b, c)
             }
-            Instruction::In(a) => (Instruction::In(a.map_err(f))),
-            Instruction::Out(a) => (Instruction::Out(a.map_err(f))),
+            Instruction::In(a) => Instruction::In(a.map_err(f)),
+            Instruction::Out(a) => Instruction::Out(a.map_err(f)),
             Instruction::Jz(a, b) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    Instruction::Jz(a, b)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                Instruction::Jz(a, b)
             }
             Instruction::Jnz(a, b) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    Instruction::Jnz(a, b)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                Instruction::Jnz(a, b)
             }
             Instruction::Slt(a, b, c) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    let c = c.map_err(f);
-                    Instruction::Slt(a, b, c)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                let c = c.map_err(f);
+                Instruction::Slt(a, b, c)
             }
             Instruction::Seq(a, b, c) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    let c = c.map_err(f);
-                    Instruction::Seq(a, b, c)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                let c = c.map_err(f);
+                Instruction::Seq(a, b, c)
             }
-            Instruction::Incb(a) => (Instruction::Incb(a.map_err(f))),
-            Instruction::Halt => (Instruction::Halt),
+            Instruction::Incb(a) => Instruction::Incb(a.map_err(f)),
+            Instruction::Halt => Instruction::Halt,
             Instruction::Error(e) => Instruction::Error(f(e)),
         }
     }
@@ -1486,7 +1474,7 @@ impl<E> AstNode<E> for RetStm {
         None
     }
 
-    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+    fn map_err<EE>(self, _f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
         self
     }
 }
@@ -1529,9 +1517,9 @@ impl<'s, E> AstNode<E> for ReadParam<'s, E> {
 
     fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
         match self {
-            ReadParam::Absolute(a) => (ReadParam::Absolute(a.map_err(f))),
-            ReadParam::Immediate(i) => (ReadParam::Immediate(i.map_err(f))),
-            ReadParam::Relative(r) => (ReadParam::Relative(r.map_err(f))),
+            ReadParam::Absolute(a) => ReadParam::Absolute(a.map_err(f)),
+            ReadParam::Immediate(i) => ReadParam::Immediate(i.map_err(f)),
+            ReadParam::Relative(r) => ReadParam::Relative(r.map_err(f)),
             ReadParam::Error(e) => ReadParam::Error(f(e)),
         }
     }
@@ -1572,8 +1560,8 @@ impl<'s, E> AstNode<E> for WriteParam<'s, E> {
 
     fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
         match self {
-            WriteParam::Absolute(a) => (WriteParam::Absolute(a.map_err(f))),
-            WriteParam::Relative(r) => (WriteParam::Relative(r.map_err(f))),
+            WriteParam::Absolute(a) => WriteParam::Absolute(a.map_err(f)),
+            WriteParam::Relative(r) => WriteParam::Relative(r.map_err(f)),
             WriteParam::Error(e) => WriteParam::Error(f(e)),
         }
     }
@@ -1709,9 +1697,9 @@ impl<'s, E> AstNode<E> for UnlabelledReadParam<'s, E> {
     }
     fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
         match self {
-            UnlabelledReadParam::Absolute(a) => (UnlabelledReadParam::Absolute(a.map_err(f))),
-            UnlabelledReadParam::Immediate(i) => (UnlabelledReadParam::Immediate(i.map_err(f))),
-            UnlabelledReadParam::Relative(r) => (UnlabelledReadParam::Relative(r.map_err(f))),
+            UnlabelledReadParam::Absolute(a) => UnlabelledReadParam::Absolute(a.map_err(f)),
+            UnlabelledReadParam::Immediate(i) => UnlabelledReadParam::Immediate(i.map_err(f)),
+            UnlabelledReadParam::Relative(r) => UnlabelledReadParam::Relative(r.map_err(f)),
             UnlabelledReadParam::Error(e) => UnlabelledReadParam::Error(f(e)),
         }
     }
@@ -1758,8 +1746,8 @@ impl<'s, E> AstNode<E> for UnlabelledWriteParam<'s, E> {
     }
     fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
         match self {
-            UnlabelledWriteParam::Absolute(a) => (UnlabelledWriteParam::Absolute(a.map_err(f))),
-            UnlabelledWriteParam::Relative(r) => (UnlabelledWriteParam::Relative(r.map_err(f))),
+            UnlabelledWriteParam::Absolute(a) => UnlabelledWriteParam::Absolute(a.map_err(f)),
+            UnlabelledWriteParam::Relative(r) => UnlabelledWriteParam::Relative(r.map_err(f)),
             UnlabelledWriteParam::Error(e) => UnlabelledWriteParam::Error(f(e)),
         }
     }
@@ -1957,43 +1945,33 @@ impl<'s, E> AstNode<E> for Expression<'s, E> {
     fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
         match self {
             Expression::Sum(a, b) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    Expression::Sum(a, b)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                Expression::Sum(a, b)
             }
             Expression::Sub(a, b) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    Expression::Sub(a, b)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                Expression::Sub(a, b)
             }
             Expression::Mul(a, b) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    Expression::Mul(a, b)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                Expression::Mul(a, b)
             }
             Expression::Div(a, b) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    Expression::Div(a, b)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                Expression::Div(a, b)
             }
             Expression::Mod(a, b) => {
-                ({
-                    let a = a.map_err(f);
-                    let b = b.map_err(f);
-                    Expression::Mod(a, b)
-                })
+                let a = a.map_err(f);
+                let b = b.map_err(f);
+                Expression::Mod(a, b)
             }
-            Expression::Neg(a) => (Expression::Neg(a.map_err(f))),
-            Expression::Num(a) => (Expression::Num(a)),
-            Expression::Ref(a) => (Expression::Ref(a.map_err(f))),
+            Expression::Neg(a) => Expression::Neg(a.map_err(f)),
+            Expression::Num(a) => Expression::Num(a),
+            Expression::Ref(a) => Expression::Ref(a.map_err(f)),
             Expression::Error(e) => Expression::Error(f(e)),
         }
     }
