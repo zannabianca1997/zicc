@@ -2,6 +2,7 @@
 #![feature(unwrap_infallible)]
 #![feature(assert_matches)]
 #![feature(never_type)]
+#![feature(box_into_inner)]
 
 use std::collections::{
     btree_map::Entry::{Occupied, Vacant},
@@ -17,23 +18,29 @@ use itertools::Itertools;
 use lexer::{Identifier, SpecialIdentifier, StringLit};
 use parse_from_rust::ica;
 use parser::ast::*;
+use thiserror::Error;
 use vm::VMInt;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Error)]
 pub enum AssembleError<'s> {
+    #[error("Label {0} is use in a constant expression")]
     LabelInConstExpr(LabelRef<'s>),
-    UndefinedUnnamed(Identifier<'s>),
+    #[error("Label {0} is not defined in this file")]
     UndefinedExport(Identifier<'s>),
+    #[error("Label {0} was defined before")]
     RedefinedGlobal(Identifier<'s>, Identifier<'s>),
+    #[error("Label {0} is undefined")]
     Undefined(Identifier<'s>),
+    #[error("Another entry was defined before {0}")]
     RedefinedEntry(Identifier<'s>),
+    #[error("Two units define an entry point")]
     RedefinedEntryInAnotherUnit,
 }
 
 /// A intcode code, made up of various units
 pub struct Code<'s> {
     /// All the values of this code
-    values: Vec<Box<Expression<'s>>>,
+    values: Vec<Expression<'s>>,
     /// The global identifiers of this code
     globals: BTreeMap<Identifier<'s>, VMInt>,
     /// The entry point of this code
@@ -128,7 +135,7 @@ impl<'s> Code<'s> {
                 })
                 .extract_errs(&mut errors)
                 .map(|e| {
-                    if let box Expression::Num(e) = e.constant_folding() {
+                    if let Expression::Num(e) = e.constant_folding() {
                         e
                     } else {
                         unreachable!()
@@ -139,7 +146,7 @@ impl<'s> Code<'s> {
     }
 }
 
-fn prologue(entry_offset: VMInt) -> impl IntoIterator<Item = Box<Expression<'static>>> {
+fn prologue(entry_offset: VMInt) -> impl IntoIterator<Item = Expression<'static>> {
     let prologue: File<'_> = ica!(
         incb #{Box::new(Expression::Ref(LabelRef::SpecialIdentifier(SpecialIdentifier::End)))};
         call #{Box::new(Expression::Sum(Box::new(Expression::Ref(LabelRef::SpecialIdentifier(SpecialIdentifier::Start))),Box::new(Expression::Num(entry_offset))))};
@@ -173,7 +180,7 @@ fn prologue(entry_offset: VMInt) -> impl IntoIterator<Item = Box<Expression<'sta
 /// An unit of code
 pub struct Unit<'s> {
     /// All the values of this unit
-    values: Vec<Box<Expression<'s>>>,
+    values: Vec<Expression<'s>>,
     /// Labels defined in this unit, and their position
     globals: BTreeMap<Identifier<'s>, VMInt>,
     /// Entry point
@@ -246,7 +253,7 @@ impl<'s> Unit<'s> {
 /// An unit of code in the process of being assembled
 struct AssemblingUnit<'s, Errors> {
     /// All the values of this unit
-    values: Vec<Box<Expression<'s>>>,
+    values: Vec<Expression<'s>>,
     /// Labels defined in this unit, and their position
     locals: BTreeMap<Identifier<'s>, VMInt>,
     /// Global identifiers
@@ -263,11 +270,11 @@ impl<'s, E> AssemblingUnit<'s, E>
 where
     E: Accumulator<Error = AssembleError<'s>>,
 {
-    fn const_expr(&mut self, arg: Box<Expression<'s>>) -> Option<VMInt> {
+    fn const_expr(&mut self, arg: Expression<'s>) -> Option<VMInt> {
         arg.replace(&mut |lbl| Err(AssembleError::LabelInConstExpr(*lbl)))
             .extract_errs(&mut self.errors)
             .map(|e| {
-                if let box Expression::Num(e) = e.constant_folding() {
+                if let Expression::Num(e) = e.constant_folding() {
                     e
                 } else {
                     unreachable!()
@@ -296,7 +303,7 @@ impl<'s> CodeGen<'s> for LabelDef<'s> {
         unit.locals.insert(self.label, unit.values.len() as VMInt);
     }
 }
-impl<'s> CodeGen<'s> for Box<Expression<'s>> {
+impl<'s> CodeGen<'s> for Expression<'s> {
     fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
     where
         E: Accumulator<Error = AssembleError<'s>>,
@@ -343,6 +350,18 @@ where
         for i in self {
             i.code_gen(unit)
         }
+    }
+}
+impl<'s, T> CodeGen<'s> for Box<T>
+where
+    T: CodeGen<'s>,
+{
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        let inner = Box::into_inner(self);
+        inner.code_gen(unit)
     }
 }
 
@@ -485,7 +504,7 @@ impl<'s> CodeGen<'s> for ZerosStm<'s> {
         E: Accumulator<Error = AssembleError<'s>>,
     {
         let Some(n) = unit
-            .const_expr(self.0)
+            .const_expr(Box::into_inner(self.0))
             .and_then(|n| usize::try_from(n).ok())
         else {
             return;
@@ -507,7 +526,7 @@ impl<'s> CodeGen<'s> for MovStm<'s> {
                 add {a} #0 {b}
             )
             .code_gen(unit),
-            MovStm::Multiple(a, b, n) => {
+            MovStm::Multiple(a, b, box n) => {
                 let Some(n) = unit.const_expr(n) else {
                     return;
                 };

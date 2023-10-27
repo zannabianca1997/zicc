@@ -84,6 +84,17 @@ pub enum SpecialIdentifier {
     UnitEnd,
 }
 
+impl Display for SpecialIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            SpecialIdentifier::Start => "$start",
+            SpecialIdentifier::End => "$end",
+            SpecialIdentifier::UnitStart => "$unit_start",
+            SpecialIdentifier::UnitEnd => "$unit_end",
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum LexError {
     #[error("Unknow token")]
