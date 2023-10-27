@@ -10,9 +10,6 @@ tests:
         in: [4]
         out: [24]
 ---
-incb # $end // set up stack at the end of the program memory
-call # main // call main with no arguments
-halt
 
 factorial:
     /*
@@ -33,6 +30,7 @@ factorial:
     ret
 
 
+entry main
 main:
     /*
         Local variables:

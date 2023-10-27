@@ -170,6 +170,7 @@ pub enum Statement<'s, Error = !> {
     Call(CallStm<'s, Error>),
     Ret(RetStm),
     Export(ExportStm<'s>),
+    Entry(EntryStm<'s>),
     Error(Error),
 }
 
@@ -304,12 +305,17 @@ pub enum PopStm<'s, Error = !> {
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CallStm<'s, Error = !>(pub ReadParam<'s, Error>);
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RetStm;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExportStm<'s> {
     pub exported: Vec<Identifier<'s>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EntryStm<'s> {
+    pub entry: Identifier<'s>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1027,7 +1033,7 @@ macro_rules! ast_node_for_statement {
     };
 }
 ast_node_for_statement! {
-    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret Export
+    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret Export Entry
 }
 
 impl<'s, E> AstNode<E> for IntsStm<'s, E> {
@@ -1493,12 +1499,12 @@ impl<'s, E> AstNode<E> for ExportStm<'s> {
 
     fn extract_errs(
         self,
-        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+        _accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<!>> {
         Some(self)
     }
 
-    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+    fn map_err<EE>(self, _f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
         self
     }
 
@@ -1513,6 +1519,32 @@ impl<'s, E> AstNode<E> for ExportStm<'s> {
                 }
             })
             .max()
+    }
+}
+impl<'s, E> AstNode<E> for EntryStm<'s> {
+    fn constant_folding(self) -> Self {
+        self
+    }
+
+    type ErrMapped<EE> = Self;
+
+    fn extract_errs(
+        self,
+        _accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(self)
+    }
+
+    fn map_err<EE>(self, _f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        self
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        if let Identifier::Unnamed(n, ..) = &self.entry {
+            Some(*n)
+        } else {
+            None
+        }
     }
 }
 

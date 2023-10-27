@@ -22,10 +22,6 @@ tests:
         in: [2,1,10]
         out: [123]
 ---
-incb # $end // set up stack at the end of the program memory
-call # main // call main with no arguments
-halt
-
 fibo:
     /*
         stack is:
@@ -80,7 +76,7 @@ fibo:
     incb #-4 // popping locals
     ret
 
-
+entry main
 main:
     /*
         local variables:

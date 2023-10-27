@@ -1,6 +1,6 @@
 //! Utilities to collect multiple errors
 #![feature(never_type)]
-use std::{error::Error, marker::PhantomData, mem, ops::Range};
+use std::{error::Error, fmt::Debug, marker::PhantomData, mem, ops::Range};
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use nonempty::{nonempty, NonEmpty};
@@ -183,6 +183,26 @@ where
         EI: Into<A::Error>,
     {
         acc.handle_iter(self)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PanicAccumulator<T>(PhantomData<T>);
+
+impl<T> PanicAccumulator<T> {
+    pub fn new() -> Self {
+        PanicAccumulator(PhantomData)
+    }
+}
+
+impl<T> Accumulator for PanicAccumulator<T>
+where
+    T: Debug,
+{
+    type Error = T;
+
+    fn push<EI: Into<Self::Error>>(&mut self, err: EI) {
+        panic!("Error accumulated: {:?}", <EI as Into<T>>::into(err))
     }
 }
 

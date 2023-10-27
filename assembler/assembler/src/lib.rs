@@ -1,5 +1,8 @@
 #![feature(box_patterns)]
 #![feature(unwrap_infallible)]
+#![feature(assert_matches)]
+#![feature(never_type)]
+
 use std::collections::{
     btree_map::Entry::{Occupied, Vacant},
     BTreeMap, BTreeSet,
@@ -9,7 +12,8 @@ use either::{
     for_both,
     Either::{self, Left},
 };
-use errors::Accumulator;
+use errors::{Accumulator, PanicAccumulator};
+use itertools::Itertools;
 use lexer::{Identifier, SpecialIdentifier, StringLit};
 use parse_from_rust::ica;
 use parser::ast::*;
@@ -22,6 +26,8 @@ pub enum AssembleError<'s> {
     UndefinedExport(Identifier<'s>),
     RedefinedGlobal(Identifier<'s>, Identifier<'s>),
     Undefined(Identifier<'s>),
+    RedefinedEntry(Identifier<'s>),
+    RedefinedEntryInAnotherUnit,
 }
 
 /// A intcode code, made up of various units
@@ -30,17 +36,24 @@ pub struct Code<'s> {
     values: Vec<Box<Expression<'s>>>,
     /// The global identifiers of this code
     globals: BTreeMap<Identifier<'s>, VMInt>,
+    /// The entry point of this code
+    entry: Option<VMInt>,
 }
 impl<'s> Code<'s> {
     pub fn new() -> Self {
         Self {
             values: vec![],
             globals: BTreeMap::new(),
+            entry: None,
         }
     }
     pub fn push_unit(
         &mut self,
-        Unit { values, globals }: Unit<'s>,
+        Unit {
+            values,
+            globals,
+            entry,
+        }: Unit<'s>,
         mut errors: impl Accumulator<Error = AssembleError<'s>>,
     ) {
         for (g, p) in globals {
@@ -49,6 +62,12 @@ impl<'s> Code<'s> {
                     v.insert(p + self.values.len() as VMInt);
                 }
                 Occupied(occ) => errors.push(AssembleError::RedefinedGlobal(g, *occ.key())),
+            }
+        }
+        if let Some(entry) = entry {
+            match &mut self.entry {
+                Some(_) => errors.push(AssembleError::RedefinedEntryInAnotherUnit),
+                e @ None => *e = Some(entry + self.values.len() as VMInt),
             }
         }
         let unit_start = Expression::Sum(
@@ -82,10 +101,15 @@ impl<'s> Code<'s> {
     }
 
     pub fn emit(self, mut errors: impl Accumulator<Error = AssembleError<'s>>) -> Vec<VMInt> {
-        let start = Expression::Num(0);
-        let end = Expression::Num(self.values.len() as i64);
-        self.values
+        // generating prologue if needed
+        let values = self.entry.into_iter().flat_map(prologue).collect_vec();
+        // setting start and end of the code
+        let start = Expression::Num(values.len() as VMInt);
+        let end = Expression::Num((values.len() + self.values.len()) as VMInt);
+        // adding code and solving references
+        values
             .into_iter()
+            .chain(self.values)
             .flat_map(|e| {
                 e.replace(&mut |lbl| match lbl {
                     LabelRef::Identifier(id) => self
@@ -115,12 +139,45 @@ impl<'s> Code<'s> {
     }
 }
 
+fn prologue(entry_offset: VMInt) -> impl IntoIterator<Item = Box<Expression<'static>>> {
+    let prologue: File<'_> = ica!(
+        incb #{Box::new(Expression::Ref(LabelRef::SpecialIdentifier(SpecialIdentifier::End)))};
+        call #{Box::new(Expression::Sum(Box::new(Expression::Ref(LabelRef::SpecialIdentifier(SpecialIdentifier::Start))),Box::new(Expression::Num(entry_offset))))};
+        halt
+    );
+    let Unit {
+        values,
+        globals,
+        entry,
+    } = Unit::assemble(prologue, PanicAccumulator::<AssembleError>::new());
+    debug_assert!(globals.is_empty());
+    debug_assert!(entry.is_none());
+    values.into_iter().map(|e| {
+        e.replace(&mut |lbl| {
+            Ok(
+                if let LabelRef::SpecialIdentifier(SpecialIdentifier::UnitStart) = lbl {
+                    Some(Expression::Num(0))
+                } else if let LabelRef::SpecialIdentifier(
+                    SpecialIdentifier::End | SpecialIdentifier::Start,
+                ) = lbl
+                {
+                    None
+                } else {
+                    unreachable!()
+                },
+            )
+        })
+    })
+}
+
 /// An unit of code
 pub struct Unit<'s> {
     /// All the values of this unit
     values: Vec<Box<Expression<'s>>>,
     /// Labels defined in this unit, and their position
     globals: BTreeMap<Identifier<'s>, VMInt>,
+    /// Entry point
+    entry: Option<VMInt>,
 }
 
 impl<'s> Unit<'s> {
@@ -134,6 +191,7 @@ impl<'s> Unit<'s> {
             errors,
             unnamed_counter: ast.max_unnamed_label().map(|l| l + 1).unwrap_or_default(),
             globals: BTreeSet::new(),
+            entry: None,
         };
         ast.code_gen(&mut unit);
         // replacing locals
@@ -174,6 +232,13 @@ impl<'s> Unit<'s> {
                     }
                 })
                 .collect(),
+            entry: unit
+                .entry
+                .and_then(|e| {
+                    unit.errors
+                        .handle(unit.locals.get(&e).ok_or(AssembleError::Undefined(e)))
+                })
+                .copied(),
         }
     }
 }
@@ -186,6 +251,8 @@ struct AssemblingUnit<'s, Errors> {
     locals: BTreeMap<Identifier<'s>, VMInt>,
     /// Global identifiers
     globals: BTreeSet<Identifier<'s>>,
+    /// Entry point
+    entry: Option<Identifier<'s>>,
     /// Error accumulator
     errors: Errors,
     /// Counter for unnamed labels
@@ -342,7 +409,7 @@ macro_rules! codegen_for_statement {
     };
 }
 codegen_for_statement! {
-    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret Export
+    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret Export Entry
 }
 
 impl<'s> CodeGen<'s> for IntsStm<'s> {
@@ -541,6 +608,17 @@ impl<'s> CodeGen<'s> for ExportStm<'s> {
         unit.globals.extend(self.exported)
     }
 }
+impl<'s> CodeGen<'s> for EntryStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        match &mut unit.entry {
+            Some(_) => unit.errors.push(AssembleError::RedefinedEntry(self.entry)),
+            entry @ None => *entry = Some(self.entry),
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use errors::RootAccumulator;
@@ -551,7 +629,8 @@ mod tests {
 
     #[test_sources]
     fn assemble(source: &str) {
-        let ast = parser::parse(source, &mut RootAccumulator::<ParseError>::new()).unwrap();
+        use errors::PanicAccumulator;
+        let ast = parser::parse(source, &mut PanicAccumulator::<ParseError>::new()).unwrap();
         let mut errors = RootAccumulator::<AssembleError>::new();
         let unit = Unit::assemble(ast, &mut errors);
         if let Err(errs) = errors.checkpoint() {
@@ -572,12 +651,14 @@ mod tests {
     }
     #[test_io]
     fn io(source: &str, r#in: &[vm::VMInt], expected: &[vm::VMInt]) {
+        use errors::PanicAccumulator;
         use vm::ICMachine;
-        let ast = parser::parse(source, &mut RootAccumulator::<ParseError>::new()).unwrap();
-        let unit = Unit::assemble(ast, &mut RootAccumulator::<AssembleError>::new());
+
+        let ast = parser::parse(source, &mut PanicAccumulator::<ParseError>::new()).unwrap();
+        let unit = Unit::assemble(ast, &mut PanicAccumulator::<AssembleError>::new());
         let mut code = Code::new();
-        code.push_unit(unit, &mut RootAccumulator::<AssembleError>::new());
-        let code = code.emit(&mut RootAccumulator::<AssembleError>::new());
+        code.push_unit(unit, &mut PanicAccumulator::<AssembleError>::new());
+        let code = code.emit(&mut PanicAccumulator::<AssembleError>::new());
 
         let mut vm = vm::ICMachineData::new(&code);
         for i in r#in {
@@ -596,5 +677,126 @@ mod tests {
             out
         };
         assert_eq!(&out, expected, "The machine gave a different output")
+    }
+
+    mod globals {
+        use std::assert_matches::assert_matches;
+
+        use errors::{PanicAccumulator, RootAccumulator};
+        use itertools::Itertools;
+        use lexer::Identifier;
+        use parser::ParseError;
+        use vm::ICMachine;
+
+        use crate::{AssembleError, Code, Unit};
+
+        #[test]
+        fn okay() {
+            let file_a = r#"
+                // this is file a
+
+                export out_42
+
+                halt // guard to assure we are not entering from this file
+
+                out_42:
+                    out #42
+                    halt
+            "#;
+            let file_b = r#"
+                // this is file b
+
+                jmp #out_42
+            "#;
+
+            let file_a = parser::parse(file_a, &mut PanicAccumulator::<ParseError>::new()).unwrap();
+            let file_b = parser::parse(file_b, &mut PanicAccumulator::<ParseError>::new()).unwrap();
+
+            let mut errors = RootAccumulator::<AssembleError>::new();
+            let unit_a = Unit::assemble(file_a, &mut errors);
+            let unit_b = Unit::assemble(file_b, &mut errors);
+
+            if let Err(errs) = errors.checkpoint() {
+                for err in errs {
+                    eprintln!("{:?}", err)
+                }
+                panic!("Errors during assembly")
+            }
+
+            let mut code = Code::new();
+            code.push_unit(unit_b, &mut errors);
+            code.push_unit(unit_a, &mut errors);
+            let code = code.emit(&mut errors);
+            if let Err(errs) = errors.checkpoint() {
+                for err in errs {
+                    eprintln!("{:?}", err)
+                }
+                panic!("Errors during linking")
+            }
+
+            let mut vm = vm::ICMachineData::new(&code);
+            match vm.run() {
+                vm::ICMachineStopState::EmptyInput => panic!("The machine asked for more input"),
+                vm::ICMachineStopState::RuntimeErr(err) => {
+                    panic!("The machine gave an error: {err}")
+                }
+                vm::ICMachineStopState::Halted => (),
+            }
+            let out = {
+                let mut out = vec![];
+                while let Some(v) = vm.get_output() {
+                    out.push(v)
+                }
+                out
+            };
+            assert_eq!(&out, &[42], "The machine gave a different output")
+        }
+        #[test]
+        fn err() {
+            let file_a = r#"
+                // this is file a
+
+                // export out_42
+
+                halt // guard to assure we are not entering from this file
+
+                out_42:
+                    out #42
+                    halt
+            "#;
+            let file_b = r#"
+                // this is file b
+
+                jmp #out_42
+            "#;
+
+            let file_a = parser::parse(file_a, &mut PanicAccumulator::<ParseError>::new()).unwrap();
+            let file_b = parser::parse(file_b, &mut PanicAccumulator::<ParseError>::new()).unwrap();
+
+            let mut errors = RootAccumulator::<AssembleError>::new();
+            let unit_a = Unit::assemble(file_a, &mut errors);
+            let unit_b = Unit::assemble(file_b, &mut errors);
+
+            if let Err(errs) = errors.checkpoint() {
+                for err in errs {
+                    eprintln!("{:?}", err)
+                }
+                panic!("Errors during assembly")
+            }
+
+            let mut code = Code::new();
+            code.push_unit(unit_b, &mut errors);
+            code.push_unit(unit_a, &mut errors);
+            let _ = code.emit(&mut errors);
+            if let Err(errs) = errors.checkpoint() {
+                let errs = errs.into_iter().collect_vec();
+                assert_matches!(
+                    &errs[..],
+                    &[AssembleError::Undefined(Identifier::Named("out_42", _))]
+                )
+            } else {
+                panic!("Linking gave no errors")
+            }
+        }
     }
 }
