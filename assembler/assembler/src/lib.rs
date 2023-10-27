@@ -1,538 +1,559 @@
-#![feature(box_into_inner)]
+#![feature(box_patterns)]
 #![feature(unwrap_infallible)]
+use std::collections::BTreeMap;
 
-use std::{
-    collections::{
-        btree_map::Entry::{Occupied, Vacant},
-        BTreeMap, BTreeSet,
-    },
-    mem,
+use either::{
+    for_both,
+    Either::{self, Left},
 };
-
-use either::Either::{self, Left};
-use itertools::Itertools;
-use parse_from_rust::ica;
-use thiserror::Error;
-
-use errors::{Accumulator, RootAccumulator};
+use errors::Accumulator;
 use lexer::{Identifier, SpecialIdentifier, StringLit};
-use parser::ast::{
-    AstNode, CallStm, DecStm, Expression, File, IncStm, Instruction, IntsStm, JmpStm, LabelDef,
-    LabelRef, Labelled, MovStm, PopStm, PushStm, ReadParam, RetStm, Statement, ZerosStm,
-};
+use parse_from_rust::ica;
+use parser::ast::*;
 use vm::VMInt;
 
-pub struct Code<'s, 'e, E> {
-    values: Vec<Expression<'s>>,
-    labels: BTreeMap<Identifier<'s>, usize>,
-    next_unused_label: usize,
-    errors: &'e mut RootAccumulator<E>,
+#[derive(Debug, Clone, Copy)]
+pub enum AssembleError<'s> {
+    LabelInConstExpr(LabelRef<'s>),
+    UndefinedUnnamed(usize, (usize, usize)),
 }
-impl<'s, 'e, E> Code<'s, 'e, E> {
-    fn push_value(&mut self, value: Expression<'s>) {
-        self.values.push(value)
-    }
-    fn push_label(&mut self, value: LabelDef<'s>)
-    where
-        E: From<AssembleError>,
-    {
-        match self.labels.entry(value.label) {
-            Vacant(entry) => {
-                entry.insert(self.values.len());
-            }
-            Occupied(_entry) => self
-                .errors
-                .push(AssembleError::DoubleDef(value.label.to_string())),
-        }
-    }
 
-    pub fn new(errors: &'e mut RootAccumulator<E>) -> Self {
-        Code {
-            values: vec![],
-            labels: BTreeMap::new(),
-            errors,
-            next_unused_label: 0,
-        }
+/// A intcode code, made up of various units
+pub struct Code<'s> {
+    /// All the values of this code
+    values: Vec<Box<Expression<'s>>>,
+}
+impl<'s> Code<'s> {
+    pub fn new() -> Self {
+        Self { values: vec![] }
     }
-
-    pub fn push_unit(&mut self, ast: File<'s>)
-    where
-        E: From<AssembleError>,
-    {
-        let unit_start = self.values.len();
-        let mut interface = UnitPushingInterface {
-            code: self,
-            label_mapping: BTreeMap::new(),
-            next_unused_label: ast.max_unnamed_label().map(|l| l + 1).unwrap_or_default(),
-            unit_start: unit_start
-                .try_into()
-                .expect("The lenght should not overflow VMInt"),
-        };
-        ast.write_to(&mut interface);
-
-        let unit_end = self.values.len();
-        for value in &mut self.values[unit_start..unit_end] {
-            value.replace(
-                LabelRef::SpecialIdentifier(SpecialIdentifier::UnitEnd),
-                unit_end
-                    .try_into()
-                    .expect("The lenght should not overflow VMInt"),
-            );
-        }
+    pub fn push_unit(
+        &mut self,
+        Unit { values }: Unit<'s>,
+        mut _errors: impl Accumulator<Error = AssembleError<'s>>,
+    ) {
+        let unit_start = Expression::Sum(
+            Box::new(Expression::Ref(LabelRef::SpecialIdentifier(
+                lexer::SpecialIdentifier::Start,
+            ))),
+            Box::new(Expression::Num(self.values.len() as i64)),
+        );
+        let unit_end = Expression::Sum(
+            Box::new(Expression::Ref(LabelRef::SpecialIdentifier(
+                lexer::SpecialIdentifier::Start,
+            ))),
+            Box::new(Expression::Num((self.values.len() + values.len()) as i64)),
+        );
+        self.values.extend(values.into_iter().map(|e| {
+            e.replace(&mut |e| match e {
+                LabelRef::Identifier(Identifier::Named(..)) => Ok(None), // assume it is a global identifier
+                LabelRef::Identifier(Identifier::Unnamed(..)) => unreachable!(),
+                LabelRef::SpecialIdentifier(SpecialIdentifier::UnitStart) => {
+                    Ok(Some(unit_start.clone()))
+                }
+                LabelRef::SpecialIdentifier(SpecialIdentifier::UnitEnd) => {
+                    Ok(Some(unit_end.clone()))
+                }
+                LabelRef::SpecialIdentifier(SpecialIdentifier::End | SpecialIdentifier::Start) => {
+                    Ok(None)
+                }
+                LabelRef::Error(e) => *e,
+            })
+            .constant_folding()
+        }))
     }
 
-    pub fn codegen(self) -> Vec<vm::VMInt>
-    where
-        E: From<AssembleError>,
-    {
-        let code_end = self
-            .values
-            .len()
-            .try_into()
-            .expect("The lenght should not overflow VMInt");
+    pub fn emit(self, mut errors: impl Accumulator<Error = AssembleError<'s>>) -> Vec<VMInt> {
+        let start = Expression::Num(0);
+        let end = Expression::Num(self.values.len() as i64);
         self.values
             .into_iter()
             .flat_map(|e| {
-                self.errors.handle(e.calculate(&mut |id| {
-                    match id {
-                        LabelRef::Identifier(id) => match self.labels.get(&id) {
-                            Some(pos) => Ok((*pos)
-                                .try_into()
-                                .expect("The lenght should not overflow VMInt")),
-                            None => Err(AssembleError::UnknowLabel(id.to_string())),
-                        },
-                        LabelRef::SpecialIdentifier(SpecialIdentifier::End) => Ok(code_end),
-                        LabelRef::SpecialIdentifier(SpecialIdentifier::Start)
-                        | LabelRef::SpecialIdentifier(
-                            SpecialIdentifier::UnitEnd | SpecialIdentifier::UnitStart,
-                        ) => unreachable!(),
-                        LabelRef::Error(e) => *e,
+                e.replace(&mut |lbl| match lbl {
+                    LabelRef::Identifier(_) => todo!("Implement globals"),
+                    LabelRef::SpecialIdentifier(
+                        SpecialIdentifier::UnitStart | SpecialIdentifier::UnitEnd,
+                    ) => unreachable!(),
+                    LabelRef::SpecialIdentifier(SpecialIdentifier::Start) => {
+                        Ok(Some(start.clone()))
                     }
-                }))
+                    LabelRef::SpecialIdentifier(SpecialIdentifier::End) => Ok(Some(end.clone())),
+                    LabelRef::Error(e) => *e,
+                })
+                .extract_errs(&mut errors)
+                .map(|e| {
+                    if let box Expression::Num(e) = e.constant_folding() {
+                        e
+                    } else {
+                        unreachable!()
+                    }
+                })
             })
-            .collect_vec()
+            .collect()
     }
 }
 
-pub struct UnitPushingInterface<'c, 's, 'e, E> {
-    code: &'c mut Code<'s, 'e, E>,
-    label_mapping: BTreeMap<usize, usize>,
-    next_unused_label: usize,
-    unit_start: VMInt,
+/// An unit of code
+pub struct Unit<'s> {
+    /// All the values of this unit
+    values: Vec<Box<Expression<'s>>>,
 }
-impl<'c, 's, 'e, E> UnitPushingInterface<'c, 's, 'e, E> {
-    fn push_value(&mut self, mut value: Expression<'s>) {
-        value.replace(LabelRef::SpecialIdentifier(SpecialIdentifier::Start), 0);
-        value.replace(
-            LabelRef::SpecialIdentifier(SpecialIdentifier::UnitStart),
-            self.unit_start,
-        );
-        self.code.push_value(value.constant_folding())
-    }
-    fn push_num(&mut self, value: VMInt) {
-        self.code.push_value(Expression::Num(value))
-    }
-    fn push_label(&mut self, mut value: LabelDef<'s>)
+
+impl<'s> Unit<'s> {
+    pub fn assemble<E>(ast: File<'s>, errors: E) -> Self
     where
-        E: From<AssembleError>,
+        E: Accumulator<Error = AssembleError<'s>>,
     {
-        // remap unnamed labels to avoid collision with different units
-        if let Identifier::Unnamed(name, _) = &mut value.label {
-            *name = *self.label_mapping.entry(*name).or_insert_with(|| {
-                let label = self.code.next_unused_label;
-                self.code.next_unused_label += 1;
-                label
-            })
+        let mut unit = AssemblingUnit {
+            values: vec![],
+            locals: BTreeMap::new(),
+            errors,
+            unnamed_counter: ast.max_unnamed_label().map(|l| l + 1).unwrap_or_default(),
+        };
+        ast.code_gen(&mut unit);
+        // replacing locals
+        Unit {
+            values: unit
+                .values
+                .into_iter()
+                .flat_map(|e| {
+                    e.replace(&mut |lbl| match lbl {
+                        LabelRef::Identifier(id) => {
+                            if let Some(offset) = unit.locals.get(id) {
+                                Ok(Some(Expression::Sum(
+                                    Box::new(Expression::Ref(LabelRef::SpecialIdentifier(
+                                        SpecialIdentifier::UnitStart,
+                                    ))),
+                                    Box::new(Expression::Num(*offset)),
+                                )))
+                            } else {
+                                match id {
+                                    Identifier::Named(..) => Ok(None), // Must be a global
+                                    Identifier::Unnamed(n, pos) => {
+                                        Err(AssembleError::UndefinedUnnamed(*n, *pos))
+                                    }
+                                }
+                            }
+                        }
+                        LabelRef::SpecialIdentifier(_) => Ok(None),
+                        LabelRef::Error(e) => *e,
+                    })
+                    .extract_errs(&mut unit.errors)
+                    .map(|e| e.constant_folding())
+                })
+                .collect(),
         }
-        self.code.push_label(value)
+    }
+}
+
+/// An unit of code in the process of being assembled
+struct AssemblingUnit<'s, Errors> {
+    /// All the values of this unit
+    values: Vec<Box<Expression<'s>>>,
+    /// Labels defined in this unit, and their position
+    locals: BTreeMap<Identifier<'s>, VMInt>,
+    /// Error accumulator
+    errors: Errors,
+    /// Counter for unnamed labels
+    unnamed_counter: usize,
+}
+
+impl<'s, E> AssemblingUnit<'s, E>
+where
+    E: Accumulator<Error = AssembleError<'s>>,
+{
+    fn const_expr(&mut self, arg: Box<Expression<'s>>) -> Option<VMInt> {
+        arg.replace(&mut |lbl| Err(AssembleError::LabelInConstExpr(*lbl)))
+            .extract_errs(&mut self.errors)
+            .map(|e| {
+                if let box Expression::Num(e) = e.constant_folding() {
+                    e
+                } else {
+                    unreachable!()
+                }
+            })
     }
 
-    fn errors(&mut self) -> &mut impl Accumulator<Error = E> {
-        self.code.errors
-    }
-
-    /// Get a new unnamed label that's not used in the unit being pushed
-    fn new_unnamed_label(&mut self) -> Identifier<'static> {
-        let label = self.next_unused_label;
-        self.next_unused_label += 1;
+    fn unnamed_label(&mut self) -> Identifier<'static> {
+        let label = self.unnamed_counter;
+        self.unnamed_counter += 1;
         Identifier::Unnamed(label, (0, 0))
     }
-
-    fn eval_expr(&self, e: Box<Expression<'_>>) -> Result<i64, AssembleError> {
-        e.calculate(&mut |id| match id {
-            LabelRef::Identifier(mut id) => {
-                if let Identifier::Unnamed(name, _) = &mut id {
-                    if let Some(mapped) = self.label_mapping.get(name) {
-                        *name = *mapped
-                    } else {
-                        return Err(AssembleError::UnknowLabel(id.to_string()));
-                    }
-                }
-                match self.code.labels.get(&id) {
-                    Some(pos) => Ok((*pos)
-                        .try_into()
-                        .expect("The lenght should not overflow VMInt")),
-                    None => Err(AssembleError::UnknowLabel(id.to_string())),
-                }
-            }
-            LabelRef::SpecialIdentifier(s) => Err(AssembleError::SpecialIdentifierInConstExpr(*s)),
-            LabelRef::Error(e) => *e,
-        })
-    }
 }
 
-trait WriteTo<'s, 'e, E> {
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>);
-}
-
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for File<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        for s in self.statements {
-            s.write_to(code)
-        }
-    }
-}
-
-impl<'s, 'e, E, T> WriteTo<'s, 'e, E> for Labelled<'s, T>
-where
-    E: From<AssembleError>,
-    T: WriteTo<'s, 'e, E>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>)
+trait CodeGen<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
     where
-        E: From<AssembleError>,
+        E: Accumulator<Error = AssembleError<'s>>;
+}
+
+impl<'s> CodeGen<'s> for LabelDef<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
     {
-        for def in self.labels {
-            def.write_to(code)
-        }
-        self.content.write_to(code)
+        unit.locals.insert(self.label, unit.values.len() as VMInt);
     }
 }
-impl<'s, 'e, E, R, L> WriteTo<'s, 'e, E> for Either<L, R>
-where
-    E: From<AssembleError>,
-    R: WriteTo<'s, 'e, E>,
-    L: WriteTo<'s, 'e, E>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>)
+impl<'s> CodeGen<'s> for Box<Expression<'s>> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
     where
-        E: From<AssembleError>,
+        E: Accumulator<Error = AssembleError<'s>>,
     {
-        match self {
-            Either::Left(l) => l.write_to(code),
-            Either::Right(r) => r.write_to(code),
+        unit.values.push(self)
+    }
+}
+impl<'s> CodeGen<'s> for VMInt {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        Box::new(Expression::Num(self)).code_gen(unit)
+    }
+}
+impl<'s> CodeGen<'s> for StringLit<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        for ch in self {
+            ch.code_gen(unit)
         }
     }
 }
 
-impl<'s, 'e, E, T> WriteTo<'s, 'e, E> for Option<T>
+impl<'s> CodeGen<'s> for File<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        self.statements.code_gen(unit)
+    }
+}
+
+impl<'s, T> CodeGen<'s> for Vec<T>
 where
-    T: WriteTo<'s, 'e, E>,
+    T: CodeGen<'s>,
 {
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        for i in self {
+            i.code_gen(unit)
+        }
+    }
+}
+
+impl<'s, T> CodeGen<'s> for Labelled<'s, T>
+where
+    T: CodeGen<'s>,
+{
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        let Labelled { labels, content } = self;
+        for def in labels {
+            def.code_gen(unit)
+        }
+        content.code_gen(unit)
+    }
+}
+
+impl<'s, T> CodeGen<'s> for Option<T>
+where
+    T: CodeGen<'s>,
+{
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
         if let Some(this) = self {
-            this.write_to(code)
+            this.code_gen(unit)
         }
     }
 }
-impl<'s, 'e, E, T> WriteTo<'s, 'e, E> for Box<T>
+
+impl<'s, R, L> CodeGen<'s> for Either<L, R>
 where
-    T: WriteTo<'s, 'e, E>,
+    R: CodeGen<'s>,
+    L: CodeGen<'s>,
 {
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        Box::into_inner(self).write_to(code)
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        for_both!(self, s=>s.code_gen(unit))
     }
 }
 
-macro_rules! write_to_for_statement {
-    ( $($variant:ident)*) => {
-        impl<'s, 'e, E> WriteTo<'s, 'e, E> for Statement<'s>
-        where
-            E: From<AssembleError>,
-        {
-            fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
+macro_rules! codegen_for_statement {
+    (
+        $($variant:ident)*
+    ) => {
+        impl<'s> CodeGen<'s> for Statement<'s> {
+            fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+            where
+                E: Accumulator<Error = AssembleError<'s>>,
+            {
                 match self {
                     $(
-                        Statement::$variant(stm) => WriteTo::<'s, 'e, E>::write_to(stm,code),
+                    Statement::$variant(stm) => CodeGen::<'s>::code_gen(stm, unit),
                     )*
-                    Statement::Error(e) => e,
+                    Statement::Error(e) => e
                 }
             }
         }
     };
 }
-
-write_to_for_statement! {
+codegen_for_statement! {
     Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret
 }
 
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for IntsStm<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        for v in self.values {
-            v.write_to(code)
-        }
+impl<'s> CodeGen<'s> for IntsStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        self.values.code_gen(unit)
     }
 }
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for StringLit<'s> {
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        for value in self {
-            code.push_value(Expression::Num(value))
+
+impl<'s> CodeGen<'s> for Instruction<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        let opcode = {
+            let opcode = self.opcode();
+            let mut modes = self.param_modes().into_iter();
+            let [a, b, c] = [modes.next(), modes.next(), modes.next()].map(|m| m.unwrap_or(0));
+            c * 10000 + b * 1000 + a * 100 + opcode
+        };
+        let params = self.into_param_values();
+
+        opcode.code_gen(unit);
+        for p in params {
+            p.code_gen(unit)
         }
     }
 }
 
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for Instruction<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        let mut opcode = self.opcode();
-        for (val, mode) in self.param_modes().into_iter().zip([100, 1000, 10000]) {
-            opcode += val * mode
-        }
-        code.push_num(opcode);
-        for p in self.into_param_values() {
-            p.write_to(code)
-        }
+impl<'s> CodeGen<'s> for IncStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        let Self(p) = self;
+        ica!(
+            add {p.clone()} #1 {p}
+        )
+        .code_gen(unit)
     }
 }
 
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for IncStm<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
+impl<'s> CodeGen<'s> for DecStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        let Self(p) = self;
         ica!(
-            add {self.0.clone()} #1 {self.0}
+            add {p.clone()} #-1 {p}
         )
-        .write_to(code)
+        .code_gen(unit)
     }
 }
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for DecStm<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        ica!(
-            add {self.0.clone()} #-1 {self.0}
-        )
-        .write_to(code)
-    }
-}
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for JmpStm<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
+
+impl<'s> CodeGen<'s> for JmpStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
         ica!(
             jz #0 {self.0}
         )
-        .write_to(code)
+        .code_gen(unit)
     }
 }
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for MovStm<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
+
+impl<'s> CodeGen<'s> for ZerosStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        let Some(n) = unit
+            .const_expr(self.0)
+            .and_then(|n| usize::try_from(n).ok())
+        else {
+            return;
+        };
+        IntsStm {
+            values: vec![Left(Box::new(Expression::Num(0))).into(); n],
+        }
+        .code_gen(unit)
+    }
+}
+
+impl<'s> CodeGen<'s> for MovStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
         match self {
             MovStm::Single(a, b) => ica!(
                 add {a} #0 {b}
             )
-            .write_to(code),
+            .code_gen(unit),
             MovStm::Multiple(a, b, n) => {
-                let n = code.eval_expr(n);
-                if let Some(n) = code.errors().handle(n) {
-                    for i in 0..n {
-                        ica!(
-                            mov
-                                {
-                                    a.clone()
-                                    .map_value(|v| Box::new(Expression::Sum(v, Box::new(Expression::Num(i)))))
-                                }
-                                {
-                                    b.clone()
-                                    .map_value(|v| Box::new(Expression::Sum(v, Box::new(Expression::Num(i)))))
-                                }
+                let Some(n) = unit.const_expr(n) else {
+                    return;
+                };
+                for i in 0..n {
+                    let mut a = ReadParam::from(a.clone());
+                    *a.as_value_mut().content += i;
+                    let mut b = WriteParam::from(b.clone());
+                    *b.as_value_mut().content += i;
+                    ica!(
+                        mov {a} {b}
                     )
-                    .write_to(code)
-                    }
+                    .code_gen(unit)
                 }
             }
         }
     }
 }
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for ZerosStm<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        let n = code.eval_expr(self.0);
-        if let Some(n) = code.errors().handle(n) {
-            if let Ok(n) = usize::try_from(n) {
-                IntsStm {
-                    values: vec![
-                        Labelled {
-                            labels: BTreeSet::new(),
-                            content: Left(Box::new(Expression::Num(0)))
-                        };
-                        n
-                    ],
-                }
-                .write_to(code)
-            }
+impl<'s> CodeGen<'s> for PushStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        match self {
+            PushStm::Single(a) => ica!(
+                mov {a} @0;
+                incb #1
+            )
+            .code_gen(unit),
+            PushStm::Multiple(a, n) => ica!(
+                mov {a} @0 {n.clone()};
+                incb #{n}
+            )
+            .code_gen(unit),
+        }
+    }
+}
+impl<'s> CodeGen<'s> for PopStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        match self {
+            PopStm::Single(a) => ica!(
+                mov @-1 {a};
+                incb #-1
+            )
+            .code_gen(unit),
+            PopStm::Multiple(a, n) => ica!(
+                mov @-{n.clone()} {a} {n.clone()};
+                incb #-{n}
+            )
+            .code_gen(unit),
         }
     }
 }
 
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for PushStm<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        match self {
-            PushStm::Single(p) => ica!(
-                mov {p} @0;
-                incb #1
-            ),
-            PushStm::Multiple(p, n) => ica!(
-                mov {p} @0 {n.clone()};
-                incb #{n}
-            ),
+impl<'s> CodeGen<'s> for CallStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        let Self(mut addr) = self;
+        // patching the address if it's relative, given we have to jump AFTER we push
+        if let ReadParam::Relative(RelativeParam {
+            value: Labelled { content, .. },
+        }) = &mut addr
+        {
+            **content += -1;
         }
-        .write_to(code)
-    }
-}
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for PopStm<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        match self {
-            PopStm::Single(p) => ica!(
-                mov @-1 {p};
-                incb #-1
-            ),
-            PopStm::Multiple(p, n) => ica!(
-                mov  @-{n.clone()} {p} {n.clone()};
-                incb #-{n}
-            ),
-        }
-        .write_to(code)
-    }
-}
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for CallStm<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        let Self(mut p) = self;
-        if let ReadParam::Relative(rp) = &mut p {
-            // jmp will be executed after the push, we have to adjust the parameter to make it point to the same location
-            let expr = Box::as_mut(&mut rp.value.content);
-            let taken = mem::replace(expr, Expression::Num(0xdeadbeef));
-            *expr =
-                Expression::Sub(Box::new(taken), Box::new(Expression::Num(1))).constant_folding();
-        }
-        let label: Identifier = code.new_unnamed_label();
+        let label = unit.unnamed_label();
         ica!(
-            push #{Labelled::from(Box::new(Expression::Ref(LabelRef::Identifier(label))))};
-            jmp {p}
+            push #{Box::new(Expression::Ref(LabelRef::Identifier(label)))};
+            jmp {addr};
         )
-        .write_to(code);
-        code.push_label(LabelDef { label })
+        .code_gen(unit);
+        LabelDef { label }.code_gen(unit)
     }
 }
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for RetStm
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
+
+impl<'s> CodeGen<'s> for RetStm {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
         ica!(
             incb #-1;
             jmp @0
         )
-        .write_to(code);
+        .code_gen(unit)
     }
-}
-
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for Expression<'s> {
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        code.push_value(self)
-    }
-}
-impl<'s, 'e, E> WriteTo<'s, 'e, E> for LabelDef<'s>
-where
-    E: From<AssembleError>,
-{
-    fn write_to(self, code: &mut UnitPushingInterface<'_, 's, 'e, E>) {
-        code.push_label(self)
-    }
-}
-
-#[derive(Debug, Clone, Error)]
-pub enum AssembleError {
-    #[error("Label {0} was already in use")]
-    DoubleDef(String),
-    #[error("Unknow label {0}")]
-    UnknowLabel(String),
-    #[error("Special identifiers are not supported in const expession")]
-    SpecialIdentifierInConstExpr(SpecialIdentifier),
 }
 
 #[cfg(test)]
-mod sources {
-    use super::*;
+mod tests {
+    use errors::RootAccumulator;
+    use parser::ParseError;
     use test_sources::{test_io, test_sources};
+    use vm::VMInt;
+
+    use crate::{AssembleError, Code, Unit};
 
     #[test_sources]
     fn assemble(source: &str) {
-        let ast = parser::parse(source, &mut RootAccumulator::<parser::ParseError>::new()).unwrap();
-
+        let ast = parser::parse(source, &mut RootAccumulator::<ParseError>::new()).unwrap();
         let mut errors = RootAccumulator::<AssembleError>::new();
-        let mut code = Code::new(&mut errors);
-        code.push_unit(ast);
-        let code = code.codegen();
-
-        if let Err(errs) = errors.finish_with(code) {
-            panic!("Errors in parsing:\n\n{}", errs.into_iter().format("\n"))
+        let unit = Unit::assemble(ast, &mut errors);
+        if let Err(errs) = errors.checkpoint() {
+            for err in errs {
+                eprintln!("{:?}", err)
+            }
+            panic!("Errors during assembly")
+        }
+        let mut code = Code::new();
+        code.push_unit(unit, &mut errors);
+        let _ = code.emit(&mut errors);
+        if let Err(errs) = errors.checkpoint() {
+            for err in errs {
+                eprintln!("{:?}", err)
+            }
+            panic!("Errors during linking")
         }
     }
-
     #[test_io]
-    fn io(source: &str, r#in: &[vm::VMInt], expected_out: &[vm::VMInt]) {
-        use std::mem;
+    fn io(source: &str, r#in: &[vm::VMInt], expected: &[vm::VMInt]) {
         use vm::ICMachine;
+        let ast = parser::parse(source, &mut RootAccumulator::<ParseError>::new()).unwrap();
+        let unit = Unit::assemble(ast, &mut RootAccumulator::<AssembleError>::new());
+        let mut code = Code::new();
+        code.push_unit(unit, &mut RootAccumulator::<AssembleError>::new());
+        let code = code.emit(&mut RootAccumulator::<AssembleError>::new());
 
-        let ast = parser::parse(source, &mut RootAccumulator::<parser::ParseError>::new()).unwrap();
-        let mut errors = RootAccumulator::<AssembleError>::new();
-        let mut code = Code::new(&mut errors);
-        code.push_unit(ast);
-        let code = code.codegen();
-        mem::drop(errors);
-
-        let mut vm = vm::ICMachineData::new(dbg!(&code));
-        for &v in r#in {
-            vm.give_input(v).into_ok();
+        let mut vm = vm::ICMachineData::new(&code);
+        for i in r#in {
+            vm.give_input(*i).into_ok()
         }
         match vm.run() {
-            vm::ICMachineStopState::EmptyInput => panic!("The vm was not satisfied with the input"),
-            vm::ICMachineStopState::RuntimeErr(err) => {
-                panic!("The vm stopped with an error: {err}")
-            }
-            vm::ICMachineStopState::Halted => {
-                let mut out = vec![];
-                while let Some(v) = vm.get_output() {
-                    out.push(v)
-                }
-                assert_eq!(&out, expected_out, "The vm gave a different output")
-            }
+            vm::ICMachineStopState::EmptyInput => panic!("The machine asked for more input"),
+            vm::ICMachineStopState::RuntimeErr(err) => panic!("The machine gave an error: {err}"),
+            vm::ICMachineStopState::Halted => (),
         }
+        let out = {
+            let mut out = vec![];
+            while let Some(v) = vm.get_output() {
+                out.push(v)
+            }
+            out
+        };
+        assert_eq!(&out, expected, "The machine gave a different output")
     }
 }

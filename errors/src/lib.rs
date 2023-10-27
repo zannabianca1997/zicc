@@ -131,6 +131,21 @@ pub trait Accumulator {
     }
 }
 
+impl<B> Accumulator for &mut B
+where
+    B: Accumulator,
+{
+    type Error = B::Error;
+
+    fn push<EI: Into<Self::Error>>(&mut self, err: EI) {
+        B::push(self, err)
+    }
+
+    fn handle<T, EI: Into<Self::Error>>(&mut self, res: Result<T, EI>) -> Option<T> {
+        B::handle(self, res)
+    }
+}
+
 pub struct HandledIter<'a, A, I> {
     acc: &'a mut A,
     inner: I,

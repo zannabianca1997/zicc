@@ -1,0 +1,216 @@
+descr: |
+    Really inefficent fibo using calls. 
+    Stress test the call stack and three variable calls
+
+tests:
+    one:
+        in: [1, 1, 1]
+        out: [1]
+    ten:
+        in: [1,1,9]
+        out: [55]
+    lucas:
+        in: [2,1,14]
+        out: [843]
+---
+incb # $end // set up stack at the end of the program memory
+call # main // call main with no arguments
+halt
+
+fibo:
+    /*
+        stack is:
+            -4: fibo(0), then the output value
+            -3: fibo(1)
+            -2: n
+            -1: return address
+    */
+    // test for end cases 
+
+    jnz @-2 #$0
+        ret // the output fibo(0) is already in @-4
+    $0:
+
+    dec @-2
+    jnz @-2 #$1
+        mov @-3 @-4 // move the output value
+        ret
+    $1:
+    inc @-2
+
+    /*
+        Extending call frame to call recursively
+        stack is:
+            -8: fibo(0), then the output value
+            -7: fibo(1)
+            -6: n
+            -5: return address
+            -4: accumulator for the sum
+            -3: fibo(0), then output value of the subroutine
+            -2: fibo(1)
+            -1: n-1 | n-2
+    */
+    incb #4
+
+    mov #0 @-4 // zeroing the accumulator
+    mov @-8 @-3 3 // moving all the parameters
+
+    dec @-1 // now argument 3 is n-1
+    call #fibo
+    add @-3 @-4 @-4
+
+    mov @-8 @-3 // resetting first argument
+    dec @-1     // now argument 3 is n-2
+    call #fibo
+    add @-3 @-4 @-4 // actual sum
+
+    mov @-4 @-8 // setting output
+
+    incb #-4 // popping locals
+    ret
+
+
+main:
+    /*
+        local variables:
+            -3: fibo(0)
+            -2: fibo(1)
+            -1: n
+    */
+    incb #3
+    in @-3; in @-2;
+    in @-1
+
+    call #fibo
+
+    out @-3
+
+    incb #-3
+    ret
+
+/*
+109, 133,
+21101, 36, 0, 0,
+109, 1,
+1106, 0, 107,
+99,
+
+fibo:
+    1205,-2,11,
+        109,-1,2106,
+    0,
+    0,
+    21201,
+    -2,
+    -1,
+    -2,
+    1205,
+    -2,
+    20,
+    21201,
+    -3,
+    0,
+    -4,
+    109,
+    -1,
+    2106,
+    0,
+    0,
+    21201,
+    -2,
+    1,
+    -2,
+    109,
+    4,
+    21101,
+    0,
+    0,
+    -4,
+    21201,
+    -8,
+    0,
+    -3,
+    21201,
+    -7,
+    0,
+    -2,
+    21201,
+    -6,
+    0,
+    -1,
+    21201,
+    -1,
+    -1,
+    -1,
+    21101,
+    71,
+    0,
+    0,
+    109,
+    1,
+    1106,
+    0,
+    12,
+    22201,
+    -3,
+    -4,
+    -4,
+    21201,
+    -8,
+    0,
+    -3,
+    21201,
+    -1,
+    -1,
+    -1,
+    21101,
+    92,
+    0,
+    0,
+    109,
+    1,
+    1106,
+    0,
+    12,
+    22201,
+    -3,
+    -4,
+    -4,
+    21201,
+    -4,
+    0,
+    -8,
+    109,
+    -4,
+    109,
+    -1,
+    2106,
+    0,
+    0,
+    109,
+    3,
+    203,
+    -3,
+    203,
+    -2,
+    203,
+    -1,
+    21101,
+    124,
+    0,
+    0,
+    109,
+    1,
+    1106,
+    0,
+    12,
+    204,
+    -3,
+    109,
+    -3,
+    109,
+    -1,
+    2106,
+    0,
+    0,
+*/

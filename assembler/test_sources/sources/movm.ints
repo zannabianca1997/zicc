@@ -2,6 +2,8 @@ descr: Input 5 numbers, then emit them twice
 tests:
     - in: [1,2,5,2,2]
       out: [1,2,5,2,2,1,2,5,2,2]
+    - in: ["Hello"]
+      out: ["Hello","Hello"]
 ---
 in mem + 0
 in mem + 1

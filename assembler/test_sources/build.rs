@@ -167,9 +167,9 @@ struct Test {
     #[serde(default)]
     descr: Option<String>,
     #[serde(default)]
-    r#in: Vec<VMInt>,
+    r#in: Vec<VMIntOrString>,
     #[serde(default)]
-    out: Vec<VMInt>,
+    out: Vec<VMIntOrString>,
 }
 impl ToTokens for Test {
     fn to_tokens(&self, tokens: &mut TokenStream) {
@@ -178,6 +178,8 @@ impl ToTokens for Test {
             .as_ref()
             .map(|d| quote!(Some(#d)))
             .unwrap_or_else(|| quote!(None));
+        let r#in = r#in.into_iter().flatten();
+        let out = out.into_iter().flatten();
         quote!(
            Test {
                 descr: #descr,
@@ -186,6 +188,26 @@ impl ToTokens for Test {
             }
         )
         .to_tokens(tokens)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum VMIntOrString {
+    VMInt(VMInt),
+    String(String),
+}
+impl IntoIterator for &VMIntOrString {
+    type Item = VMInt;
+
+    type IntoIter = <Vec<VMInt> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            VMIntOrString::VMInt(v) => vec![*v],
+            VMIntOrString::String(s) => s.chars().map(|c| (c as u32) as VMInt).collect(),
+        }
+        .into_iter()
     }
 }
 

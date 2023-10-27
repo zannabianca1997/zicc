@@ -1,4 +1,8 @@
-use std::{collections::BTreeSet, ops::Range};
+use std::{
+    collections::BTreeSet,
+    mem,
+    ops::{AddAssign, Range},
+};
 
 use arrayvec::ArrayVec;
 use either::Either::{self, Left, Right};
@@ -318,6 +322,14 @@ impl<'s> ReadParam<'s> {
             ReadParam::Error(e) => *e,
         }
     }
+    pub fn as_value_mut(&mut self) -> &mut Labelled<'s, Box<Expression<'s>>> {
+        match self {
+            ReadParam::Absolute(AbsoluteParam { value })
+            | ReadParam::Immediate(ImmediateParam { value })
+            | ReadParam::Relative(RelativeParam { value }) => value,
+            ReadParam::Error(e) => *e,
+        }
+    }
     fn into_value(self) -> Labelled<'s, Box<Expression<'s>>> {
         match self {
             ReadParam::Absolute(AbsoluteParam { value })
@@ -398,6 +410,14 @@ impl<'s> WriteParam<'s> {
             WriteParam::Absolute(AbsoluteParam { value })
             | WriteParam::Relative(RelativeParam { value }) => value,
             WriteParam::Error(e) => e,
+        }
+    }
+
+    pub fn as_value_mut(&mut self) -> &mut Labelled<'s, Box<Expression<'s>>> {
+        match self {
+            WriteParam::Absolute(AbsoluteParam { value })
+            | WriteParam::Relative(RelativeParam { value }) => value,
+            WriteParam::Error(e) => *e,
         }
     }
 }
@@ -636,39 +656,31 @@ pub enum Expression<'s, Error = !> {
     Error(Error),
 }
 impl<'s> Expression<'s> {
-    pub fn calculate<E>(
-        &self,
-        solver: &mut impl FnMut(&LabelRef<'s>) -> Result<VMInt, E>,
-    ) -> Result<VMInt, E> {
-        Ok(match self {
-            Expression::Sum(a, b) => a.calculate(solver)? + b.calculate(solver)?,
-            Expression::Sub(a, b) => a.calculate(solver)? - b.calculate(solver)?,
-            Expression::Mul(a, b) => a.calculate(solver)? * b.calculate(solver)?,
-            Expression::Div(a, b) => a.calculate(solver)? / b.calculate(solver)?,
-            Expression::Mod(a, b) => a.calculate(solver)? % b.calculate(solver)?,
-            Expression::Neg(a) => -a.calculate(solver)?,
-            Expression::Num(n) => *n,
-            Expression::Ref(refer) => solver(refer)?,
-            Expression::Error(e) => *e,
+    pub fn replace<E>(
+        self: Box<Self>,
+        solver: &mut impl FnMut(&LabelRef<'s>) -> Result<Option<<Self as AstNode<!>>::ErrMapped<E>>, E>,
+    ) -> Box<<Self as AstNode<!>>::ErrMapped<E>> {
+        Box::new(match *self {
+            Expression::Sum(a, b) => Expression::Sum(a.replace(solver), b.replace(solver)),
+            Expression::Sub(a, b) => Expression::Sub(a.replace(solver), b.replace(solver)),
+            Expression::Mul(a, b) => Expression::Mul(a.replace(solver), b.replace(solver)),
+            Expression::Div(a, b) => Expression::Div(a.replace(solver), b.replace(solver)),
+            Expression::Mod(a, b) => Expression::Mod(a.replace(solver), b.replace(solver)),
+            Expression::Neg(a) => Expression::Neg(a.replace(solver)),
+            Expression::Num(a) => Expression::Num(a),
+            Expression::Ref(a) => match solver(&a) {
+                Ok(Some(replacement)) => replacement,
+                Ok(None) => Expression::Ref(a.map_err(&mut |e| e)),
+                Err(e) => Expression::Error(e),
+            },
+            Expression::Error(a) => a,
         })
     }
-
-    pub fn replace(&mut self, refer: LabelRef<'s>, value: VMInt) {
-        match self {
-            Expression::Sum(a, b)
-            | Expression::Sub(a, b)
-            | Expression::Mul(a, b)
-            | Expression::Div(a, b)
-            | Expression::Mod(a, b) => {
-                a.replace(refer, value);
-                b.replace(refer, value)
-            }
-            Expression::Neg(a) => a.replace(refer, value),
-            Expression::Num(_) => (),
-            Expression::Ref(r) if r == &refer => *self = Expression::Num(value),
-            Expression::Ref(_) => (),
-            Expression::Error(e) => *e,
-        }
+}
+impl<'s> AddAssign<VMInt> for Expression<'s> {
+    fn add_assign(&mut self, rhs: VMInt) {
+        let taken = mem::replace(self, Expression::Num(0xdeadbeef));
+        *self = Expression::Sum(Box::new(taken), Box::new(Expression::Num(rhs)))
     }
 }
 
@@ -680,6 +692,8 @@ pub trait AstNode<E> {
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<!>>;
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE>;
 
     fn max_unnamed_label(&self) -> Option<usize>;
 }
@@ -728,6 +742,12 @@ impl<'s, E> AstNode<E> for File<'s, E> {
             .flat_map(AstNode::max_unnamed_label)
             .max()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        File {
+            statements: self.statements.into_iter().map(|s| s.map_err(f)).collect(),
+        }
+    }
 }
 
 impl<'s, E, T: AstNode<E>> AstNode<E> for Labelled<'s, T> {
@@ -760,6 +780,13 @@ impl<'s, E, T: AstNode<E>> AstNode<E> for Labelled<'s, T> {
             .chain(self.content.max_unnamed_label())
             .max()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        Labelled {
+            labels: self.labels,
+            content: self.content.map_err(f),
+        }
+    }
 }
 
 impl<E, T: AstNode<E>> AstNode<E> for Option<T> {
@@ -782,6 +809,10 @@ impl<E, T: AstNode<E>> AstNode<E> for Option<T> {
     fn max_unnamed_label(&self) -> Option<usize> {
         self.as_ref().and_then(AstNode::max_unnamed_label)
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        self.map(|c| c.map_err(f))
+    }
 }
 
 impl<E, T: AstNode<E>> AstNode<E> for Box<T> {
@@ -802,6 +833,12 @@ impl<E, T: AstNode<E>> AstNode<E> for Box<T> {
 
     fn max_unnamed_label(&self) -> Option<usize> {
         Box::as_ref(self).max_unnamed_label()
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        // we have to take it on the stack cause it will change size
+        let inner = Box::into_inner(self);
+        Box::new(inner.map_err(f))
     }
 }
 
@@ -833,6 +870,10 @@ impl<E, T: AstNode<E>> AstNode<E> for Vec<T> {
     fn max_unnamed_label(&self) -> Option<usize> {
         self.iter().flat_map(AstNode::max_unnamed_label).max()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        self.into_iter().map(|i| i.map_err(f)).collect()
+    }
 }
 
 impl<E, L: AstNode<E>, R: AstNode<E>> AstNode<E> for Either<L, R> {
@@ -857,6 +898,13 @@ impl<E, L: AstNode<E>, R: AstNode<E>> AstNode<E> for Either<L, R> {
             .map_either(AstNode::max_unnamed_label, AstNode::max_unnamed_label)
             .into_inner()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            Left(l) => Left(l.map_err(f)),
+            Right(r) => Right(r.map_err(f)),
+        }
+    }
 }
 
 impl<E> AstNode<E> for StringLit<'_> {
@@ -875,6 +923,10 @@ impl<E> AstNode<E> for StringLit<'_> {
 
     fn max_unnamed_label(&self) -> Option<usize> {
         None
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        self
     }
 }
 
@@ -904,6 +956,14 @@ impl<'s, E> AstNode<E> for LabelRef<'s, E> {
             Some(*n)
         } else {
             None
+        }
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            LabelRef::Identifier(i) => LabelRef::Identifier(i),
+            LabelRef::SpecialIdentifier(s) => LabelRef::SpecialIdentifier(s),
+            LabelRef::Error(e) => LabelRef::Error(f(e)),
         }
     }
 }
@@ -939,6 +999,15 @@ macro_rules! ast_node_for_statement {
                 }
             }
 
+            fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+                match self {
+                    $(
+                    Statement::$variant(stm) => Statement::$variant(AstNode::<E>::map_err(stm, f)),
+                    )*
+                    Statement::Error(e) => Statement::Error(f(e))
+                }
+            }
+
             fn max_unnamed_label(&self) -> Option<usize> {
                 match self {
                     $(
@@ -947,6 +1016,7 @@ macro_rules! ast_node_for_statement {
                     Statement::Error(_) => None
                 }
             }
+
         }
     };
 }
@@ -977,6 +1047,12 @@ impl<'s, E> AstNode<E> for IntsStm<'s, E> {
             .iter()
             .flat_map(AstNode::max_unnamed_label)
             .max()
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        IntsStm {
+            values: self.values.map_err(f),
+        }
     }
 }
 
@@ -1065,6 +1141,62 @@ impl<'s, E> AstNode<E> for Instruction<'s, E> {
         }
     }
 
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            Instruction::Add(a, b, c) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    let c = c.map_err(f);
+                    Instruction::Add(a, b, c)
+                })
+            }
+            Instruction::Mul(a, b, c) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    let c = c.map_err(f);
+                    Instruction::Mul(a, b, c)
+                })
+            }
+            Instruction::In(a) => (Instruction::In(a.map_err(f))),
+            Instruction::Out(a) => (Instruction::Out(a.map_err(f))),
+            Instruction::Jz(a, b) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    Instruction::Jz(a, b)
+                })
+            }
+            Instruction::Jnz(a, b) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    Instruction::Jnz(a, b)
+                })
+            }
+            Instruction::Slt(a, b, c) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    let c = c.map_err(f);
+                    Instruction::Slt(a, b, c)
+                })
+            }
+            Instruction::Seq(a, b, c) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    let c = c.map_err(f);
+                    Instruction::Seq(a, b, c)
+                })
+            }
+            Instruction::Incb(a) => (Instruction::Incb(a.map_err(f))),
+            Instruction::Halt => (Instruction::Halt),
+            Instruction::Error(e) => Instruction::Error(f(e)),
+        }
+    }
+
     fn max_unnamed_label(&self) -> Option<usize> {
         match self {
             Instruction::Add(a, b, c)
@@ -1110,6 +1242,10 @@ impl<'s, E> AstNode<E> for IncStm<'s, E> {
     fn max_unnamed_label(&self) -> Option<usize> {
         self.0.max_unnamed_label()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        IncStm(self.0.map_err(f))
+    }
 }
 impl<'s, E> AstNode<E> for DecStm<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1128,6 +1264,10 @@ impl<'s, E> AstNode<E> for DecStm<'s, E> {
     fn max_unnamed_label(&self) -> Option<usize> {
         self.0.max_unnamed_label()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        DecStm(self.0.map_err(f))
+    }
 }
 impl<'s, E> AstNode<E> for JmpStm<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1145,6 +1285,10 @@ impl<'s, E> AstNode<E> for JmpStm<'s, E> {
 
     fn max_unnamed_label(&self) -> Option<usize> {
         self.0.max_unnamed_label()
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        JmpStm(self.0.map_err(f))
     }
 }
 impl<'s, E> AstNode<E> for MovStm<'s, E> {
@@ -1194,6 +1338,13 @@ impl<'s, E> AstNode<E> for MovStm<'s, E> {
             .max(),
         }
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            MovStm::Single(a, b) => MovStm::Single(a.map_err(f), b.map_err(f)),
+            MovStm::Multiple(a, b, c) => MovStm::Multiple(a.map_err(f), b.map_err(f), c.map_err(f)),
+        }
+    }
 }
 impl<'s, E> AstNode<E> for ZerosStm<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1211,6 +1362,10 @@ impl<'s, E> AstNode<E> for ZerosStm<'s, E> {
 
     fn max_unnamed_label(&self) -> Option<usize> {
         self.0.max_unnamed_label()
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        ZerosStm(self.0.map_err(f))
     }
 }
 impl<'s, E> AstNode<E> for PushStm<'s, E> {
@@ -1242,6 +1397,13 @@ impl<'s, E> AstNode<E> for PushStm<'s, E> {
                 .into_iter()
                 .flatten()
                 .max(),
+        }
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            PushStm::Single(a) => PushStm::Single(a.map_err(f)),
+            PushStm::Multiple(a, b) => PushStm::Multiple(a.map_err(f), b.map_err(f)),
         }
     }
 }
@@ -1276,6 +1438,13 @@ impl<'s, E> AstNode<E> for PopStm<'s, E> {
                 .max(),
         }
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            PopStm::Single(a) => PopStm::Single(a.map_err(f)),
+            PopStm::Multiple(a, b) => PopStm::Multiple(a.map_err(f), b.map_err(f)),
+        }
+    }
 }
 impl<'s, E> AstNode<E> for CallStm<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1294,6 +1463,10 @@ impl<'s, E> AstNode<E> for CallStm<'s, E> {
     fn max_unnamed_label(&self) -> Option<usize> {
         self.0.max_unnamed_label()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        CallStm(self.0.map_err(f))
+    }
 }
 impl<E> AstNode<E> for RetStm {
     fn constant_folding(self) -> Self {
@@ -1311,6 +1484,10 @@ impl<E> AstNode<E> for RetStm {
 
     fn max_unnamed_label(&self) -> Option<usize> {
         None
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        self
     }
 }
 
@@ -1349,6 +1526,15 @@ impl<'s, E> AstNode<E> for ReadParam<'s, E> {
             Self::Error(_) => None,
         }
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            ReadParam::Absolute(a) => (ReadParam::Absolute(a.map_err(f))),
+            ReadParam::Immediate(i) => (ReadParam::Immediate(i.map_err(f))),
+            ReadParam::Relative(r) => (ReadParam::Relative(r.map_err(f))),
+            ReadParam::Error(e) => ReadParam::Error(f(e)),
+        }
+    }
 }
 
 impl<'s, E> AstNode<E> for WriteParam<'s, E> {
@@ -1383,6 +1569,14 @@ impl<'s, E> AstNode<E> for WriteParam<'s, E> {
             Self::Error(_) => None,
         }
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            WriteParam::Absolute(a) => (WriteParam::Absolute(a.map_err(f))),
+            WriteParam::Relative(r) => (WriteParam::Relative(r.map_err(f))),
+            WriteParam::Error(e) => WriteParam::Error(f(e)),
+        }
+    }
 }
 
 impl<'s, E> AstNode<E> for AbsoluteParam<'s, E> {
@@ -1406,6 +1600,12 @@ impl<'s, E> AstNode<E> for AbsoluteParam<'s, E> {
     fn max_unnamed_label(&self) -> Option<usize> {
         self.value.max_unnamed_label()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        AbsoluteParam {
+            value: self.value.map_err(f),
+        }
+    }
 }
 impl<'s, E> AstNode<E> for ImmediateParam<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1428,6 +1628,12 @@ impl<'s, E> AstNode<E> for ImmediateParam<'s, E> {
     fn max_unnamed_label(&self) -> Option<usize> {
         self.value.max_unnamed_label()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        ImmediateParam {
+            value: self.value.map_err(f),
+        }
+    }
 }
 impl<'s, E> AstNode<E> for RelativeParam<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1449,6 +1655,12 @@ impl<'s, E> AstNode<E> for RelativeParam<'s, E> {
 
     fn max_unnamed_label(&self) -> Option<usize> {
         self.value.max_unnamed_label()
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        RelativeParam {
+            value: self.value.map_err(f),
+        }
     }
 }
 
@@ -1495,6 +1707,14 @@ impl<'s, E> AstNode<E> for UnlabelledReadParam<'s, E> {
             Self::Error(_) => None,
         }
     }
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            UnlabelledReadParam::Absolute(a) => (UnlabelledReadParam::Absolute(a.map_err(f))),
+            UnlabelledReadParam::Immediate(i) => (UnlabelledReadParam::Immediate(i.map_err(f))),
+            UnlabelledReadParam::Relative(r) => (UnlabelledReadParam::Relative(r.map_err(f))),
+            UnlabelledReadParam::Error(e) => UnlabelledReadParam::Error(f(e)),
+        }
+    }
 }
 
 impl<'s, E> AstNode<E> for UnlabelledWriteParam<'s, E> {
@@ -1536,6 +1756,13 @@ impl<'s, E> AstNode<E> for UnlabelledWriteParam<'s, E> {
             Self::Error(_) => None,
         }
     }
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            UnlabelledWriteParam::Absolute(a) => (UnlabelledWriteParam::Absolute(a.map_err(f))),
+            UnlabelledWriteParam::Relative(r) => (UnlabelledWriteParam::Relative(r.map_err(f))),
+            UnlabelledWriteParam::Error(e) => UnlabelledWriteParam::Error(f(e)),
+        }
+    }
 }
 
 impl<'s, E> AstNode<E> for UnlabelledAbsoluteParam<'s, E> {
@@ -1559,6 +1786,12 @@ impl<'s, E> AstNode<E> for UnlabelledAbsoluteParam<'s, E> {
     fn max_unnamed_label(&self) -> Option<usize> {
         self.value.max_unnamed_label()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        UnlabelledAbsoluteParam {
+            value: self.value.map_err(f),
+        }
+    }
 }
 impl<'s, E> AstNode<E> for UnlabelledImmediateParam<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1581,6 +1814,12 @@ impl<'s, E> AstNode<E> for UnlabelledImmediateParam<'s, E> {
     fn max_unnamed_label(&self) -> Option<usize> {
         self.value.max_unnamed_label()
     }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        UnlabelledImmediateParam {
+            value: self.value.map_err(f),
+        }
+    }
 }
 impl<'s, E> AstNode<E> for UnlabelledRelativeParam<'s, E> {
     fn constant_folding(self) -> Self {
@@ -1602,6 +1841,12 @@ impl<'s, E> AstNode<E> for UnlabelledRelativeParam<'s, E> {
 
     fn max_unnamed_label(&self) -> Option<usize> {
         self.value.max_unnamed_label()
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        UnlabelledRelativeParam {
+            value: self.value.map_err(f),
+        }
     }
 }
 
@@ -1706,6 +1951,50 @@ impl<'s, E> AstNode<E> for Expression<'s, E> {
             Expression::Ref(LabelRef::Identifier(Identifier::Unnamed(n, ..))) => Some(*n),
             Expression::Ref(_) => None,
             Expression::Error(_) => None,
+        }
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            Expression::Sum(a, b) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    Expression::Sum(a, b)
+                })
+            }
+            Expression::Sub(a, b) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    Expression::Sub(a, b)
+                })
+            }
+            Expression::Mul(a, b) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    Expression::Mul(a, b)
+                })
+            }
+            Expression::Div(a, b) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    Expression::Div(a, b)
+                })
+            }
+            Expression::Mod(a, b) => {
+                ({
+                    let a = a.map_err(f);
+                    let b = b.map_err(f);
+                    Expression::Mod(a, b)
+                })
+            }
+            Expression::Neg(a) => (Expression::Neg(a.map_err(f))),
+            Expression::Num(a) => (Expression::Num(a)),
+            Expression::Ref(a) => (Expression::Ref(a.map_err(f))),
+            Expression::Error(e) => Expression::Error(f(e)),
         }
     }
 }

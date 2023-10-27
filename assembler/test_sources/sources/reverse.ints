@@ -2,6 +2,8 @@ descr: stack testing => reverse a string using a stack
 tests:
     - in: [1,2,3,4,0]
       out: [4,3,2,1]
+    - in: ["Hey sister!", 0]
+      out: ["!retsis yeH"]
 ---
 incb #$end
 
