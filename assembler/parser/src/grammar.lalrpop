@@ -47,6 +47,7 @@ Statement: Statement<'s, AstErrorRecovery<'s>> = {
   "pop"   <ParamPop> => Statement::Pop(<>),
   "call"  <ReadParam> => Statement::Call(CallStm(<>)),
   "ret"   => Statement::Ret(RetStm),
+  "export" <exported: NamedIdentifierList> => Statement::Export(ExportStm{<>})
 }
 
 Instruction: Instruction<'s, AstErrorRecovery<'s>> = {
@@ -60,6 +61,14 @@ Instruction: Instruction<'s, AstErrorRecovery<'s>> = {
     "seq"  <ParamsRRW>  => Instruction::Seq(<>.0,<>.1,<>.2),
     "incb" <ReadParam>  => Instruction::Incb(<>),
     "halt"              => Instruction::Halt,
+}
+
+NamedIdentifierList: Vec<Identifier<'s>> = {
+  Identifier => vec![<>],
+  <mut head: NamedIdentifierList> ","? <tail: Identifier> => {
+    head.push(tail);
+    head
+  }
 }
 
 ParamMov: MovStm<'s, AstErrorRecovery<'s>> = {

@@ -1,6 +1,9 @@
 #![feature(box_patterns)]
 #![feature(unwrap_infallible)]
-use std::collections::BTreeMap;
+use std::collections::{
+    btree_map::Entry::{Occupied, Vacant},
+    BTreeMap, BTreeSet,
+};
 
 use either::{
     for_both,
@@ -15,23 +18,39 @@ use vm::VMInt;
 #[derive(Debug, Clone, Copy)]
 pub enum AssembleError<'s> {
     LabelInConstExpr(LabelRef<'s>),
-    UndefinedUnnamed(usize, (usize, usize)),
+    UndefinedUnnamed(Identifier<'s>),
+    UndefinedExport(Identifier<'s>),
+    RedefinedGlobal(Identifier<'s>, Identifier<'s>),
+    Undefined(Identifier<'s>),
 }
 
 /// A intcode code, made up of various units
 pub struct Code<'s> {
     /// All the values of this code
     values: Vec<Box<Expression<'s>>>,
+    /// The global identifiers of this code
+    globals: BTreeMap<Identifier<'s>, VMInt>,
 }
 impl<'s> Code<'s> {
     pub fn new() -> Self {
-        Self { values: vec![] }
+        Self {
+            values: vec![],
+            globals: BTreeMap::new(),
+        }
     }
     pub fn push_unit(
         &mut self,
-        Unit { values }: Unit<'s>,
-        mut _errors: impl Accumulator<Error = AssembleError<'s>>,
+        Unit { values, globals }: Unit<'s>,
+        mut errors: impl Accumulator<Error = AssembleError<'s>>,
     ) {
+        for (g, p) in globals {
+            match self.globals.entry(g) {
+                Vacant(v) => {
+                    v.insert(p + self.values.len() as VMInt);
+                }
+                Occupied(occ) => errors.push(AssembleError::RedefinedGlobal(g, *occ.key())),
+            }
+        }
         let unit_start = Expression::Sum(
             Box::new(Expression::Ref(LabelRef::SpecialIdentifier(
                 lexer::SpecialIdentifier::Start,
@@ -46,8 +65,7 @@ impl<'s> Code<'s> {
         );
         self.values.extend(values.into_iter().map(|e| {
             e.replace(&mut |e| match e {
-                LabelRef::Identifier(Identifier::Named(..)) => Ok(None), // assume it is a global identifier
-                LabelRef::Identifier(Identifier::Unnamed(..)) => unreachable!(),
+                LabelRef::Identifier(_) => Ok(None), // assume it is a global identifier
                 LabelRef::SpecialIdentifier(SpecialIdentifier::UnitStart) => {
                     Ok(Some(unit_start.clone()))
                 }
@@ -70,7 +88,11 @@ impl<'s> Code<'s> {
             .into_iter()
             .flat_map(|e| {
                 e.replace(&mut |lbl| match lbl {
-                    LabelRef::Identifier(_) => todo!("Implement globals"),
+                    LabelRef::Identifier(id) => self
+                        .globals
+                        .get(id)
+                        .map(|v| Some(Expression::Num(*v)))
+                        .ok_or_else(|| AssembleError::Undefined(*id)),
                     LabelRef::SpecialIdentifier(
                         SpecialIdentifier::UnitStart | SpecialIdentifier::UnitEnd,
                     ) => unreachable!(),
@@ -97,6 +119,8 @@ impl<'s> Code<'s> {
 pub struct Unit<'s> {
     /// All the values of this unit
     values: Vec<Box<Expression<'s>>>,
+    /// Labels defined in this unit, and their position
+    globals: BTreeMap<Identifier<'s>, VMInt>,
 }
 
 impl<'s> Unit<'s> {
@@ -109,6 +133,7 @@ impl<'s> Unit<'s> {
             locals: BTreeMap::new(),
             errors,
             unnamed_counter: ast.max_unnamed_label().map(|l| l + 1).unwrap_or_default(),
+            globals: BTreeSet::new(),
         };
         ast.code_gen(&mut unit);
         // replacing locals
@@ -127,12 +152,7 @@ impl<'s> Unit<'s> {
                                     Box::new(Expression::Num(*offset)),
                                 )))
                             } else {
-                                match id {
-                                    Identifier::Named(..) => Ok(None), // Must be a global
-                                    Identifier::Unnamed(n, pos) => {
-                                        Err(AssembleError::UndefinedUnnamed(*n, *pos))
-                                    }
-                                }
+                                Ok(None) // Must be a global
                             }
                         }
                         LabelRef::SpecialIdentifier(_) => Ok(None),
@@ -140,6 +160,18 @@ impl<'s> Unit<'s> {
                     })
                     .extract_errs(&mut unit.errors)
                     .map(|e| e.constant_folding())
+                })
+                .collect(),
+            globals: unit
+                .globals
+                .into_iter()
+                .filter_map(|g| {
+                    if let Some(p) = unit.locals.get(&g) {
+                        Some((g, *p))
+                    } else {
+                        unit.errors.push(AssembleError::UndefinedExport(g));
+                        None
+                    }
                 })
                 .collect(),
         }
@@ -152,6 +184,8 @@ struct AssemblingUnit<'s, Errors> {
     values: Vec<Box<Expression<'s>>>,
     /// Labels defined in this unit, and their position
     locals: BTreeMap<Identifier<'s>, VMInt>,
+    /// Global identifiers
+    globals: BTreeSet<Identifier<'s>>,
     /// Error accumulator
     errors: Errors,
     /// Counter for unnamed labels
@@ -308,7 +342,7 @@ macro_rules! codegen_for_statement {
     };
 }
 codegen_for_statement! {
-    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret
+    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret Export
 }
 
 impl<'s> CodeGen<'s> for IntsStm<'s> {
@@ -499,12 +533,19 @@ impl<'s> CodeGen<'s> for RetStm {
     }
 }
 
+impl<'s> CodeGen<'s> for ExportStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        unit.globals.extend(self.exported)
+    }
+}
 #[cfg(test)]
 mod tests {
     use errors::RootAccumulator;
     use parser::ParseError;
     use test_sources::{test_io, test_sources};
-    
 
     use crate::{AssembleError, Code, Unit};
 

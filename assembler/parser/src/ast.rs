@@ -169,6 +169,7 @@ pub enum Statement<'s, Error = !> {
     Pop(PopStm<'s, Error>),
     Call(CallStm<'s, Error>),
     Ret(RetStm),
+    Export(ExportStm<'s>),
     Error(Error),
 }
 
@@ -305,6 +306,11 @@ pub enum PopStm<'s, Error = !> {
 pub struct CallStm<'s, Error = !>(pub ReadParam<'s, Error>);
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RetStm;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExportStm<'s> {
+    pub exported: Vec<Identifier<'s>>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadParam<'s, Error = !> {
@@ -1021,7 +1027,7 @@ macro_rules! ast_node_for_statement {
     };
 }
 ast_node_for_statement! {
-    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret
+    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret Export
 }
 
 impl<'s, E> AstNode<E> for IntsStm<'s, E> {
@@ -1476,6 +1482,37 @@ impl<E> AstNode<E> for RetStm {
 
     fn map_err<EE>(self, _f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
         self
+    }
+}
+impl<'s, E> AstNode<E> for ExportStm<'s> {
+    fn constant_folding(self) -> Self {
+        self
+    }
+
+    type ErrMapped<EE> = Self;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<!>> {
+        Some(self)
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        self
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.exported
+            .iter()
+            .filter_map(|l| {
+                if let Identifier::Unnamed(n, ..) = l {
+                    Some(*n)
+                } else {
+                    None
+                }
+            })
+            .max()
     }
 }
 
