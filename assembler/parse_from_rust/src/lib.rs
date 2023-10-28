@@ -461,7 +461,7 @@ mod impls {
     use std::marker::PhantomData;
 
     use itertools::Itertools;
-    use lexer::StringLit;
+
     use parser::ast::{
         Expression, IntsParam, Labelled, ReadParam, Statement, UnlabelledNonImmediateReadParam,
         UnlabelledReadParam, UnlabelledWriteParam, WriteParam,
