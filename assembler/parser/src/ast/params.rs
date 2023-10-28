@@ -1,10 +1,12 @@
 use super::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ReadParam<'s, Error = !> {
-    Absolute(AbsoluteParam<'s, Error>),
-    Immediate(ImmediateParam<'s, Error>),
-    Relative(RelativeParam<'s, Error>),
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub enum ReadParam<'s, Error = Infallible> {
+    Absolute(#[serde(borrow)] AbsoluteParam<'s, Error>),
+    Immediate(#[serde(borrow)] ImmediateParam<'s, Error>),
+    Relative(#[serde(borrow)] RelativeParam<'s, Error>),
     Error(Error),
 }
 impl<'s> ReadParam<'s> {
@@ -13,7 +15,7 @@ impl<'s> ReadParam<'s> {
             ReadParam::Absolute(_) => 0,
             ReadParam::Immediate(_) => 1,
             ReadParam::Relative(_) => 2,
-            ReadParam::Error(e) => *e,
+            ReadParam::Error(e) => <!>::from(*e),
         }
     }
     pub fn as_value_mut(&mut self) -> &mut Labelled<'s, Box<Expression<'s>>> {
@@ -21,7 +23,7 @@ impl<'s> ReadParam<'s> {
             ReadParam::Absolute(AbsoluteParam { value })
             | ReadParam::Immediate(ImmediateParam { value })
             | ReadParam::Relative(RelativeParam { value }) => value,
-            ReadParam::Error(e) => *e,
+            ReadParam::Error(e) => <!>::from(*e),
         }
     }
     pub fn into_value(self) -> Labelled<'s, Box<Expression<'s>>> {
@@ -29,7 +31,7 @@ impl<'s> ReadParam<'s> {
             ReadParam::Absolute(AbsoluteParam { value })
             | ReadParam::Immediate(ImmediateParam { value })
             | ReadParam::Relative(RelativeParam { value }) => value,
-            ReadParam::Error(e) => e,
+            ReadParam::Error(e) => <!>::from(e),
         }
     }
 }
@@ -72,12 +74,14 @@ impl<'s, E> From<Box<Expression<'s, E>>> for ReadParam<'s, E> {
     }
 }
 
-pub type NonImmediateReadParam<'s, Error = !> = WriteParam<'s, Error>;
+pub type NonImmediateReadParam<'s, Error = Infallible> = WriteParam<'s, Error>;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum WriteParam<'s, Error = !> {
-    Absolute(AbsoluteParam<'s, Error>),
-    Relative(RelativeParam<'s, Error>),
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub enum WriteParam<'s, Error = Infallible> {
+    Absolute(#[serde(borrow)] AbsoluteParam<'s, Error>),
+    Relative(#[serde(borrow)] RelativeParam<'s, Error>),
     Error(Error),
 }
 
@@ -96,14 +100,14 @@ impl<'s> WriteParam<'s> {
         match self {
             WriteParam::Absolute(_) => 0,
             WriteParam::Relative(_) => 2,
-            WriteParam::Error(e) => *e,
+            WriteParam::Error(e) => <!>::from(*e),
         }
     }
     pub fn into_value(self) -> Labelled<'s, Box<Expression<'s>>> {
         match self {
             WriteParam::Absolute(AbsoluteParam { value })
             | WriteParam::Relative(RelativeParam { value }) => value,
-            WriteParam::Error(e) => e,
+            WriteParam::Error(e) => <!>::from(e),
         }
     }
 
@@ -111,7 +115,7 @@ impl<'s> WriteParam<'s> {
         match self {
             WriteParam::Absolute(AbsoluteParam { value })
             | WriteParam::Relative(RelativeParam { value }) => value,
-            WriteParam::Error(e) => *e,
+            WriteParam::Error(e) => <!>::from(*e),
         }
     }
 }
@@ -134,8 +138,11 @@ impl<'s, E> From<Box<Expression<'s, E>>> for WriteParam<'s, E> {
         })
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ImmediateParam<'s, Error = !> {
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub struct ImmediateParam<'s, Error = Infallible> {
+    #[serde(borrow)]
     pub value: Labelled<'s, Box<Expression<'s, Error>>>,
 }
 impl<'s, E> From<UnlabelledImmediateParam<'s, E>> for ImmediateParam<'s, E> {
@@ -149,8 +156,11 @@ impl<'s, E> From<UnlabelledImmediateParam<'s, E>> for ImmediateParam<'s, E> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AbsoluteParam<'s, Error = !> {
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub struct AbsoluteParam<'s, Error = Infallible> {
+    #[serde(borrow)]
     pub value: Labelled<'s, Box<Expression<'s, Error>>>,
 }
 impl<'s, E> From<UnlabelledAbsoluteParam<'s, E>> for AbsoluteParam<'s, E> {
@@ -164,8 +174,11 @@ impl<'s, E> From<UnlabelledAbsoluteParam<'s, E>> for AbsoluteParam<'s, E> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RelativeParam<'s, Error = !> {
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub struct RelativeParam<'s, Error = Infallible> {
+    #[serde(borrow)]
     pub value: Labelled<'s, Box<Expression<'s, Error>>>,
 }
 impl<'s, E> From<UnlabelledRelativeParam<'s, E>> for RelativeParam<'s, E> {
@@ -179,11 +192,13 @@ impl<'s, E> From<UnlabelledRelativeParam<'s, E>> for RelativeParam<'s, E> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum UnlabelledReadParam<'s, Error = !> {
-    Absolute(UnlabelledAbsoluteParam<'s, Error>),
-    Immediate(UnlabelledImmediateParam<'s, Error>),
-    Relative(UnlabelledRelativeParam<'s, Error>),
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub enum UnlabelledReadParam<'s, Error = Infallible> {
+    Absolute(#[serde(borrow)] UnlabelledAbsoluteParam<'s, Error>),
+    Immediate(#[serde(borrow)] UnlabelledImmediateParam<'s, Error>),
+    Relative(#[serde(borrow)] UnlabelledRelativeParam<'s, Error>),
     Error(Error),
 }
 impl<'s> UnlabelledReadParam<'s> {
@@ -192,7 +207,7 @@ impl<'s> UnlabelledReadParam<'s> {
             UnlabelledReadParam::Absolute(_) => 0,
             UnlabelledReadParam::Immediate(_) => 1,
             UnlabelledReadParam::Relative(_) => 2,
-            UnlabelledReadParam::Error(e) => *e,
+            UnlabelledReadParam::Error(e) => <!>::from(*e),
         }
     }
 }
@@ -206,12 +221,14 @@ impl<'s, E> From<UnlabelledWriteParam<'s, E>> for UnlabelledReadParam<'s, E> {
     }
 }
 
-pub type UnlabelledNonImmediateReadParam<'s, Error = !> = UnlabelledWriteParam<'s, Error>;
+pub type UnlabelledNonImmediateReadParam<'s, Error = Infallible> = UnlabelledWriteParam<'s, Error>;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum UnlabelledWriteParam<'s, Error = !> {
-    Absolute(UnlabelledAbsoluteParam<'s, Error>),
-    Relative(UnlabelledRelativeParam<'s, Error>),
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub enum UnlabelledWriteParam<'s, Error = Infallible> {
+    Absolute(#[serde(borrow)] UnlabelledAbsoluteParam<'s, Error>),
+    Relative(#[serde(borrow)] UnlabelledRelativeParam<'s, Error>),
     Error(Error),
 }
 
@@ -240,7 +257,7 @@ impl<'s> UnlabelledWriteParam<'s> {
         match self {
             UnlabelledWriteParam::Absolute(_) => 0,
             UnlabelledWriteParam::Relative(_) => 2,
-            UnlabelledWriteParam::Error(e) => *e,
+            UnlabelledWriteParam::Error(e) => <!>::from(*e),
         }
     }
 }
@@ -259,13 +276,19 @@ impl<'s, E> TryFrom<WriteParam<'s, E>> for UnlabelledWriteParam<'s, E> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct UnlabelledImmediateParam<'s, Error = !> {
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub struct UnlabelledImmediateParam<'s, Error = Infallible> {
+    #[serde(borrow)]
     pub value: Box<Expression<'s, Error>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct UnlabelledAbsoluteParam<'s, Error = !> {
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub struct UnlabelledAbsoluteParam<'s, Error = Infallible> {
+    #[serde(borrow)]
     pub value: Box<Expression<'s, Error>>,
 }
 impl<'s, E> UnlabelledAbsoluteParam<'s, E> {
@@ -300,8 +323,11 @@ impl<'s, E> TryFrom<AbsoluteParam<'s, E>> for UnlabelledAbsoluteParam<'s, E> {
         }
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct UnlabelledRelativeParam<'s, Error = !> {
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub struct UnlabelledRelativeParam<'s, Error = Infallible> {
+    #[serde(borrow)]
     pub value: Box<Expression<'s, Error>>,
 }
 impl<'s, E> TryFrom<RelativeParam<'s, E>> for UnlabelledRelativeParam<'s, E> {

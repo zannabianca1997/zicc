@@ -5,15 +5,17 @@ use std::{
     ops::Range,
 };
 
+use bincode::{BorrowDecode, Encode};
 use itertools::Itertools;
 use keyword_expand_macro::expand_keywords;
 use logos::{Logos, SpannedIter};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use errors::Spanned;
 use vm::VMInt;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Encode, BorrowDecode, Serialize, Deserialize)]
 pub enum Identifier<'s> {
     Unnamed(usize, (usize, usize)),
     Named(&'s str, usize),
@@ -76,7 +78,20 @@ impl Hash for Identifier<'_> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    BorrowDecode,
+    Serialize,
+    Deserialize,
+)]
 pub enum SpecialIdentifier {
     Start,
     End,
@@ -280,7 +295,20 @@ fn parse_escape(s: &str) -> Result<(VMInt, &str), EscapeError> {
     ))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    Encode,
+    BorrowDecode,
+)]
 pub struct StringLit<'s> {
     pub content: &'s str,
 }

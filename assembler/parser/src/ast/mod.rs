@@ -6,10 +6,11 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
-use either::Either::{self};
+use bincode::{BorrowDecode, Decode, Encode};
 use itertools::Itertools;
 use lalrpop_util::{lalrpop_mod, ErrorRecovery};
 use map_in_place::MapBoxInPlace;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use errors::{Accumulator, Spanned};
@@ -35,6 +36,16 @@ impl Spanned for ParseErrorContent {
             ParseErrorContent::ImmediateInWrite { span } => span.clone(),
             ParseErrorContent::LabelsOnUnlabelled { span } => span.clone(),
         }
+    }
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Decode, Encode,
+)]
+pub enum Infallible {}
+impl From<Infallible> for ! {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
     }
 }
 
@@ -71,8 +82,11 @@ impl Spanned for ParseError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct File<'s, Error = !> {
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, BorrowDecode, Serialize, Deserialize,
+)]
+pub struct File<'s, Error = Infallible> {
+    #[serde(borrow)]
     pub statements: Vec<Labelled<'s, Option<Statement<'s, Error>>>>,
 }
 
@@ -91,8 +105,24 @@ impl<'s> File<'s> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+impl<'s, Err> ::bincode::Encode for File<'s, Err>
+where
+    Err: Encode,
+{
+    fn encode<E: bincode::enc::Encoder>(
+        &self,
+        encoder: &mut E,
+    ) -> Result<(), bincode::error::EncodeError> {
+        utils::encode_vec(&self.statements, encoder)?; // we have to avoid direct encoding cause the implementation of `encode` for `Vec` require `'static`
+        Ok(())
+    }
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
+)]
 pub struct Labelled<'s, T> {
+    #[serde(borrow)]
     pub labels: BTreeSet<LabelDef<'s>>,
     pub content: T,
 }
@@ -145,13 +175,41 @@ impl<'s, T> From<T> for Labelled<'s, T> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    BorrowDecode,
+    Serialize,
+    Deserialize,
+)]
 pub struct LabelDef<'s> {
+    #[serde(borrow)]
     pub label: Identifier<'s>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum LabelRef<'s, Error = !> {
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    BorrowDecode,
+    Serialize,
+    Deserialize,
+)]
+pub enum LabelRef<'s, Error = Infallible> {
+    #[serde(borrow)]
     Identifier(Identifier<'s>),
     SpecialIdentifier(SpecialIdentifier),
     Error(Error),
@@ -161,56 +219,66 @@ impl Display for LabelRef<'_> {
         match self {
             LabelRef::Identifier(id) => <Identifier as Display>::fmt(id, f),
             LabelRef::SpecialIdentifier(si) => <SpecialIdentifier as Display>::fmt(si, f),
-            LabelRef::Error(e) => *e,
+            LabelRef::Error(e) => <!>::from(*e),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Statement<'s, Error = !> {
-    Ints(IntsStm<'s, Error>),
-    Instruction(Instruction<'s, Error>),
-    Inc(IncStm<'s, Error>),
-    Dec(DecStm<'s, Error>),
-    Jmp(JmpStm<'s, Error>),
-    Mov(MovStm<'s, Error>),
-    Zeros(ZerosStm<'s, Error>),
-    Push(PushStm<'s, Error>),
-    Pop(PopStm<'s, Error>),
-    Call(CallStm<'s, Error>),
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
+)]
+pub enum Statement<'s, Error = Infallible> {
+    Ints(#[serde(borrow)] IntsStm<'s, Error>),
+    Instruction(#[serde(borrow)] Instruction<'s, Error>),
+    Inc(#[serde(borrow)] IncStm<'s, Error>),
+    Dec(#[serde(borrow)] DecStm<'s, Error>),
+    Jmp(#[serde(borrow)] JmpStm<'s, Error>),
+    Mov(#[serde(borrow)] MovStm<'s, Error>),
+    Zeros(#[serde(borrow)] ZerosStm<'s, Error>),
+    Push(#[serde(borrow)] PushStm<'s, Error>),
+    Pop(#[serde(borrow)] PopStm<'s, Error>),
+    Call(#[serde(borrow)] CallStm<'s, Error>),
     Ret(RetStm),
-    Export(ExportStm<'s>),
-    Entry(EntryStm<'s>),
+    Export(#[serde(borrow)] ExportStm<'s>),
+    Entry(#[serde(borrow)] EntryStm<'s>),
     Error(Error),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Instruction<'s, Error = !> {
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
+)]
+pub enum Instruction<'s, Error = Infallible> {
     Add(
-        ReadParam<'s, Error>,
-        ReadParam<'s, Error>,
-        WriteParam<'s, Error>,
+        #[serde(borrow)] ReadParam<'s, Error>,
+        #[serde(borrow)] ReadParam<'s, Error>,
+        #[serde(borrow)] WriteParam<'s, Error>,
     ),
     Mul(
-        ReadParam<'s, Error>,
-        ReadParam<'s, Error>,
-        WriteParam<'s, Error>,
+        #[serde(borrow)] ReadParam<'s, Error>,
+        #[serde(borrow)] ReadParam<'s, Error>,
+        #[serde(borrow)] WriteParam<'s, Error>,
     ),
-    In(WriteParam<'s, Error>),
-    Out(ReadParam<'s, Error>),
-    Jnz(ReadParam<'s, Error>, ReadParam<'s, Error>),
-    Jz(ReadParam<'s, Error>, ReadParam<'s, Error>),
+    In(#[serde(borrow)] WriteParam<'s, Error>),
+    Out(#[serde(borrow)] ReadParam<'s, Error>),
+    Jnz(
+        #[serde(borrow)] ReadParam<'s, Error>,
+        #[serde(borrow)] ReadParam<'s, Error>,
+    ),
+    Jz(
+        #[serde(borrow)] ReadParam<'s, Error>,
+        #[serde(borrow)] ReadParam<'s, Error>,
+    ),
     Slt(
-        ReadParam<'s, Error>,
-        ReadParam<'s, Error>,
-        WriteParam<'s, Error>,
+        #[serde(borrow)] ReadParam<'s, Error>,
+        #[serde(borrow)] ReadParam<'s, Error>,
+        #[serde(borrow)] WriteParam<'s, Error>,
     ),
     Seq(
-        ReadParam<'s, Error>,
-        ReadParam<'s, Error>,
-        WriteParam<'s, Error>,
+        #[serde(borrow)] ReadParam<'s, Error>,
+        #[serde(borrow)] ReadParam<'s, Error>,
+        #[serde(borrow)] WriteParam<'s, Error>,
     ),
-    Incb(ReadParam<'s, Error>),
+    Incb(#[serde(borrow)] ReadParam<'s, Error>),
     Halt,
     Error(Error),
 }
@@ -227,7 +295,7 @@ impl<'s> Instruction<'s> {
             Instruction::Seq(_, _, _) => 8,
             Instruction::Incb(_) => 9,
             Instruction::Halt => 99,
-            Instruction::Error(e) => *e,
+            Instruction::Error(e) => <!>::from(*e),
         }
     }
 
@@ -247,7 +315,7 @@ impl<'s> Instruction<'s> {
                 ArrayVec::try_from([a.into_value(), b.into_value()].as_slice()).unwrap()
             }
             Instruction::Halt => ArrayVec::new(),
-            Instruction::Error(e) => e,
+            Instruction::Error(e) => <!>::from(e),
         }
     }
 
@@ -265,7 +333,7 @@ impl<'s> Instruction<'s> {
                 ArrayVec::try_from([a.mode(), b.mode()].as_slice()).unwrap()
             }
             Instruction::Halt => ArrayVec::new(),
-            Instruction::Error(e) => *e,
+            Instruction::Error(e) => <!>::from(*e),
         }
     }
 }

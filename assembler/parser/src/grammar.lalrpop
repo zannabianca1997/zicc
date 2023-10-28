@@ -1,5 +1,3 @@
-use either::{Either,Left,Right};
-
 use crate::ast::*;
 use lexer::{Token, Identifier, SpecialIdentifier, StringLit};
 use vm::VMInt;
@@ -64,10 +62,10 @@ Instruction: Instruction<'s, AstErrorRecovery<'s>> = {
     "halt"              => Instruction::Halt,
 }
 
-NamedIdentifierList: Vec<Identifier<'s>> = {
-  DefinableIdentifier => vec![<>],
+NamedIdentifierList: BTreeSet<Identifier<'s>> = {
+  DefinableIdentifier => BTreeSet::from([<>]),
   <mut head: NamedIdentifierList> ","? <tail: DefinableIdentifier> => {
-    head.push(tail);
+    head.insert(tail);
     head
   }
 }
@@ -149,21 +147,28 @@ ParamsRRW: (ReadParam<'s, AstErrorRecovery<'s>>, ReadParam<'s, AstErrorRecovery<
   <ReadParam> "," <ReadParam>        "," <WriteParam>,
 }
 
-CommaSepExprs: Vec<Labelled<'s, Either<Box<Expression<'s, AstErrorRecovery<'s>>>, StringLit<'s>>>> = {
-  <mut head: CommaSepExprs> "," <tail: Labelled<Expression>> => {head.push(tail.map(Left)); head},
-  <mut head: CommaSepExprs> <tail: LabelledPlus<Expression>> => {head.push(tail.map(Left)); head},
-  <mut head: CommaSepExprs> <tail: ExpressionNonNeg> => {head.push(Labelled { labels: BTreeSet::new(), content: Left(tail)}); head},
+CommaSepExprs: Vec<Labelled<'s, IntsParam<'s, AstErrorRecovery<'s>>>> = {
+  <mut head: CommaSepExprs> "," <tail: Labelled<Expression>> => {head.push(tail.map(IntsParam::Int)); head},
+  <mut head: CommaSepExprs> <tail: LabelledPlus<Expression>> => {head.push(tail.map(IntsParam::Int)); head},
+  <mut head: CommaSepExprs> <tail: ExpressionNonNeg> => {head.push(Labelled { labels: BTreeSet::new(), content: IntsParam::Int(tail)}); head},
 
   <mut head: CommaSepExprs> ","? <tail: Labelled<"str">> <opt: ExpressionNeg?> => {
-    head.push(tail.map(Right)); 
+    head.push(tail.map(IntsParam::Str)); 
     if let Some(opt) = opt {
-      head.push(Labelled { labels: BTreeSet::new(), content: Left(opt)})
+      head.push(Labelled { labels: BTreeSet::new(), content: IntsParam::Int(opt)})
     }
     head
   },
 
-  <first:Labelled<"str">> <opt: ExpressionNeg?> => if let Some(opt) = opt { vec![first.map(Right), Labelled { labels: BTreeSet::new(), content: Left(opt)}] } else {vec![first.map(Right)]},
-  Labelled<Expression> => vec![<>.map(Left)],
+  <first:Labelled<"str">> <opt: ExpressionNeg?> => if let Some(opt) = opt { 
+      vec![
+        first.map(IntsParam::Str), 
+        Labelled { labels: BTreeSet::new(), content: IntsParam::Int(opt)}
+      ] 
+      } else {
+        vec![first.map(IntsParam::Str)]
+      },
+  Labelled<Expression> => vec![<>.map(IntsParam::Int)],
 }
  
 

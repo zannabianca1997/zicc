@@ -1,8 +1,5 @@
 //! Unified metods to navigate the ast
 
-use either::Either::{Left, Right};
-use errors::Accumulator;
-
 use super::*;
 
 pub trait AstNode<E> {
@@ -12,7 +9,7 @@ pub trait AstNode<E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>>;
+    ) -> Option<Self::ErrMapped<Infallible>>;
 
     fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE>;
 
@@ -51,7 +48,7 @@ impl<'s, E> AstNode<E> for File<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(File {
             statements: self.statements.extract_errs(accumulator)?,
         })
@@ -84,7 +81,7 @@ impl<'s, E, T: AstNode<E>> AstNode<E> for Labelled<'s, T> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(Labelled {
             labels: self.labels,
             content: self.content.extract_errs(accumulator)?,
@@ -120,7 +117,7 @@ impl<E, T: AstNode<E>> AstNode<E> for Option<T> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         match self {
             Some(t) => t.extract_errs(accumulator).map(Some),
             None => Some(None),
@@ -146,7 +143,7 @@ impl<E, T: AstNode<E>> AstNode<E> for Box<T> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         // we have to take it on the stack cause it will change size
         let inner = Box::into_inner(self);
         inner.extract_errs(accumulator).map(Box::new)
@@ -173,7 +170,7 @@ impl<E, T: AstNode<E>> AstNode<E> for Vec<T> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         let mut error_present = false;
         let res = self
             .into_iter()
@@ -197,37 +194,6 @@ impl<E, T: AstNode<E>> AstNode<E> for Vec<T> {
     }
 }
 
-impl<E, L: AstNode<E>, R: AstNode<E>> AstNode<E> for Either<L, R> {
-    fn constant_folding(self) -> Self {
-        self.map_either(AstNode::constant_folding, AstNode::constant_folding)
-    }
-
-    type ErrMapped<EE> = Either<L::ErrMapped<EE>, R::ErrMapped<EE>>;
-
-    fn extract_errs(
-        self,
-        accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
-        match self {
-            Either::Left(l) => l.extract_errs(accumulator).map(Left),
-            Either::Right(r) => r.extract_errs(accumulator).map(Right),
-        }
-    }
-
-    fn max_unnamed_label(&self) -> Option<usize> {
-        self.as_ref()
-            .map_either(AstNode::max_unnamed_label, AstNode::max_unnamed_label)
-            .into_inner()
-    }
-
-    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
-        match self {
-            Left(l) => Left(l.map_err(f)),
-            Right(r) => Right(r.map_err(f)),
-        }
-    }
-}
-
 impl<E> AstNode<E> for StringLit<'_> {
     fn constant_folding(self) -> Self {
         self
@@ -238,7 +204,7 @@ impl<E> AstNode<E> for StringLit<'_> {
     fn extract_errs(
         self,
         _accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(self)
     }
 
@@ -261,7 +227,7 @@ impl<'s, E> AstNode<E> for LabelRef<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         match self {
             LabelRef::Identifier(ident) => Some(LabelRef::Identifier(ident)),
             LabelRef::SpecialIdentifier(sident) => Some(LabelRef::SpecialIdentifier(sident)),
@@ -308,7 +274,7 @@ macro_rules! ast_node_for_statement {
             fn extract_errs(
                 self,
                 accumulator: &mut impl Accumulator<Error = impl From<E>>,
-            ) -> Option<Self::ErrMapped<!>> {
+            ) -> Option<Self::ErrMapped<Infallible>> {
                 match self {
                     $(
                     Statement::$variant(stm) => Some(Statement::$variant(AstNode::<E>::extract_errs(stm, accumulator)?)),
@@ -384,7 +350,7 @@ impl<'s, E> AstNode<E> for Instruction<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         match self {
             Instruction::Add(a, b, c) => Some({
                 let a = a.extract_errs(accumulator);

@@ -49,7 +49,7 @@ impl<'s, E> AstNode<E> for Expression<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         match self {
             Expression::Sum(a, b) => Some({
                 let a = a.extract_errs(accumulator);

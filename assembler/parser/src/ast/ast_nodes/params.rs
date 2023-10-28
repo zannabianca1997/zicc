@@ -15,7 +15,7 @@ impl<'s, E> AstNode<E> for ReadParam<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         match self {
             ReadParam::Absolute(a) => Some(ReadParam::Absolute(a.extract_errs(accumulator)?)),
             ReadParam::Immediate(i) => Some(ReadParam::Immediate(i.extract_errs(accumulator)?)),
@@ -60,7 +60,7 @@ impl<'s, E> AstNode<E> for WriteParam<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         match self {
             WriteParam::Absolute(a) => Some(WriteParam::Absolute(a.extract_errs(accumulator)?)),
             WriteParam::Relative(r) => Some(WriteParam::Relative(r.extract_errs(accumulator)?)),
@@ -100,7 +100,7 @@ impl<'s, E> AstNode<E> for AbsoluteParam<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(AbsoluteParam {
             value: self.value.extract_errs(accumulator)?,
         })
@@ -129,7 +129,7 @@ impl<'s, E> AstNode<E> for ImmediateParam<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(ImmediateParam {
             value: self.value.extract_errs(accumulator)?,
         })
@@ -158,7 +158,7 @@ impl<'s, E> AstNode<E> for RelativeParam<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(RelativeParam {
             value: self.value.extract_errs(accumulator)?,
         })
@@ -192,7 +192,7 @@ impl<'s, E> AstNode<E> for UnlabelledReadParam<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         match self {
             UnlabelledReadParam::Absolute(a) => {
                 Some(UnlabelledReadParam::Absolute(a.extract_errs(accumulator)?))
@@ -246,7 +246,7 @@ impl<'s, E> AstNode<E> for UnlabelledWriteParam<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         match self {
             UnlabelledWriteParam::Absolute(a) => {
                 Some(UnlabelledWriteParam::Absolute(a.extract_errs(accumulator)?))
@@ -288,7 +288,7 @@ impl<'s, E> AstNode<E> for UnlabelledAbsoluteParam<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(UnlabelledAbsoluteParam {
             value: self.value.extract_errs(accumulator)?,
         })
@@ -317,7 +317,7 @@ impl<'s, E> AstNode<E> for UnlabelledImmediateParam<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(UnlabelledImmediateParam {
             value: self.value.extract_errs(accumulator)?,
         })
@@ -346,7 +346,7 @@ impl<'s, E> AstNode<E> for UnlabelledRelativeParam<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(UnlabelledRelativeParam {
             value: self.value.extract_errs(accumulator)?,
         })

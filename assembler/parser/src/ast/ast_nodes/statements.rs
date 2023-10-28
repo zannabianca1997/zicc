@@ -12,7 +12,7 @@ impl<'s, E> AstNode<E> for IntsStm<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(IntsStm {
             values: self.values.extract_errs(accumulator)?,
         })
@@ -32,6 +32,41 @@ impl<'s, E> AstNode<E> for IntsStm<'s, E> {
     }
 }
 
+impl<'s, E> AstNode<E> for IntsParam<'s, E> {
+    fn constant_folding(self) -> Self {
+        match self {
+            IntsParam::Int(i) => IntsParam::Int(i.constant_folding()),
+            IntsParam::Str(s) => IntsParam::Str(AstNode::<E>::constant_folding(s)),
+        }
+    }
+
+    type ErrMapped<EE> = IntsParam<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<Infallible>> {
+        match self {
+            IntsParam::Int(i) => i.extract_errs(accumulator).map(IntsParam::Int),
+            IntsParam::Str(s) => s.extract_errs(accumulator).map(IntsParam::Str),
+        }
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            IntsParam::Int(i) => IntsParam::Int(i.map_err(f)),
+            IntsParam::Str(s) => IntsParam::Str(s.map_err(f)),
+        }
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            IntsParam::Int(i) => i.max_unnamed_label(),
+            IntsParam::Str(s) => AstNode::<E>::max_unnamed_label(s),
+        }
+    }
+}
+
 impl<'s, E> AstNode<E> for IncStm<'s, E> {
     fn constant_folding(self) -> Self {
         Self(self.0.constant_folding())
@@ -42,7 +77,7 @@ impl<'s, E> AstNode<E> for IncStm<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(IncStm(self.0.extract_errs(accumulator)?))
     }
 
@@ -65,7 +100,7 @@ impl<'s, E> AstNode<E> for DecStm<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(DecStm(self.0.extract_errs(accumulator)?))
     }
 
@@ -88,7 +123,7 @@ impl<'s, E> AstNode<E> for JmpStm<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(JmpStm(self.0.extract_errs(accumulator)?))
     }
 
@@ -118,7 +153,7 @@ impl<'s, E> AstNode<E> for MovStm<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         match self {
             MovStm::Single(a, b) => Some(MovStm::Single(
                 a.extract_errs(accumulator)?,
@@ -167,7 +202,7 @@ impl<'s, E> AstNode<E> for ZerosStm<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(ZerosStm(self.0.extract_errs(accumulator)?))
     }
 
@@ -193,7 +228,7 @@ impl<'s, E> AstNode<E> for PushStm<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(match self {
             PushStm::Single(a) => PushStm::Single(a.extract_errs(accumulator)?),
             PushStm::Multiple(a, n) => {
@@ -233,7 +268,7 @@ impl<'s, E> AstNode<E> for PopStm<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(match self {
             PopStm::Single(a) => PopStm::Single(a.extract_errs(accumulator)?),
             PopStm::Multiple(a, n) => {
@@ -270,7 +305,7 @@ impl<'s, E> AstNode<E> for CallStm<'s, E> {
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(CallStm(self.0.extract_errs(accumulator)?))
     }
 
@@ -293,7 +328,7 @@ impl<E> AstNode<E> for RetStm {
     fn extract_errs(
         self,
         _accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(self)
     }
 
@@ -316,7 +351,7 @@ impl<'s, E> AstNode<E> for ExportStm<'s> {
     fn extract_errs(
         self,
         _accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(self)
     }
 
@@ -348,7 +383,7 @@ impl<'s, E> AstNode<E> for EntryStm<'s> {
     fn extract_errs(
         self,
         _accumulator: &mut impl Accumulator<Error = impl From<E>>,
-    ) -> Option<Self::ErrMapped<!>> {
+    ) -> Option<Self::ErrMapped<Infallible>> {
         Some(self)
     }
 

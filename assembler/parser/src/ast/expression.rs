@@ -1,7 +1,12 @@
+use bincode::{BorrowDecode, Encode};
+use serde::{Deserialize, Serialize};
+
 use super::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Expression<'s, Error = !> {
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
+)]
+pub enum Expression<'s, Error = Infallible> {
     Sum(Box<Expression<'s, Error>>, Box<Expression<'s, Error>>),
     Sub(Box<Expression<'s, Error>>, Box<Expression<'s, Error>>),
     Mul(Box<Expression<'s, Error>>, Box<Expression<'s, Error>>),
@@ -9,14 +14,19 @@ pub enum Expression<'s, Error = !> {
     Mod(Box<Expression<'s, Error>>, Box<Expression<'s, Error>>),
     Neg(Box<Expression<'s, Error>>),
     Num(VMInt),
+    #[serde(borrow)]
     Ref(LabelRef<'s, Error>),
     Error(Error),
 }
+
 impl<'s> Expression<'s> {
     pub fn replace<E>(
         self,
-        solver: &mut impl FnMut(&LabelRef<'s>) -> Result<Option<<Self as AstNode<!>>::ErrMapped<E>>, E>,
-    ) -> <Self as AstNode<!>>::ErrMapped<E> {
+        solver: &mut impl FnMut(
+            &LabelRef<'s>,
+        )
+            -> Result<Option<<Self as AstNode<Infallible>>::ErrMapped<E>>, E>,
+    ) -> <Self as AstNode<Infallible>>::ErrMapped<E> {
         match self {
             Expression::Sum(a, b) => {
                 Expression::Sum(Box::new(a.replace(solver)), Box::new(b.replace(solver)))
@@ -37,10 +47,10 @@ impl<'s> Expression<'s> {
             Expression::Num(a) => Expression::Num(a),
             Expression::Ref(a) => match solver(&a) {
                 Ok(Some(replacement)) => replacement,
-                Ok(None) => Expression::Ref(a.map_err(&mut |e| e)),
+                Ok(None) => Expression::Ref(a.map_err(&mut |e| <!>::from(e))),
                 Err(e) => Expression::Error(e),
             },
-            Expression::Error(a) => a,
+            Expression::Error(e) => <!>::from(e),
         }
     }
 }

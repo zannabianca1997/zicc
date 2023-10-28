@@ -30,14 +30,16 @@ dependencies = [
 name = "assembler"
 version = "0.1.0"
 dependencies = [
- "either",
+ "bincode",
  "errors",
  "itertools 0.11.0",
  "lexer",
  "parse_from_rust",
  "parser",
+ "serde",
  "test_sources",
  "thiserror",
+ "utils",
  "vm",
 ]
 
@@ -52,6 +54,25 @@ name = "beef"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
+
+[[package]]
+name = "bincode"
+version = "2.0.0-rc.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f11ea1a0346b94ef188834a65c068a03aec181c94896d481d7a0a40d85b0ce95"
+dependencies = [
+ "bincode_derive",
+ "serde",
+]
+
+[[package]]
+name = "bincode_derive"
+version = "2.0.0-rc.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e30759b3b99a1b802a7a3aa21c85c3ded5c28e1c83170d82d70f08bbf7f3e4c"
+dependencies = [
+ "virtue",
+]
 
 [[package]]
 name = "bit-set"
@@ -346,10 +367,12 @@ dependencies = [
 name = "lexer"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "errors",
  "itertools 0.11.0",
  "keyword_expand_macro",
  "logos",
+ "serde",
  "test_sources",
  "thiserror",
  "vm",
@@ -492,8 +515,8 @@ name = "parser"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
+ "bincode",
  "cargo-emit",
- "either",
  "errors",
  "itertools 0.11.0",
  "keyword_expand",
@@ -503,9 +526,11 @@ dependencies = [
  "lexer",
  "map_in_place",
  "proc-macro2",
+ "serde",
  "serde_json",
  "test_sources",
  "thiserror",
+ "utils",
  "vm",
 ]
 
@@ -667,18 +692,18 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "serde"
-version = "1.0.189"
+version = "1.0.190"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e422a44e74ad4001bdc8eede9a4570ab52f71190e9c076d14369f38b9200537"
+checksum = "91d3c334ca1ee894a2c6f6ad698fe8c435b76d504b13d436f0685d648d6d96f7"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.189"
+version = "1.0.190"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e48d1f918009ce3145511378cf68d613e3b3d9137d67272562080d68a2b32d5"
+checksum = "67c5609f394e5c2bd7fc51efda478004ea80ef42fee983d5c67a65e34f32c0e3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -847,10 +872,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f28467d3e1d3c6586d8f25fa243f544f5800fec42d97032474e17222c2b75cfa"
 
 [[package]]
+name = "utils"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+]
+
+[[package]]
 name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "virtue"
+version = "0.0.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dcc60c0624df774c82a0ef104151231d37da4962957d691c011c852b2473314"
 
 [[package]]
 name = "vm"
@@ -965,3 +1003,7 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 [[package]]
 name = "zicc"
 version = "0.1.0"
+dependencies = [
+ "assembler",
+ "vm",
+]

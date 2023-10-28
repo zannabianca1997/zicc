@@ -460,11 +460,10 @@ mod impls {
 mod impls {
     use std::marker::PhantomData;
 
-    use either::Either;
     use itertools::Itertools;
     use lexer::StringLit;
     use parser::ast::{
-        Expression, Labelled, ReadParam, Statement, UnlabelledNonImmediateReadParam,
+        Expression, IntsParam, Labelled, ReadParam, Statement, UnlabelledNonImmediateReadParam,
         UnlabelledReadParam, UnlabelledWriteParam, WriteParam,
     };
     use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
@@ -641,12 +640,7 @@ mod impls {
                 let values = input
                     .call(
                         Punctuated::<
-                            AstOrBrace<
-                                Labelled<
-                                    'static,
-                                    Either<Box<Expression<'static>>, StringLit<'static>>,
-                                >,
-                            >,
+                            AstOrBrace<Labelled<'static, IntsParam<'static>>>,
                             Option<Token![,]>,
                         >::parse_terminated,
                     )?
@@ -1070,22 +1064,22 @@ mod impls {
         }
     }
 
-    impl<T> Parse for Ast<Either<T, StringLit<'static>>>
-    where
-        AstOrBrace<T>: Parse,
-    {
+    impl Parse for Ast<IntsParam<'static>> {
         fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
             if input.peek(syn::LitStr) {
                 let lit: LitStr = input.parse().unwrap();
                 Ok(Self(
-                    quote!(::either::Either::Right(::lexer::StringLit {
+                    quote!(::parser::ast::IntsParam::Str(::lexer::StringLit {
                         content: #lit
                     })),
                     PhantomData,
                 ))
             } else {
-                let left: AstOrBrace<T> = input.parse()?;
-                Ok(Self(quote!(::either::Either::Left(#left)), PhantomData))
+                let left: AstOrBrace<Box<Expression<'static>>> = input.parse()?;
+                Ok(Self(
+                    quote!(::parser::ast::IntsParam::Int(#left)),
+                    PhantomData,
+                ))
             }
         }
     }

@@ -9,17 +9,18 @@ use std::collections::{
     BTreeMap, BTreeSet,
 };
 
-use either::{
-    for_both,
-    Either::{self, Left},
-};
+use bincode::BorrowDecode;
+
 use errors::{Accumulator, PanicAccumulator};
 use itertools::Itertools;
 use lexer::{Identifier, SpecialIdentifier, StringLit};
 use parse_from_rust::ica;
 use parser::ast::*;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use vm::VMInt;
+
+pub use parser;
 
 #[derive(Debug, Clone, Copy, Error)]
 pub enum AssembleError<'s> {
@@ -38,6 +39,7 @@ pub enum AssembleError<'s> {
 }
 
 /// A intcode code, made up of various units
+#[derive(Debug, Clone)]
 pub struct Code<'s> {
     /// All the values of this code
     values: Vec<Expression<'s>>,
@@ -101,7 +103,7 @@ impl<'s> Code<'s> {
                 LabelRef::SpecialIdentifier(SpecialIdentifier::End | SpecialIdentifier::Start) => {
                     Ok(None)
                 }
-                LabelRef::Error(e) => *e,
+                LabelRef::Error(e) => <!>::from(*e),
             })
             .constant_folding()
         }))
@@ -131,7 +133,7 @@ impl<'s> Code<'s> {
                         Ok(Some(start.clone()))
                     }
                     LabelRef::SpecialIdentifier(SpecialIdentifier::End) => Ok(Some(end.clone())),
-                    LabelRef::Error(e) => *e,
+                    LabelRef::Error(e) => <!>::from(*e),
                 })
                 .extract_errs(&mut errors)
                 .map(|e| {
@@ -178,13 +180,28 @@ fn prologue(entry_offset: VMInt) -> impl IntoIterator<Item = Expression<'static>
 }
 
 /// An unit of code
+#[derive(Debug, BorrowDecode, Serialize, Deserialize)]
+// #[bincode(encode_bounds = "'s: 'static")]
 pub struct Unit<'s> {
-    /// All the values of this unit
-    values: Vec<Expression<'s>>,
-    /// Labels defined in this unit, and their position
-    globals: BTreeMap<Identifier<'s>, VMInt>,
     /// Entry point
     entry: Option<VMInt>,
+    /// Labels defined in this unit, and their position
+    #[serde(borrow)]
+    globals: BTreeMap<Identifier<'s>, VMInt>,
+    /// All the values of this unit
+    #[serde(borrow)]
+    values: Vec<Expression<'s>>,
+}
+impl<'s> ::bincode::Encode for Unit<'s> {
+    fn encode<E: bincode::enc::Encoder>(
+        &self,
+        encoder: &mut E,
+    ) -> Result<(), bincode::error::EncodeError> {
+        bincode::Encode::encode(&self.entry, encoder)?;
+        bincode::Encode::encode(&self.globals, encoder)?;
+        utils::encode_vec(&self.values, encoder)?; // we have to avoid direct encoding cause the implementation of `encode` for `Vec` require `'static`
+        Ok(())
+    }
 }
 
 impl<'s> Unit<'s> {
@@ -221,7 +238,7 @@ impl<'s> Unit<'s> {
                             }
                         }
                         LabelRef::SpecialIdentifier(_) => Ok(None),
-                        LabelRef::Error(e) => *e,
+                        LabelRef::Error(e) => <!>::from(*e),
                     })
                     .extract_errs(&mut unit.errors)
                     .map(|e| e.constant_folding())
@@ -395,19 +412,6 @@ where
     }
 }
 
-impl<'s, R, L> CodeGen<'s> for Either<L, R>
-where
-    R: CodeGen<'s>,
-    L: CodeGen<'s>,
-{
-    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
-    where
-        E: Accumulator<Error = AssembleError<'s>>,
-    {
-        for_both!(self, s=>s.code_gen(unit))
-    }
-}
-
 macro_rules! codegen_for_statement {
     (
         $($variant:ident)*
@@ -421,7 +425,7 @@ macro_rules! codegen_for_statement {
                     $(
                     Statement::$variant(stm) => CodeGen::<'s>::code_gen(stm, unit),
                     )*
-                    Statement::Error(e) => e
+                    Statement::Error(e) => <!>::from(e)
                 }
             }
         }
@@ -437,6 +441,18 @@ impl<'s> CodeGen<'s> for IntsStm<'s> {
         E: Accumulator<Error = AssembleError<'s>>,
     {
         self.values.code_gen(unit)
+    }
+}
+
+impl<'s> CodeGen<'s> for IntsParam<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        match self {
+            IntsParam::Int(i) => i.code_gen(unit),
+            IntsParam::Str(s) => s.code_gen(unit),
+        }
     }
 }
 
@@ -510,7 +526,7 @@ impl<'s> CodeGen<'s> for ZerosStm<'s> {
             return;
         };
         IntsStm {
-            values: vec![Left(Box::new(Expression::Num(0))).into(); n],
+            values: vec![IntsParam::Int(Box::new(Expression::Num(0))).into(); n],
         }
         .code_gen(unit)
     }
