@@ -149,9 +149,20 @@ impl<'s> Code<'s> {
 }
 
 fn prologue(entry_offset: VMInt) -> impl IntoIterator<Item = Expression<'static>> {
+    let entry = Box::new(Expression::Sum(
+        Box::new(Expression::Ref(LabelRef::SpecialIdentifier(
+            SpecialIdentifier::Start,
+        ))),
+        Box::new(Expression::Num(entry_offset)),
+    ));
+    let stack_start = Box::new(Expression::Sum(
+        Box::new(Expression::Ref(LabelRef::SpecialIdentifier(
+            SpecialIdentifier::End,
+        ))),
+        Box::new(Expression::Num(1)),
+    ));
     let prologue: File<'_> = ica!(
-        incb #{Box::new(Expression::Sum(Box::new(Expression::Ref(LabelRef::SpecialIdentifier(SpecialIdentifier::End))),Box::new(Expression::Num(1))))};
-        call #{Box::new(Expression::Sum(Box::new(Expression::Ref(LabelRef::SpecialIdentifier(SpecialIdentifier::Start))),Box::new(Expression::Num(entry_offset))))};
+        call #{entry} {stack_start};
         halt
     );
     let Unit {
@@ -570,13 +581,18 @@ impl<'s> CodeGen<'s> for CallStm<'s> {
     where
         E: Accumulator<Error = AssembleError<'s>>,
     {
+        let Self(addr, stack_top) = self;
+        let offset =
+            Box::new(Expression::Sum(stack_top, Box::new(Expression::Num(1)))).constant_folding();
         let label = unit.unnamed_label();
         ica!(
+            incb #{offset.clone()};
             mov #{Box::new(Expression::Ref(LabelRef::Identifier(label)))} @-1;
-            jmp {self.0};
+            jmp {addr};
+            {label} :
+            incb #-{offset}
         )
         .code_gen(unit);
-        LabelDef { label }.code_gen(unit)
     }
 }
 

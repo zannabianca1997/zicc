@@ -25,9 +25,7 @@ factorial:
 
     recurse:
     add @-2 #-1 @0
-    incb #2
-    call #factorial
-    incb #-2
+    call #factorial, 1
     mul @0 @-2 @-2
     ret
 
@@ -41,9 +39,7 @@ main:
     in @0
     // call factorial with a single argument, input.
     // the argument is already in place (@0 -> incb -> @-2)
-    incb #2
-    call #factorial
-    incb #-2
+    call #factorial, 1
     // out the top of the stack
     out @0
     ret

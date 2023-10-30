@@ -217,7 +217,7 @@ impl<'s, E> AstNode<E> for ZerosStm<'s, E> {
 
 impl<'s, E> AstNode<E> for CallStm<'s, E> {
     fn constant_folding(self) -> Self {
-        Self(self.0.constant_folding())
+        Self(self.0.constant_folding(), self.1.constant_folding())
     }
 
     type ErrMapped<EE> = CallStm<'s, EE>;
@@ -226,15 +226,21 @@ impl<'s, E> AstNode<E> for CallStm<'s, E> {
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<Infallible>> {
-        Some(CallStm(self.0.extract_errs(accumulator)?))
+        Some(CallStm(
+            self.0.extract_errs(accumulator)?,
+            self.1.extract_errs(accumulator)?,
+        ))
     }
 
     fn max_unnamed_label(&self) -> Option<usize> {
-        self.0.max_unnamed_label()
+        [self.0.max_unnamed_label(), self.1.max_unnamed_label()]
+            .into_iter()
+            .flatten()
+            .max()
     }
 
     fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
-        CallStm(self.0.map_err(f))
+        CallStm(self.0.map_err(f), self.1.map_err(f))
     }
 }
 

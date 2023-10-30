@@ -65,7 +65,10 @@ pub enum MovStm<'s, Error = Infallible> {
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
-pub struct CallStm<'s, Error = Infallible>(#[serde(borrow)] pub ReadParam<'s, Error>);
+pub struct CallStm<'s, Error = Infallible>(
+    #[serde(borrow)] pub ReadParam<'s, Error>,
+    #[serde(borrow)] pub Box<Expression<'s, Error>>,
+);
 #[derive(
     Debug,
     Clone,

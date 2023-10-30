@@ -105,7 +105,7 @@ mod impls {
         }))
     }
 
-    impl<T> Parse for Ast<Labelled<'static, T>>
+    impl<T> Parse for AstOrBrace<Labelled<'static, T>>
     where
         AstOrBrace<T>: Parse,
     {
@@ -140,7 +140,7 @@ mod impls {
                 })
             }
             let content: AstOrBrace<T> = input.parse()?;
-            Ok(Ast(
+            Ok(AstOrBrace(
                 quote!(
                     ::parser::ast::Labelled {
                         labels: ::std::collections::BTreeSet::from([#(#labels),*]),
@@ -368,10 +368,13 @@ mod impls {
                     }
                 }
             } else if cmd == "call" {
-                let p: AstOrBrace<ReadParam<'static>> = input.parse()?;
+                let addr: AstOrBrace<ReadParam<'static>> = input.parse()?;
+                let _: Option<Token![,]> = input.parse()?;
+                let stack_top: AstOrBrace<Box<Expression<'static>>> = input.parse()?;
                 Ok(Ast(
                     quote!(::parser::ast::Statement::Call(::parser::ast::CallStm(
-                        #p
+                        #addr,
+                        #stack_top
                     ))),
                     PhantomData,
                 ))
