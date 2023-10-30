@@ -79,11 +79,11 @@ mod parsers {
     pub mod ica {
         use std::str::from_utf8;
 
-        use anyhow::{Context};
+        use anyhow::Context;
         use assembler::parser::{ast::File, ParseError};
-        use errors::{Accumulator};
+        use errors::Accumulator;
 
-        use crate::{MAGIC};
+        use crate::MAGIC;
 
         pub fn source<'s>(
             input: &'s [u8],
