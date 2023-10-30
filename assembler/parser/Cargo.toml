@@ -20,6 +20,7 @@ utils = { path = "../../utils" }
 
 [dev-dependencies]
 test_sources = { path = "../test_sources" }
+serde_json = "1.0.107"
 
 [build-dependencies]
 cargo-emit = "0.2.1"

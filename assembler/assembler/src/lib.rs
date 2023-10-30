@@ -180,7 +180,7 @@ fn prologue(entry_offset: VMInt) -> impl IntoIterator<Item = Expression<'static>
 }
 
 /// An unit of code
-#[derive(Debug, BorrowDecode, Serialize, Deserialize)]
+#[derive(Debug, Clone, BorrowDecode, Serialize, Deserialize, PartialEq, Eq)]
 // #[bincode(encode_bounds = "'s: 'static")]
 pub struct Unit<'s> {
     /// Entry point
@@ -264,6 +264,10 @@ impl<'s> Unit<'s> {
                 })
                 .copied(),
         }
+    }
+
+    pub fn is_entry(&self) -> bool {
+        self.entry.is_some()
     }
 }
 
@@ -659,8 +663,31 @@ mod tests {
     use errors::RootAccumulator;
     use parser::ParseError;
     use test_sources::{test_io, test_sources};
+    use vm::VMInt;
 
     use crate::{AssembleError, Code, Unit};
+
+    fn test_run(code: Vec<VMInt>, mut r#in: &[vm::VMInt]) -> Vec<VMInt> {
+        let mut vm = vm::VM::new(code);
+        let mut out = vec![];
+        loop {
+            match vm
+                .run()
+                .expect("The assembled source should not throw errors")
+            {
+                vm::StopState::NeedInput(need_input) => {
+                    let (next_input, rest) = r#in
+                        .split_first()
+                        .expect("The machine asked for more input");
+                    r#in = rest;
+                    need_input.give(*next_input)
+                }
+                vm::StopState::HasOutput(has_output) => out.push(has_output.get()),
+                vm::StopState::Halted => break,
+            }
+        }
+        out
+    }
 
     #[test_sources]
     fn assemble(source: &str) {
@@ -684,10 +711,10 @@ mod tests {
             panic!("Errors during linking")
         }
     }
+
     #[test_io]
     fn io(source: &str, r#in: &[vm::VMInt], expected: &[vm::VMInt]) {
         use errors::PanicAccumulator;
-        use vm::ICMachine;
 
         let ast = parser::parse(source, &mut PanicAccumulator::<ParseError>::new()).unwrap();
         let unit = Unit::assemble(ast, &mut PanicAccumulator::<AssembleError>::new());
@@ -695,23 +722,11 @@ mod tests {
         code.push_unit(unit, &mut PanicAccumulator::<AssembleError>::new());
         let code = code.emit(&mut PanicAccumulator::<AssembleError>::new());
 
-        let mut vm = vm::ICMachineData::new(&code);
-        for i in r#in {
-            vm.give_input(*i).into_ok()
-        }
-        match vm.run() {
-            vm::ICMachineStopState::EmptyInput => panic!("The machine asked for more input"),
-            vm::ICMachineStopState::RuntimeErr(err) => panic!("The machine gave an error: {err}"),
-            vm::ICMachineStopState::Halted => (),
-        }
-        let out = {
-            let mut out = vec![];
-            while let Some(v) = vm.get_output() {
-                out.push(v)
-            }
-            out
-        };
-        assert_eq!(&out, expected, "The machine gave a different output")
+        assert_eq!(
+            &test_run(code, r#in),
+            expected,
+            "The machine gave a different output"
+        )
     }
 
     mod globals {
@@ -721,9 +736,8 @@ mod tests {
         use itertools::Itertools;
         use lexer::Identifier;
         use parser::ParseError;
-        use vm::ICMachine;
 
-        use crate::{AssembleError, Code, Unit};
+        use crate::{tests::test_run, AssembleError, Code, Unit};
 
         #[test]
         fn okay() {
@@ -769,22 +783,11 @@ mod tests {
                 panic!("Errors during linking")
             }
 
-            let mut vm = vm::ICMachineData::new(&code);
-            match vm.run() {
-                vm::ICMachineStopState::EmptyInput => panic!("The machine asked for more input"),
-                vm::ICMachineStopState::RuntimeErr(err) => {
-                    panic!("The machine gave an error: {err}")
-                }
-                vm::ICMachineStopState::Halted => (),
-            }
-            let out = {
-                let mut out = vec![];
-                while let Some(v) = vm.get_output() {
-                    out.push(v)
-                }
-                out
-            };
-            assert_eq!(&out, &[42], "The machine gave a different output")
+            assert_eq!(
+                &test_run(code, &[]),
+                &[42],
+                "The machine gave a different output"
+            )
         }
         #[test]
         fn err() {
@@ -832,6 +835,45 @@ mod tests {
             } else {
                 panic!("Linking gave no errors")
             }
+        }
+    }
+
+    mod unit_serialization {
+        use crate::{AssembleError, Unit};
+        use parser::ParseError;
+        use test_sources::test_sources;
+
+        fn unit(source: &str) -> Unit {
+            use errors::PanicAccumulator;
+            let ast = parser::parse(source, &mut PanicAccumulator::<ParseError>::new()).unwrap();
+            Unit::assemble(ast, &mut PanicAccumulator::<AssembleError>::new())
+        }
+
+        #[test_sources]
+        fn serde(source: &str) {
+            let unit = unit(source);
+            let serialized = serde_json::to_string(&unit).expect("The unit should serialize");
+            let deserialized =
+                serde_json::from_str(&serialized).expect("The unit should deserialize");
+            assert_eq!(
+                unit, deserialized,
+                "The deserialized unit should be the same"
+            )
+        }
+
+        #[test_sources]
+        fn bincode(source: &str) {
+            let unit = unit(source);
+            let serialized = ::bincode::encode_to_vec(&unit, ::bincode::config::standard())
+                .expect("The unit should encode");
+            let deserialized =
+                ::bincode::borrow_decode_from_slice(&serialized, ::bincode::config::standard())
+                    .expect("The unit should decode")
+                    .0;
+            assert_eq!(
+                unit, deserialized,
+                "The deserialized unit should be the same"
+            )
         }
     }
 }

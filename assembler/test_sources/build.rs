@@ -25,7 +25,7 @@ impl Examples {
         for item in examples_dir.as_ref().read_dir()? {
             let item = item?;
             if item.file_type()?.is_file()
-                && item.path().extension().is_some_and(|ext| ext == "ints")
+                && item.path().extension().is_some_and(|ext| ext == "ica")
             {
                 let name = syn::parse_str::<Ident>(from_utf8(
                     item.path().file_stem().unwrap().as_os_str_bytes(),
