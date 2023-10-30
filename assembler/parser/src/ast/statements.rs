@@ -62,31 +62,6 @@ pub enum MovStm<'s, Error = Infallible> {
         #[serde(borrow)] Box<Expression<'s, Error>>,
     ),
 }
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
-)]
-pub enum PushStm<'s, Error = Infallible> {
-    /// Push a single memory cell
-    Single(#[serde(borrow)] ReadParam<'s, Error>),
-    /// Pushes multiple consecutive memory cells
-    Multiple(
-        #[serde(borrow)] UnlabelledNonImmediateReadParam<'s, Error>,
-        #[serde(borrow)] Box<Expression<'s, Error>>,
-    ),
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
-)]
-pub enum PopStm<'s, Error = Infallible> {
-    /// Pop a single memory cell
-    Single(#[serde(borrow)] WriteParam<'s, Error>),
-    /// Pop multiple consecutive memory cells
-    Multiple(
-        #[serde(borrow)] UnlabelledWriteParam<'s, Error>,
-        #[serde(borrow)] Box<Expression<'s, Error>>,
-    ),
-}
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]

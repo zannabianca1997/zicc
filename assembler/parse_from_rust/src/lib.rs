@@ -367,65 +367,6 @@ mod impls {
                         ))
                     }
                 }
-            } else if cmd == "push" {
-                let forked = input.fork();
-                let a: AstOrBrace<ReadParam<'static>> = forked.parse()?;
-                let _: Option<Token![,]> = forked.parse().unwrap();
-                match forked.parse::<AstOrBrace<Box<Expression<'static>>>>() {
-                    Ok(_) => {
-                        // need to reparse as the stricter version
-                        // this could be avoided by building an ast
-                        let a: AstOrBrace<UnlabelledNonImmediateReadParam<'static>> =
-                            input.parse()?;
-                        let _: Option<Token![,]> = input.parse().unwrap();
-                        let n: AstOrBrace<Box<Expression<'static>>> = input.parse()?;
-                        Ok(Ast(
-                            quote!(::parser::ast::Statement::Push(::parser::ast::PushStm::Multiple(
-                                #a,#n
-                            ))),
-                            PhantomData,
-                        ))
-                    }
-                    Err(_) => {
-                        // joining the stream
-                        input.advance_to(&forked);
-                        Ok(Ast(
-                            quote!(::parser::ast::Statement::Push(::parser::ast::PushStm::Single(
-                                #a
-                            ))),
-                            PhantomData,
-                        ))
-                    }
-                }
-            } else if cmd == "pop" {
-                let forked = input.fork();
-                let a: AstOrBrace<WriteParam<'static>> = forked.parse()?;
-                let _: Option<Token![,]> = forked.parse().unwrap();
-                match forked.parse::<AstOrBrace<Box<Expression<'static>>>>() {
-                    Ok(_) => {
-                        // need to reparse as the stricter version
-                        // this could be avoided by building an ast
-                        let a: AstOrBrace<UnlabelledWriteParam<'static>> = input.parse()?;
-                        let _: Option<Token![,]> = input.parse().unwrap();
-                        let n: AstOrBrace<Box<Expression<'static>>> = input.parse()?;
-                        Ok(Ast(
-                            quote!(::parser::ast::Statement::Pop(::parser::ast::PopStm::Multiple(
-                                #a,#n
-                            ))),
-                            PhantomData,
-                        ))
-                    }
-                    Err(_) => {
-                        // joining the stream
-                        input.advance_to(&forked);
-                        Ok(Ast(
-                            quote!(::parser::ast::Statement::Pop(::parser::ast::PopStm::Single(
-                                #a
-                            ))),
-                            PhantomData,
-                        ))
-                    }
-                }
             } else if cmd == "call" {
                 let p: AstOrBrace<ReadParam<'static>> = input.parse()?;
                 Ok(Ast(

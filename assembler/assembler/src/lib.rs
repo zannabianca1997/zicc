@@ -150,7 +150,7 @@ impl<'s> Code<'s> {
 
 fn prologue(entry_offset: VMInt) -> impl IntoIterator<Item = Expression<'static>> {
     let prologue: File<'_> = ica!(
-        incb #{Box::new(Expression::Ref(LabelRef::SpecialIdentifier(SpecialIdentifier::End)))};
+        incb #{Box::new(Expression::Sum(Box::new(Expression::Ref(LabelRef::SpecialIdentifier(SpecialIdentifier::End))),Box::new(Expression::Num(1))))};
         call #{Box::new(Expression::Sum(Box::new(Expression::Ref(LabelRef::SpecialIdentifier(SpecialIdentifier::Start))),Box::new(Expression::Num(entry_offset))))};
         halt
     );
@@ -436,7 +436,7 @@ macro_rules! codegen_for_statement {
     };
 }
 codegen_for_statement! {
-    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret Export Entry
+    Ints Instruction Inc Dec Jmp Mov Zeros Call Ret Export Entry
 }
 
 impl<'s> CodeGen<'s> for IntsStm<'s> {
@@ -564,62 +564,16 @@ impl<'s> CodeGen<'s> for MovStm<'s> {
         }
     }
 }
-impl<'s> CodeGen<'s> for PushStm<'s> {
-    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
-    where
-        E: Accumulator<Error = AssembleError<'s>>,
-    {
-        match self {
-            PushStm::Single(a) => ica!(
-                mov {a} @0;
-                incb #1
-            )
-            .code_gen(unit),
-            PushStm::Multiple(a, n) => ica!(
-                mov {a} @0 {n.clone()};
-                incb #{n}
-            )
-            .code_gen(unit),
-        }
-    }
-}
-impl<'s> CodeGen<'s> for PopStm<'s> {
-    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
-    where
-        E: Accumulator<Error = AssembleError<'s>>,
-    {
-        match self {
-            PopStm::Single(a) => ica!(
-                mov @-1 {a};
-                incb #-1
-            )
-            .code_gen(unit),
-            PopStm::Multiple(a, n) => ica!(
-                mov @-{n.clone()} {a} {n.clone()};
-                incb #-{n}
-            )
-            .code_gen(unit),
-        }
-    }
-}
 
 impl<'s> CodeGen<'s> for CallStm<'s> {
     fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
     where
         E: Accumulator<Error = AssembleError<'s>>,
     {
-        let Self(mut addr) = self;
-        // patching the address if it's relative, given we have to jump AFTER we push
-        if let ReadParam::Relative(RelativeParam {
-            value: Labelled { content, .. },
-        }) = &mut addr
-        {
-            **content += -1;
-        }
         let label = unit.unnamed_label();
         ica!(
-            push #{Box::new(Expression::Ref(LabelRef::Identifier(label)))};
-            jmp {addr};
+            mov #{Box::new(Expression::Ref(LabelRef::Identifier(label)))} @-1;
+            jmp {self.0};
         )
         .code_gen(unit);
         LabelDef { label }.code_gen(unit)
@@ -632,8 +586,7 @@ impl<'s> CodeGen<'s> for RetStm {
         E: Accumulator<Error = AssembleError<'s>>,
     {
         ica!(
-            incb #-1;
-            jmp @0
+            jmp @-1
         )
         .code_gen(unit)
     }

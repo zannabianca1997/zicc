@@ -5,21 +5,25 @@ tests:
     - in: ["Hey sister!", 0]
       out: ["!retsis yeH"]
 ---
-incb #$end
+incb # $end + 1
 
-push #0 // canary to detect stack bottom
+mov #0 @0 // canary to detect stack bottom
 
 input_loop:
     in input
     jz input #start_output
-    push input
+
+    incb #1
+    mov input @0
 jmp #input_loop
 
 
 start_output:
 
 output_loop:
-    pop input
+    mov @0 input
+    incb #-1
+
     jz input #end
     out input
 jmp #output_loop

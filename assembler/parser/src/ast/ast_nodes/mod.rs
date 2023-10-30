@@ -309,7 +309,7 @@ macro_rules! ast_node_for_statement {
 }
 
 ast_node_for_statement! {
-    Ints Instruction Inc Dec Jmp Mov Zeros Push Pop Call Ret Export Entry
+    Ints Instruction Inc Dec Jmp Mov Zeros Call Ret Export Entry
 }
 
 impl<'s, E> AstNode<E> for Instruction<'s, E> {

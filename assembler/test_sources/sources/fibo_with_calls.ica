@@ -25,7 +25,7 @@ tests:
 fibo:
     /*
         stack is:
-            -4: fibo(0), then the output value
+            -4: fibo(0)
             -3: fibo(1)
             -2: n
             -1: return address
@@ -36,61 +36,69 @@ fibo:
         ret // the output fibo(0) is already in @-4
     $0:
 
-    dec @-2
-    jnz @-2 #$1
-        inc @-2
+    add @-2 #-1 @0
+    jnz @0 #$1
         mov @-3 @-4 // move the output value
         ret
     $1:
-    inc @-2
 
 
     /*
         Extending call frame to call recursively
         stack is:
-            -8: fibo(0), then the output value
-            -7: fibo(1)
-            -6: n
-            -5: return address
-            -4: accumulator for the sum
-            -3: fibo(0), then output value of the subroutine
-            -2: fibo(1)
-            -1: n-1 | n-2
+            -4: fibo(0)
+            -3: fibo(1)
+            -2: n
+            -1: return address
+             0: fibo(0), then output value
+             1: fibo(1)
+             2: n-1
     */
+    mov @-4 @0   2  // moving base parameters
+    add @-2 #-1 @2  // argument 3 is n-1
+    
     incb #4
-
-    mov #0 @-4 // zeroing the accumulator
-    mov @-8 @-3 3 // moving all the parameters
-
-    dec @-1 // now argument 3 is n-1
     call #fibo
-    add @-3 @-4 @-4
+    incb #-4
 
-    mov @-8 @-3 // resetting first argument
-    dec @-1     // now argument 3 is n-2
+
+    /*
+        Extending call frame to call recursively
+        stack is:
+            -4: fibo(0)
+            -3: fibo(1)
+            -2: n
+            -1: return address
+             0: first result
+             1: fibo(0), then output value
+             2: fibo(1)
+             3: n-2
+    */
+
+    mov @-4 @1 2   // moving base parameters
+    add @-2 #-2 @3 // argument 3 is n-2
+
+    incb #5
     call #fibo
-    add @-3 @-4 @-4 // actual sum
-
-    mov @-4 @-8 // setting output
-
-    incb #-4 // popping locals
+    incb #-5
+    
+    add @1 @0 @-4 // actual sum, and putting it into the output
     ret
 
 entry main
 main:
     /*
         local variables:
-            -3: fibo(0)
-            -2: fibo(1)
-            -1: n
+            0: fibo(0)
+            1: fibo(1)
+            2: n
     */
-    incb #3
-    in @-3; in @-2;
-    in @-1
+    in @0; in @1;
+    in @2
 
+    incb #4
     call #fibo
+    incb #-4
 
-    out @-3
-
-    incb #-3
+    out @0
     ret

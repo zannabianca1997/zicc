@@ -235,8 +235,6 @@ pub enum Statement<'s, Error = Infallible> {
     Jmp(#[serde(borrow)] JmpStm<'s, Error>),
     Mov(#[serde(borrow)] MovStm<'s, Error>),
     Zeros(#[serde(borrow)] ZerosStm<'s, Error>),
-    Push(#[serde(borrow)] PushStm<'s, Error>),
-    Pop(#[serde(borrow)] PopStm<'s, Error>),
     Call(#[serde(borrow)] CallStm<'s, Error>),
     Ret(RetStm),
     Export(#[serde(borrow)] ExportStm<'s>),
