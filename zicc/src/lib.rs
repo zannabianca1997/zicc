@@ -2,14 +2,12 @@
 #![feature(unwrap_infallible)]
 
 use std::{
-    any,
     fmt::Display,
-    io::{self, stdin, stdout, BufRead, Read, Stdin, StdinLock, Stdout, StdoutLock, Write},
-    mem,
+    io::{self, stdin, stdout, Read, StdinLock, StdoutLock, Write},
 };
 
 use anyhow::{bail, Context};
-use assembler::{parser::ast::File, AssembleError, Code, Unit};
+use assembler::{AssembleError, Code};
 use clap::{Args, Parser, ValueEnum};
 use errors::{Accumulator, Multiple, RootAccumulator};
 use path_or_dash::{FileOrStdin, FileOrStdout, PathOrDash};
@@ -81,11 +79,11 @@ mod parsers {
     pub mod ica {
         use std::str::from_utf8;
 
-        use anyhow::{bail, Context};
+        use anyhow::{Context};
         use assembler::parser::{ast::File, ParseError};
-        use errors::{Accumulator, RootAccumulator};
+        use errors::{Accumulator};
 
-        use crate::{print_errs, MAGIC};
+        use crate::{MAGIC};
 
         pub fn source<'s>(
             input: &'s [u8],
