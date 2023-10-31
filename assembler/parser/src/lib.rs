@@ -2,11 +2,14 @@
 #![feature(box_into_inner)]
 #![feature(box_patterns)]
 
+#[cfg(feature = "parse")]
 pub use ast::ParseError;
+#[cfg(feature = "parse")]
 use errors::Accumulator;
 
 pub mod ast;
 
+#[cfg(feature = "parse")]
 pub fn parse<'s, A>(source: &'s str, errors: &mut A) -> Option<ast::File<'s>>
 where
     A: Accumulator,
@@ -15,6 +18,7 @@ where
     ast::File::parse(source, &mut errors.as_mapped(|err: ParseError| err.into()))
 }
 
+#[cfg(feature = "parse")]
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -25,6 +25,7 @@ mod impls {
     struct Source {
         descr: Option<&'static str>,
         source: &'static str,
+        assembled: Option<&'static [VMInt]>,
     }
 
     struct Test {
@@ -80,7 +81,7 @@ mod impls {
             |(
                 name,
                 SourceFile {
-                    source: Source { descr, source },
+                    source: Source { descr, source, .. },
                     ..
                 },
             )| {
@@ -157,7 +158,7 @@ mod impls {
             |(
                 name,
                 SourceFile {
-                    source: Source { descr, source },
+                    source: Source { descr, source, .. },
                     tests,
                 },
             )| {

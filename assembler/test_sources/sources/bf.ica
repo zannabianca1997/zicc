@@ -1,0 +1,183 @@
+descr: |
+  This is a crude brainfuck interpreter, mostly for fun.
+  It tests the LOAD and STORE instructions, using them to interact with memory and program space
+tests:
+  empty:
+    in: [0]
+    out: []
+  cat:
+    in: [",[.,]", 0, "Repeat this!", 0]
+    out: ["Repeat this!"]
+  uppercase:
+    in: [",----------[----------------------.,----------]", 0, "uppercase\n"]
+    out: ["UPPERCASE"]
+  add_4_3:
+    in: [",>++++++[<-------->-],,[<+>-],<.>.", 0, "4+3\n"]
+    out: ["7\n"]
+  add_2_4:
+    in: [",>++++++[<-------->-],,[<+>-],<.>.", 0, "2+4\n"]
+    out: ["6\n"]
+  hello:
+    in:
+      [
+        "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.",
+        0,
+      ]
+    out: ["Hello World!\n"]
+---
+// Load the program in memory
+IN readed_ch
+$0: JZ readed_ch #init 
+  STORE readed_ch mem_ptr
+  INC mem_ptr
+  IN readed_ch
+JMP #$0
+
+init: 
+  INC mem_ptr // add a blank space to mark the end of the program
+  // fall to exec..
+
+/*
+  From here the program is organized as a flat state machine, jumping without a call stack,
+  but sharing common static variables
+*/
+
+exec:
+  LOAD instr_ptr curr_instr  // load current instruction
+  LOAD mem_ptr   curr_val    // load current memory value
+
+  // Use the jump table to jump to the right handler
+  ADD  curr_instr #jmp_table curr_instr  // offset the current instruction with the start of the jump table
+  LOAD curr_instr curr_instr             // load from the jump table the pointer into curr_instr
+  JMP  curr_instr                        // jump to the handler
+
+// Handlers
+increase:
+  INC curr_val
+  STORE curr_val mem_ptr // save new value
+  INC instr_ptr          // go to next instruction
+  JMP #exec
+decrease:
+  DEC curr_val
+  STORE curr_val mem_ptr // save new value
+  INC instr_ptr          // go to next instruction
+  JMP #exec
+
+input:
+  IN curr_val
+  STORE curr_val mem_ptr // save new value
+  INC instr_ptr          // go to next instruction
+  JMP #exec
+output:
+  OUT curr_val
+  INC instr_ptr          // go to next instruction
+  JMP #exec
+
+go_right:
+  INC mem_ptr
+  INC instr_ptr          // go to next instruction
+  JMP #exec
+go_left:
+  DEC mem_ptr
+  INC instr_ptr          // go to next instruction
+  JMP #exec
+
+lparen:
+  // if the value is not 0, simply continue executing from the next instruction
+  JZ curr_val #$1
+    INC instr_ptr          // go to next instruction
+    JMP #exec
+  $1:
+
+  // go to the corresponding ]
+  MOV #1 par_depth // we are inside this loop
+  $2:
+    INC instr_ptr
+    LOAD instr_ptr curr_instr         // load current instruction
+
+    SEQ curr_instr #'[' condition_out // check if it's a start loop
+    JZ condition_out #$3              // if it isn't, go to next cases
+      INC par_depth
+      JMP #$2 // check next char
+    $3:
+
+    SEQ curr_instr #']' condition_out // check if it's an end loop
+    JZ condition_out #$2              // if is it neither, check next char
+      DEC par_depth
+      JNZ par_depth #$2               // if it is't the matching one, check next char
+        // We found the matching ], let's restart normal interpreting
+        INC instr_ptr
+        JMP #exec
+
+rparen:
+  /*
+     if the value is 0, simply continue executing from the next instruction
+     aka: do not go back if not necessary
+  */
+  JNZ curr_val #$4
+    INC instr_ptr          // go to next instruction
+    JMP #exec
+  $4:
+
+  // go to the corresponding [
+  MOV #1 par_depth // we are inside this loop
+  $5:
+    DEC instr_ptr
+    LOAD instr_ptr curr_instr         // load current instruction
+
+    SEQ curr_instr #']' condition_out // check if it's an end loop
+    JZ condition_out #$6              // if it isn't, go to next cases
+      INC par_depth
+      JMP #$5 // check next char
+    $6:
+
+    SEQ curr_instr #'[' condition_out // check if it's a start loop
+    JZ condition_out #$5              // if is it neither, check next char
+      DEC par_depth
+      JNZ par_depth #$5               // if it is't the matching one, check next char
+        // We found the matching [, let's restart normal interpreting
+        INC instr_ptr
+        JMP #exec
+
+halt:
+  HALT
+
+// jump table matching ascii values to pointers to handlers
+jmp_table:
+  ZEROS 0
+  INTS halt // 0 -> halt
+  ZEROS '+' - (0 + 1)
+  INTS increase
+  ZEROS ',' - ('+' + 1)
+  INTS input
+  ZEROS '-' - (',' + 1)
+  INTS decrease
+  ZEROS '.' - ('-' + 1)
+  INTS output
+  ZEROS '<' - ('.' + 1)
+  INTS go_left
+  ZEROS '>' - ('<' + 1)
+  INTS go_right
+  ZEROS '[' - ('>' + 1)
+  INTS lparen
+  ZEROS ']' - ('[' + 1)
+  INTS rparen
+
+// static variables
+
+instr_ptr:  INTS  $end // instruction pointer
+mem_ptr:    INTS  $end // memory pointer
+
+curr_instr: ZEROS 1       // current instruction
+curr_val:   ZEROS 1       // current value in mem
+
+// variable for [] navigation
+par_depth:  ZEROS 1       // depth of parenthesis
+
+// variable for input
+readed_ch:  ZEROS 1       // char readed
+
+// miscellanea
+condition_out: ZEROS 1    // condition output
+
+// program space starts here, at $end

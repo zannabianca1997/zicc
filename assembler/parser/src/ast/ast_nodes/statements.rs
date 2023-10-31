@@ -227,12 +227,12 @@ impl<'s, E> AstNode<E> for LoadStm<'s, E> {
                 relative,
                 ptr,
                 to,
-                n,
+                l: n,
             } => Self::Multiple {
                 relative,
                 ptr: ptr.constant_folding(),
                 to: to.constant_folding(),
-                n: n.constant_folding(),
+                l: n.constant_folding(),
             },
         }
     }
@@ -253,12 +253,12 @@ impl<'s, E> AstNode<E> for LoadStm<'s, E> {
                 relative,
                 ptr,
                 to,
-                n,
+                l: n,
             } => LoadStm::Multiple {
                 relative,
                 ptr: ptr.extract_errs(accumulator)?,
                 to: to.extract_errs(accumulator)?,
-                n: n.extract_errs(accumulator)?,
+                l: n.extract_errs(accumulator)?,
             },
         })
     }
@@ -274,12 +274,12 @@ impl<'s, E> AstNode<E> for LoadStm<'s, E> {
                 relative,
                 ptr,
                 to,
-                n,
+                l: n,
             } => LoadStm::Multiple {
                 relative,
                 ptr: ptr.map_err(f),
                 to: to.map_err(f),
-                n: n.map_err(f),
+                l: n.map_err(f),
             },
         }
     }
@@ -298,7 +298,7 @@ impl<'s, E> AstNode<E> for LoadStm<'s, E> {
                 relative: _,
                 ptr,
                 to,
-                n,
+                l: n,
             } => [
                 ptr.max_unnamed_label(),
                 to.max_unnamed_label(),
@@ -326,12 +326,12 @@ impl<'s, E> AstNode<E> for StoreStm<'s, E> {
                 relative,
                 ptr,
                 from,
-                n,
+                l: n,
             } => Self::Multiple {
                 relative,
                 ptr: ptr.constant_folding(),
                 from: from.constant_folding(),
-                n: n.constant_folding(),
+                l: n.constant_folding(),
             },
         }
     }
@@ -356,12 +356,12 @@ impl<'s, E> AstNode<E> for StoreStm<'s, E> {
                 relative,
                 ptr,
                 from,
-                n,
+                l: n,
             } => StoreStm::Multiple {
                 relative,
                 ptr: ptr.extract_errs(accumulator)?,
                 from: from.extract_errs(accumulator)?,
-                n: n.extract_errs(accumulator)?,
+                l: n.extract_errs(accumulator)?,
             },
         })
     }
@@ -381,12 +381,12 @@ impl<'s, E> AstNode<E> for StoreStm<'s, E> {
                 relative,
                 ptr,
                 from,
-                n,
+                l: n,
             } => StoreStm::Multiple {
                 relative,
                 ptr: ptr.map_err(f),
                 from: from.map_err(f),
-                n: n.map_err(f),
+                l: n.map_err(f),
             },
         }
     }
@@ -405,7 +405,7 @@ impl<'s, E> AstNode<E> for StoreStm<'s, E> {
                 relative: _,
                 from,
                 ptr,
-                n,
+                l: n,
             } => [
                 from.max_unnamed_label(),
                 ptr.max_unnamed_label(),

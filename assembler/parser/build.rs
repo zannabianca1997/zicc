@@ -11,6 +11,11 @@ use keyword_expand::KEYWORDS;
 use lazy_regex::regex_captures;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    if env::var_os("CARGO_FEATURE_PARSE").is_none() {
+        // do not compile grammar if parse is not needed
+        return Ok(());
+    }
+
     let work_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let grammar_path = PathBuf::from("src/grammar.lalrpop");
     let expanded_path = work_dir.join("grammar.lalrpop");

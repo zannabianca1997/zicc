@@ -221,6 +221,21 @@ impl<'s, E> From<UnlabelledWriteParam<'s, E>> for UnlabelledReadParam<'s, E> {
     }
 }
 
+impl<'s, E> TryFrom<ReadParam<'s, E>> for UnlabelledReadParam<'s, E> {
+    type Error = ParseErrorContent;
+
+    fn try_from(
+        value: ReadParam<'s, E>,
+    ) -> Result<Self, <Self as TryFrom<ReadParam<'s, E>>>::Error> {
+        Ok(match value {
+            ReadParam::Absolute(a) => Self::Absolute(a.try_into()?),
+            ReadParam::Relative(r) => Self::Relative(r.try_into()?),
+            ReadParam::Error(e) => Self::Error(e),
+            ReadParam::Immediate(i) => Self::Immediate(i.try_into()?),
+        })
+    }
+}
+
 pub type UnlabelledNonImmediateReadParam<'s, Error = Infallible> = UnlabelledWriteParam<'s, Error>;
 
 #[derive(
@@ -282,6 +297,28 @@ impl<'s, E> TryFrom<WriteParam<'s, E>> for UnlabelledWriteParam<'s, E> {
 pub struct UnlabelledImmediateParam<'s, Error = Infallible> {
     #[serde(borrow)]
     pub value: Box<Expression<'s, Error>>,
+}
+impl<'s, E> TryFrom<ImmediateParam<'s, E>> for UnlabelledImmediateParam<'s, E> {
+    type Error = ParseErrorContent;
+
+    fn try_from(
+        value: ImmediateParam<'s, E>,
+    ) -> Result<Self, <Self as TryFrom<ImmediateParam<'s, E>>>::Error> {
+        let ImmediateParam {
+            value: Labelled { labels, content },
+        } = value;
+        if labels.is_empty() {
+            Ok(Self { value: content })
+        } else {
+            Err(ParseErrorContent::LabelsOnUnlabelled {
+                span: labels
+                    .into_iter()
+                    .map(|LabelDef { label }| label.span())
+                    .reduce(|s1, s2| (s1.start.min(s2.start))..(s1.end.min(s2.end)))
+                    .unwrap(),
+            })
+        }
+    }
 }
 
 #[derive(

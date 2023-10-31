@@ -9,7 +9,7 @@ edition = "2021"
 errors = { path = "../../errors" }
 itertools = "0.11.0"
 lexer = { path = "../lexer" }
-parser = { path = "../parser" }
+parser = { path = "../parser", features = ["parse"] }
 thiserror = "1.0.49"
 vm = { path = "../../vm" }
 parse_from_rust = { path = "../parse_from_rust" }

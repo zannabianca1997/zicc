@@ -101,6 +101,7 @@ impl ToTokens for Source {
             Source {
                 descr: #descr,
                 source: #source,
+                assembled: None,
             }
         )
         .to_tokens(tokens)

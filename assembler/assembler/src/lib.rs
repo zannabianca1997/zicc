@@ -611,7 +611,7 @@ impl<'s> CodeGen<'s> for LoadStm<'s> {
                 relative,
                 ptr,
                 to,
-                n,
+                l: n,
             } => {
                 let n = unit.const_expr(*n).unwrap_or_default();
                 for offset in 0..n {
@@ -686,7 +686,7 @@ impl<'s> CodeGen<'s> for StoreStm<'s> {
                 relative,
                 from,
                 ptr,
-                n,
+                l: n,
             } => {
                 let n = unit.const_expr(*n).unwrap_or_default();
                 for offset in 0..n {

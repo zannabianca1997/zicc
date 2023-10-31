@@ -36,13 +36,14 @@ LabelledPlus<T>: Labelled<'s, T> = {
 Statement: Statement<'s, AstErrorRecovery<'s>> = {
   "ints" <values: CommaSepExprs> => Statement::Ints(IntsStm{<>}),
   Instruction => Statement::Instruction(<>),
-  "inc" <UnlabelledWriteParam> => Statement::Inc(IncStm(<>)),
-  "dec" <UnlabelledWriteParam> => Statement::Dec(DecStm(<>)),
-  "jmp" <ReadParam> => Statement::Jmp(JmpStm(<>)),
-  "mov" <ParamMov> => Statement::Mov(<>),
+  "inc"   <UnlabelledWriteParam> => Statement::Inc(IncStm(<>)),
+  "dec"   <UnlabelledWriteParam> => Statement::Dec(DecStm(<>)),
+  "jmp"   <ReadParam>  => Statement::Jmp(JmpStm(<>)),
+  "mov"   <ParamMov>   => Statement::Mov(<>),
+  "load"  <ParamLoad>  => Statement::Load(<>),
+  "store" <ParamStore> => Statement::Store(<>),
   "zeros" <Expression> => Statement::Zeros(ZerosStm(<>)),
-  "call"  <ReadParam> "," <Expression>   => Statement::Call(CallStm(<>)),
-  "call"  <ReadParam> <ExpressionNonNeg> => Statement::Call(CallStm(<>)),
+  "call"  <ParamCall>  => Statement::Call(<>),
   "ret"   => Statement::Ret(RetStm),
   "export" <exported: NamedIdentifierList> => Statement::Export(ExportStm{<>}),
   "entry" <entry: DefinableIdentifier> => Statement::Entry(EntryStm{<>})
@@ -76,6 +77,66 @@ ParamMov: MovStm<'s, AstErrorRecovery<'s>> = {
   <a: WriteParam> <b: WriteParamNoComma> "," <l:Expression> =>? Ok(MovStm::Multiple(a.try_into()?,b.try_into()?,l)),
   <a: WriteParam> "," <b: WriteParam> <l:ExpressionNonNeg> =>? Ok(MovStm::Multiple(a.try_into()?,b.try_into()?,l)),
   <a: WriteParam> <b: WriteParamNoComma> <l:ExpressionNonNeg> =>? Ok(MovStm::Multiple(a.try_into()?,b.try_into()?,l))
+}
+ParamCall: CallStm<'s, AstErrorRecovery<'s>> = {
+  <ReadParam> "," <Expression>   => CallStm(<>),
+  <ReadParam> <ExpressionNonNeg> => CallStm(<>),
+}
+ParamStore: StoreStm<'s, AstErrorRecovery<'s>> = {
+  <from: ReadParam> "," <ptr: ReadParam>    => StoreStm::Single{relative: false, <>},
+  <from: ReadParam> <ptr: ReadParamNoComma> => StoreStm::Single{relative: false, <>},
+  <from: ReadParam> "," <ptr: ReadParam> "," <l:Expression>      =>? Ok(StoreStm::Multiple{
+    relative: false,
+    from: from.try_into()?,
+    ptr: ptr.try_into()?,
+    l
+  }),
+  <from: ReadParam> <ptr: ReadParamNoComma> "," <l:Expression>   =>? Ok(StoreStm::Multiple{
+    relative: false,
+    from: from.try_into()?,
+    ptr: ptr.try_into()?,
+    l
+  }),
+  <from: ReadParam> "," <ptr: ReadParam> <l:ExpressionNonNeg>    =>? Ok(StoreStm::Multiple{
+    relative: false,
+    from: from.try_into()?,
+    ptr: ptr.try_into()?,
+    l
+  }),
+  <from: ReadParam> <ptr: ReadParamNoComma> <l:ExpressionNonNeg> =>? Ok(StoreStm::Multiple{
+    relative: false,
+    from: from.try_into()?,
+    ptr: ptr.try_into()?,
+    l
+  }),
+}
+ParamLoad: LoadStm<'s, AstErrorRecovery<'s>> = {
+  <ptr: ReadParam> "," <to: WriteParam>    => LoadStm::Single{relative: false, <>},
+  <ptr: ReadParam> <to: WriteParamNoComma> => LoadStm::Single{relative: false, <>},
+  <ptr: ReadParam> "," <to: WriteParam> "," <l:Expression>      =>? Ok(LoadStm::Multiple{
+    relative: false,
+    ptr: ptr.try_into()?,
+    to: to.try_into()?,
+    l
+  }),
+  <ptr: ReadParam> <to: WriteParamNoComma> "," <l:Expression>   =>? Ok(LoadStm::Multiple{
+    relative: false,
+    ptr: ptr.try_into()?,
+    to: to.try_into()?,
+    l
+  }),
+  <ptr: ReadParam> "," <to: WriteParam> <l:ExpressionNonNeg>    =>? Ok(LoadStm::Multiple{
+    relative: false,
+    ptr: ptr.try_into()?,
+    to: to.try_into()?,
+    l
+  }),
+  <ptr: ReadParam> <to: WriteParamNoComma> <l:ExpressionNonNeg> =>? Ok(LoadStm::Multiple{
+    relative: false,
+    ptr: ptr.try_into()?,
+    to: to.try_into()?,
+    l
+  }),
 }
 
 ReadParam: ReadParam<'s, AstErrorRecovery<'s>> = {

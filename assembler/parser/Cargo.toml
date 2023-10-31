@@ -3,13 +3,14 @@ name = "parser"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+parse = ["dep:lalrpop-util"]
 
 [dependencies]
 arrayvec = "0.7.4"
 errors = { path = "../../errors" }
 itertools = "0.11.0"
-lalrpop-util = { version = "0.20.0", features = ["unicode"] }
+lalrpop-util = { version = "0.20.0", features = ["unicode"], optional = true }
 lexer = { path = "../lexer" }
 map_in_place = "0.1.0"
 thiserror = "1.0.49"

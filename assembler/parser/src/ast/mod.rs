@@ -8,20 +8,27 @@ use std::{
 use arrayvec::ArrayVec;
 use bincode::{BorrowDecode, Decode, Encode};
 use itertools::Itertools;
-use lalrpop_util::{lalrpop_mod, ErrorRecovery};
 use map_in_place::MapBoxInPlace;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+#[cfg(feature = "parse")]
+use lalrpop_util::{lalrpop_mod, ErrorRecovery};
+
 use errors::{Accumulator, Spanned};
-use lexer::{Identifier, LexError, Lexer, SpecialIdentifier, StringLit, Token};
+use lexer::{Identifier, SpecialIdentifier, StringLit};
+
+#[cfg(feature = "parse")]
+use lexer::{LexError, Lexer, Token};
+
 use vm::VMInt;
 
-type AstErrorRecovery<'s> = ErrorRecovery<usize, Token<'s>, ParseErrorContent>;
+#[cfg(feature = "parse")]
 lalrpop_mod!(grammar);
 
 #[derive(Debug, Error)]
 pub enum ParseErrorContent {
+    #[cfg(feature = "parse")]
     #[error(transparent)]
     Lex(#[from] LexError),
     #[error("Immediate mode is invalid in a write param")]
@@ -29,15 +36,20 @@ pub enum ParseErrorContent {
     #[error("Labels are valid only on parameters that corrispond to a single memory location")]
     LabelsOnUnlabelled { span: Range<usize> },
 }
+
 impl Spanned for ParseErrorContent {
     fn span(&self) -> Range<usize> {
         match self {
+            #[cfg(feature = "parse")]
             ParseErrorContent::Lex(err) => err.span(),
             ParseErrorContent::ImmediateInWrite { span } => span.clone(),
             ParseErrorContent::LabelsOnUnlabelled { span } => span.clone(),
         }
     }
 }
+
+#[cfg(feature = "parse")]
+type AstErrorRecovery<'s> = ErrorRecovery<usize, Token<'s>, ParseErrorContent>;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Decode, Encode,
@@ -49,20 +61,23 @@ impl From<Infallible> for ! {
     }
 }
 
+#[cfg(feature = "parse")]
 #[derive(Debug, Error)]
 #[error(transparent)]
 pub struct ParseError(#[from] lalrpop_util::ParseError<usize, String, ParseErrorContent>);
+#[cfg(feature = "parse")]
 impl From<lalrpop_util::ParseError<usize, Token<'_>, ParseErrorContent>> for ParseError {
     fn from(value: lalrpop_util::ParseError<usize, Token<'_>, ParseErrorContent>) -> Self {
         Self(value.map_token(|t| t.to_string()))
     }
 }
+#[cfg(feature = "parse")]
 impl From<lalrpop_util::ErrorRecovery<usize, Token<'_>, ParseErrorContent>> for ParseError {
     fn from(value: lalrpop_util::ErrorRecovery<usize, Token<'_>, ParseErrorContent>) -> Self {
         value.error.into()
     }
 }
-
+#[cfg(feature = "parse")]
 impl Spanned for ParseError {
     fn span(&self) -> Range<usize> {
         match self {
@@ -89,6 +104,7 @@ pub struct File<'s, Error = Infallible> {
 }
 
 impl<'s> File<'s> {
+    #[cfg(feature = "parse")]
     pub fn parse(
         source: &'s str,
         errors: &mut impl Accumulator<Error = ParseError>,
@@ -238,7 +254,7 @@ pub enum Statement<'s, Error = Infallible> {
     Jmp(#[serde(borrow)] JmpStm<'s, Error>),
     Mov(#[serde(borrow)] MovStm<'s, Error>),
     Load(#[serde(borrow)] LoadStm<'s, Error>),
-    Store(#[serde(borrow)] LoadStm<'s, Error>),
+    Store(#[serde(borrow)] StoreStm<'s, Error>),
     Call(#[serde(borrow)] CallStm<'s, Error>),
     Ret(RetStm),
     Export(#[serde(borrow)] ExportStm<'s>),

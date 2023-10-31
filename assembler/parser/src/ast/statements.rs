@@ -79,7 +79,7 @@ pub enum LoadStm<'s, Error = Infallible> {
         #[serde(borrow)]
         to: UnlabelledWriteParam<'s, Error>,
         #[serde(borrow)]
-        n: Box<Expression<'s, Error>>,
+        l: Box<Expression<'s, Error>>,
     },
 }
 #[derive(
@@ -100,7 +100,7 @@ pub enum StoreStm<'s, Error = Infallible> {
         #[serde(borrow)]
         ptr: UnlabelledReadParam<'s, Error>,
         #[serde(borrow)]
-        n: Box<Expression<'s, Error>>,
+        l: Box<Expression<'s, Error>>,
     },
 }
 
