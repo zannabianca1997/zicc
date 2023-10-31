@@ -314,6 +314,7 @@ where
             })
     }
 
+    /// Obtain a new, unnamed label that's not used anywhere else
     fn unnamed_label(&mut self) -> Identifier<'static> {
         let label = self.unnamed_counter;
         self.unnamed_counter += 1;
@@ -447,7 +448,7 @@ macro_rules! codegen_for_statement {
     };
 }
 codegen_for_statement! {
-    Ints Instruction Inc Dec Jmp Mov Zeros Call Ret Export Entry
+    Ints Zeros Instruction Inc Dec Jmp Mov Load Store Call Ret Export Entry
 }
 
 impl<'s> CodeGen<'s> for IntsStm<'s> {
@@ -468,6 +469,24 @@ impl<'s> CodeGen<'s> for IntsParam<'s> {
             IntsParam::Int(i) => i.code_gen(unit),
             IntsParam::Str(s) => s.code_gen(unit),
         }
+    }
+}
+
+impl<'s> CodeGen<'s> for ZerosStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        let Some(n) = unit
+            .const_expr(Box::into_inner(self.0))
+            .and_then(|n| usize::try_from(n).ok())
+        else {
+            return;
+        };
+        IntsStm {
+            values: vec![IntsParam::Int(Box::new(Expression::Num(0))).into(); n],
+        }
+        .code_gen(unit)
     }
 }
 
@@ -529,24 +548,6 @@ impl<'s> CodeGen<'s> for JmpStm<'s> {
     }
 }
 
-impl<'s> CodeGen<'s> for ZerosStm<'s> {
-    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
-    where
-        E: Accumulator<Error = AssembleError<'s>>,
-    {
-        let Some(n) = unit
-            .const_expr(Box::into_inner(self.0))
-            .and_then(|n| usize::try_from(n).ok())
-        else {
-            return;
-        };
-        IntsStm {
-            values: vec![IntsParam::Int(Box::new(Expression::Num(0))).into(); n],
-        }
-        .code_gen(unit)
-    }
-}
-
 impl<'s> CodeGen<'s> for MovStm<'s> {
     fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
     where
@@ -568,6 +569,153 @@ impl<'s> CodeGen<'s> for MovStm<'s> {
                     *b.as_value_mut().content += i;
                     ica!(
                         mov {a} {b}
+                    )
+                    .code_gen(unit)
+                }
+            }
+        }
+    }
+}
+
+impl<'s> CodeGen<'s> for LoadStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        /*
+           Implementation of Load uses self modifing code
+           The value of ptr is moved to the next instruction, that read from it and move to the destination
+           It could be implemented without, by pushing a `mov {from} {to}; jmp {back}` somewhere on the stack,
+           then jumping to it. This require stack management and does not give any semsible benefit
+        */
+        match self {
+            LoadStm::Single { relative, ptr, to } => {
+                let label = unit.unnamed_label();
+                let param_ref = Box::new(Expression::Ref(LabelRef::Identifier(label)));
+                let param = if relative {
+                    ReadParam::Relative(RelativeParam {
+                        value: Labelled {
+                            labels: BTreeSet::from([LabelDef { label }]),
+                            content: 0.into(),
+                        },
+                    })
+                } else {
+                    ReadParam::Absolute(AbsoluteParam {
+                        value: Labelled {
+                            labels: BTreeSet::from([LabelDef { label }]),
+                            content: 0.into(),
+                        },
+                    })
+                };
+                ica!(
+                    mov {ptr} {param_ref};
+                    mov {param} {to}
+                )
+                .code_gen(unit)
+            }
+            LoadStm::Multiple {
+                relative,
+                ptr,
+                to,
+                n,
+            } => {
+                let n = unit.const_expr(*n).unwrap_or_default();
+                for offset in 0..n {
+                    let label = unit.unnamed_label();
+                    let param_ref = Box::new(Expression::Ref(LabelRef::Identifier(label)));
+                    let param = if relative {
+                        ReadParam::Relative(RelativeParam {
+                            value: Labelled {
+                                labels: BTreeSet::from([LabelDef { label }]),
+                                content: 0.into(),
+                            },
+                        })
+                    } else {
+                        ReadParam::Absolute(AbsoluteParam {
+                            value: Labelled {
+                                labels: BTreeSet::from([LabelDef { label }]),
+                                content: 0.into(),
+                            },
+                        })
+                    };
+                    ica!(
+                        add {ptr.clone()} #{offset} {param_ref};
+                        mov {param} {to.clone()}
+                    )
+                    .code_gen(unit)
+                }
+            }
+        }
+    }
+}
+impl<'s> CodeGen<'s> for StoreStm<'s> {
+    fn code_gen<E>(self, unit: &mut AssemblingUnit<'s, E>)
+    where
+        E: Accumulator<Error = AssembleError<'s>>,
+    {
+        /*
+           Implementation of Store uses self modifing code
+           The value of ptr is moved to the next instruction, that move the values from it to the destination
+           It could be implemented without, by pushing a `mov {from} {to}; jmp {back}` somewhere on the stack,
+           then jumping to it. This require stack management and does not give any sensible benefit
+        */
+        match self {
+            StoreStm::Single {
+                relative,
+                from,
+                ptr,
+            } => {
+                let label = unit.unnamed_label();
+                let param_ref = Box::new(Expression::Ref(LabelRef::Identifier(label)));
+                let param = if relative {
+                    WriteParam::Relative(RelativeParam {
+                        value: Labelled {
+                            labels: BTreeSet::from([LabelDef { label }]),
+                            content: 0.into(),
+                        },
+                    })
+                } else {
+                    WriteParam::Absolute(AbsoluteParam {
+                        value: Labelled {
+                            labels: BTreeSet::from([LabelDef { label }]),
+                            content: 0.into(),
+                        },
+                    })
+                };
+                ica!(
+                    mov {ptr} {param_ref};
+                    mov {from} {param}
+                )
+                .code_gen(unit)
+            }
+            StoreStm::Multiple {
+                relative,
+                from,
+                ptr,
+                n,
+            } => {
+                let n = unit.const_expr(*n).unwrap_or_default();
+                for offset in 0..n {
+                    let label = unit.unnamed_label();
+                    let param_ref = Box::new(Expression::Ref(LabelRef::Identifier(label)));
+                    let param = if relative {
+                        WriteParam::Relative(RelativeParam {
+                            value: Labelled {
+                                labels: BTreeSet::from([LabelDef { label }]),
+                                content: 0.into(),
+                            },
+                        })
+                    } else {
+                        WriteParam::Absolute(AbsoluteParam {
+                            value: Labelled {
+                                labels: BTreeSet::from([LabelDef { label }]),
+                                content: 0.into(),
+                            },
+                        })
+                    };
+                    ica!(
+                        add {ptr.clone()} #{offset} {param_ref}; // offset the parameter each time a little more
+                        mov {from.clone()} {param}
                     )
                     .code_gen(unit)
                 }

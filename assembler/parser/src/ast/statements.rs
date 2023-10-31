@@ -8,6 +8,11 @@ pub struct IntsStm<'s, Error = Infallible> {
     pub values: Vec<Labelled<'s, IntsParam<'s, Error>>>,
 }
 
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub struct ZerosStm<'s, Error = Infallible>(#[serde(borrow)] pub Box<Expression<'s, Error>>);
+
 impl<'s, Error> ::bincode::Encode for IntsStm<'s, Error>
 where
     Error: ::bincode::Encode,
@@ -41,10 +46,6 @@ pub struct DecStm<'s, Error = Infallible>(#[serde(borrow)] pub UnlabelledWritePa
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub struct JmpStm<'s, Error = Infallible>(#[serde(borrow)] pub ReadParam<'s, Error>);
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
-)]
-pub struct ZerosStm<'s, Error = Infallible>(#[serde(borrow)] pub Box<Expression<'s, Error>>);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
@@ -62,6 +63,49 @@ pub enum MovStm<'s, Error = Infallible> {
         #[serde(borrow)] Box<Expression<'s, Error>>,
     ),
 }
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub enum LoadStm<'s, Error = Infallible> {
+    Single {
+        relative: bool,
+        #[serde(borrow)]
+        ptr: ReadParam<'s, Error>,
+        #[serde(borrow)]
+        to: WriteParam<'s, Error>,
+    },
+    Multiple {
+        relative: bool,
+        #[serde(borrow)]
+        ptr: UnlabelledReadParam<'s, Error>,
+        #[serde(borrow)]
+        to: UnlabelledWriteParam<'s, Error>,
+        #[serde(borrow)]
+        n: Box<Expression<'s, Error>>,
+    },
+}
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+)]
+pub enum StoreStm<'s, Error = Infallible> {
+    Single {
+        relative: bool,
+        #[serde(borrow)]
+        from: ReadParam<'s, Error>,
+        #[serde(borrow)]
+        ptr: ReadParam<'s, Error>,
+    },
+    Multiple {
+        relative: bool,
+        #[serde(borrow)]
+        from: UnlabelledReadParam<'s, Error>,
+        #[serde(borrow)]
+        ptr: UnlabelledReadParam<'s, Error>,
+        #[serde(borrow)]
+        n: Box<Expression<'s, Error>>,
+    },
+}
+
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]

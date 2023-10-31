@@ -67,6 +67,29 @@ impl<'s, E> AstNode<E> for IntsParam<'s, E> {
     }
 }
 
+impl<'s, E> AstNode<E> for ZerosStm<'s, E> {
+    fn constant_folding(self) -> Self {
+        Self(self.0.constant_folding())
+    }
+
+    type ErrMapped<EE> = ZerosStm<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<Infallible>> {
+        Some(ZerosStm(self.0.extract_errs(accumulator)?))
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        self.0.max_unnamed_label()
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        ZerosStm(self.0.map_err(f))
+    }
+}
+
 impl<'s, E> AstNode<E> for IncStm<'s, E> {
     fn constant_folding(self) -> Self {
         Self(self.0.constant_folding())
@@ -192,26 +215,204 @@ impl<'s, E> AstNode<E> for MovStm<'s, E> {
     }
 }
 
-impl<'s, E> AstNode<E> for ZerosStm<'s, E> {
+impl<'s, E> AstNode<E> for LoadStm<'s, E> {
     fn constant_folding(self) -> Self {
-        Self(self.0.constant_folding())
+        match self {
+            LoadStm::Single { relative, ptr, to } => Self::Single {
+                relative,
+                ptr: ptr.constant_folding(),
+                to: to.constant_folding(),
+            },
+            LoadStm::Multiple {
+                relative,
+                ptr,
+                to,
+                n,
+            } => Self::Multiple {
+                relative,
+                ptr: ptr.constant_folding(),
+                to: to.constant_folding(),
+                n: n.constant_folding(),
+            },
+        }
     }
 
-    type ErrMapped<EE> = ZerosStm<'s, EE>;
+    type ErrMapped<EE> = LoadStm<'s, EE>;
 
     fn extract_errs(
         self,
         accumulator: &mut impl Accumulator<Error = impl From<E>>,
     ) -> Option<Self::ErrMapped<Infallible>> {
-        Some(ZerosStm(self.0.extract_errs(accumulator)?))
-    }
-
-    fn max_unnamed_label(&self) -> Option<usize> {
-        self.0.max_unnamed_label()
+        Some(match self {
+            LoadStm::Single { relative, ptr, to } => LoadStm::Single {
+                relative,
+                ptr: ptr.extract_errs(accumulator)?,
+                to: to.extract_errs(accumulator)?,
+            },
+            LoadStm::Multiple {
+                relative,
+                ptr,
+                to,
+                n,
+            } => LoadStm::Multiple {
+                relative,
+                ptr: ptr.extract_errs(accumulator)?,
+                to: to.extract_errs(accumulator)?,
+                n: n.extract_errs(accumulator)?,
+            },
+        })
     }
 
     fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
-        ZerosStm(self.0.map_err(f))
+        match self {
+            LoadStm::Single { relative, ptr, to } => LoadStm::Single {
+                relative,
+                ptr: ptr.map_err(f),
+                to: to.map_err(f),
+            },
+            LoadStm::Multiple {
+                relative,
+                ptr,
+                to,
+                n,
+            } => LoadStm::Multiple {
+                relative,
+                ptr: ptr.map_err(f),
+                to: to.map_err(f),
+                n: n.map_err(f),
+            },
+        }
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            LoadStm::Single { relative, ptr, to } => {
+                [ptr.max_unnamed_label(), to.max_unnamed_label()]
+                    .into_iter()
+                    .flatten()
+                    .max()
+            }
+            LoadStm::Multiple {
+                relative,
+                ptr,
+                to,
+                n,
+            } => [
+                ptr.max_unnamed_label(),
+                to.max_unnamed_label(),
+                n.max_unnamed_label(),
+            ]
+            .into_iter()
+            .flatten()
+            .max(),
+        }
+    }
+}
+impl<'s, E> AstNode<E> for StoreStm<'s, E> {
+    fn constant_folding(self) -> Self {
+        match self {
+            StoreStm::Single {
+                relative,
+                ptr,
+                from,
+            } => Self::Single {
+                relative,
+                ptr: ptr.constant_folding(),
+                from: from.constant_folding(),
+            },
+            StoreStm::Multiple {
+                relative,
+                ptr,
+                from,
+                n,
+            } => Self::Multiple {
+                relative,
+                ptr: ptr.constant_folding(),
+                from: from.constant_folding(),
+                n: n.constant_folding(),
+            },
+        }
+    }
+
+    type ErrMapped<EE> = StoreStm<'s, EE>;
+
+    fn extract_errs(
+        self,
+        accumulator: &mut impl Accumulator<Error = impl From<E>>,
+    ) -> Option<Self::ErrMapped<Infallible>> {
+        Some(match self {
+            StoreStm::Single {
+                relative,
+                ptr,
+                from,
+            } => StoreStm::Single {
+                relative,
+                ptr: ptr.extract_errs(accumulator)?,
+                from: from.extract_errs(accumulator)?,
+            },
+            StoreStm::Multiple {
+                relative,
+                ptr,
+                from,
+                n,
+            } => StoreStm::Multiple {
+                relative,
+                ptr: ptr.extract_errs(accumulator)?,
+                from: from.extract_errs(accumulator)?,
+                n: n.extract_errs(accumulator)?,
+            },
+        })
+    }
+
+    fn map_err<EE>(self, f: &mut impl FnMut(E) -> EE) -> Self::ErrMapped<EE> {
+        match self {
+            StoreStm::Single {
+                relative,
+                from,
+                ptr,
+            } => StoreStm::Single {
+                relative,
+                from: from.map_err(f),
+                ptr: ptr.map_err(f),
+            },
+            StoreStm::Multiple {
+                relative,
+                ptr,
+                from,
+                n,
+            } => StoreStm::Multiple {
+                relative,
+                ptr: ptr.map_err(f),
+                from: from.map_err(f),
+                n: n.map_err(f),
+            },
+        }
+    }
+
+    fn max_unnamed_label(&self) -> Option<usize> {
+        match self {
+            StoreStm::Single {
+                relative,
+                from,
+                ptr,
+            } => [from.max_unnamed_label(), ptr.max_unnamed_label()]
+                .into_iter()
+                .flatten()
+                .max(),
+            StoreStm::Multiple {
+                relative,
+                from,
+                ptr,
+                n,
+            } => [
+                from.max_unnamed_label(),
+                ptr.max_unnamed_label(),
+                n.max_unnamed_label(),
+            ]
+            .into_iter()
+            .flatten()
+            .max(),
+        }
     }
 }
 

@@ -60,3 +60,16 @@ impl<'s> AddAssign<VMInt> for Expression<'s> {
         *self = Expression::Sum(Box::new(taken), Box::new(Expression::Num(rhs)))
     }
 }
+impl From<VMInt> for Box<Expression<'static>> {
+    fn from(value: VMInt) -> Self {
+        Box::new(Expression::Num(value.into()))
+    }
+}
+impl<'s, T> From<T> for Box<Expression<'s>>
+where
+    LabelRef<'s>: From<T>,
+{
+    fn from(value: T) -> Self {
+        Box::new(Expression::Ref(value.into()))
+    }
+}

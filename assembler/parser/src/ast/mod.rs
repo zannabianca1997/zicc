@@ -223,18 +223,30 @@ impl Display for LabelRef<'_> {
         }
     }
 }
+impl<'s> From<Identifier<'s>> for LabelRef<'s> {
+    fn from(value: Identifier<'s>) -> Self {
+        Self::Identifier(value)
+    }
+}
+impl From<SpecialIdentifier> for LabelRef<'_> {
+    fn from(value: SpecialIdentifier) -> Self {
+        Self::SpecialIdentifier(value)
+    }
+}
 
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
 )]
 pub enum Statement<'s, Error = Infallible> {
     Ints(#[serde(borrow)] IntsStm<'s, Error>),
+    Zeros(#[serde(borrow)] ZerosStm<'s, Error>),
     Instruction(#[serde(borrow)] Instruction<'s, Error>),
     Inc(#[serde(borrow)] IncStm<'s, Error>),
     Dec(#[serde(borrow)] DecStm<'s, Error>),
     Jmp(#[serde(borrow)] JmpStm<'s, Error>),
     Mov(#[serde(borrow)] MovStm<'s, Error>),
-    Zeros(#[serde(borrow)] ZerosStm<'s, Error>),
+    Load(#[serde(borrow)] LoadStm<'s, Error>),
+    Store(#[serde(borrow)] LoadStm<'s, Error>),
     Call(#[serde(borrow)] CallStm<'s, Error>),
     Ret(RetStm),
     Export(#[serde(borrow)] ExportStm<'s>),
