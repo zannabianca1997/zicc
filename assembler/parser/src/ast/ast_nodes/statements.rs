@@ -286,14 +286,16 @@ impl<'s, E> AstNode<E> for LoadStm<'s, E> {
 
     fn max_unnamed_label(&self) -> Option<usize> {
         match self {
-            LoadStm::Single { relative, ptr, to } => {
-                [ptr.max_unnamed_label(), to.max_unnamed_label()]
-                    .into_iter()
-                    .flatten()
-                    .max()
-            }
+            LoadStm::Single {
+                relative: _,
+                ptr,
+                to,
+            } => [ptr.max_unnamed_label(), to.max_unnamed_label()]
+                .into_iter()
+                .flatten()
+                .max(),
             LoadStm::Multiple {
-                relative,
+                relative: _,
                 ptr,
                 to,
                 n,
@@ -392,7 +394,7 @@ impl<'s, E> AstNode<E> for StoreStm<'s, E> {
     fn max_unnamed_label(&self) -> Option<usize> {
         match self {
             StoreStm::Single {
-                relative,
+                relative: _,
                 from,
                 ptr,
             } => [from.max_unnamed_label(), ptr.max_unnamed_label()]
@@ -400,7 +402,7 @@ impl<'s, E> AstNode<E> for StoreStm<'s, E> {
                 .flatten()
                 .max(),
             StoreStm::Multiple {
-                relative,
+                relative: _,
                 from,
                 ptr,
                 n,
