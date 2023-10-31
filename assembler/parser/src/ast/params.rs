@@ -1,7 +1,7 @@
 use super::*;
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub enum ReadParam<'s, Error = Infallible> {
     Absolute(#[serde(borrow)] AbsoluteParam<'s, Error>),
@@ -77,7 +77,7 @@ impl<'s, E> From<Box<Expression<'s, E>>> for ReadParam<'s, E> {
 pub type NonImmediateReadParam<'s, Error = Infallible> = WriteParam<'s, Error>;
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub enum WriteParam<'s, Error = Infallible> {
     Absolute(#[serde(borrow)] AbsoluteParam<'s, Error>),
@@ -139,7 +139,7 @@ impl<'s, E> From<Box<Expression<'s, E>>> for WriteParam<'s, E> {
     }
 }
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub struct ImmediateParam<'s, Error = Infallible> {
     #[serde(borrow)]
@@ -157,7 +157,7 @@ impl<'s, E> From<UnlabelledImmediateParam<'s, E>> for ImmediateParam<'s, E> {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub struct AbsoluteParam<'s, Error = Infallible> {
     #[serde(borrow)]
@@ -175,7 +175,7 @@ impl<'s, E> From<UnlabelledAbsoluteParam<'s, E>> for AbsoluteParam<'s, E> {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub struct RelativeParam<'s, Error = Infallible> {
     #[serde(borrow)]

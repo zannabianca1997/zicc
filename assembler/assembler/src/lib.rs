@@ -477,16 +477,10 @@ impl<'s> CodeGen<'s> for ZerosStm<'s> {
     where
         E: Accumulator<Error = AssembleError<'s>>,
     {
-        let Some(n) = unit
-            .const_expr(Box::into_inner(self.0))
-            .and_then(|n| usize::try_from(n).ok())
-        else {
-            return;
-        };
-        IntsStm {
-            values: vec![IntsParam::Int(Box::new(Expression::Num(0))).into(); n],
+        let n = unit.const_expr(*self.0).unwrap_or_default();
+        for _ in 0..n {
+            (0 as VMInt).code_gen(unit)
         }
-        .code_gen(unit)
     }
 }
 

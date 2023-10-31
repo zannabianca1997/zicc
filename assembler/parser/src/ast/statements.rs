@@ -1,8 +1,6 @@
 use super::*;
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, BorrowDecode,
-)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, BorrowDecode)]
 pub struct IntsStm<'s, Error = Infallible> {
     #[serde(borrow)]
     pub values: Vec<Labelled<'s, IntsParam<'s, Error>>>,
@@ -43,12 +41,12 @@ pub struct IncStm<'s, Error = Infallible>(#[serde(borrow)] pub UnlabelledWritePa
 )]
 pub struct DecStm<'s, Error = Infallible>(#[serde(borrow)] pub UnlabelledWriteParam<'s, Error>);
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub struct JmpStm<'s, Error = Infallible>(#[serde(borrow)] pub ReadParam<'s, Error>);
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub enum MovStm<'s, Error = Infallible> {
     /// Moves a single memory cell
@@ -64,7 +62,7 @@ pub enum MovStm<'s, Error = Infallible> {
     ),
 }
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub enum LoadStm<'s, Error = Infallible> {
     Single {
@@ -85,7 +83,7 @@ pub enum LoadStm<'s, Error = Infallible> {
     },
 }
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub enum StoreStm<'s, Error = Infallible> {
     Single {
@@ -107,7 +105,7 @@ pub enum StoreStm<'s, Error = Infallible> {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
 pub struct CallStm<'s, Error = Infallible>(
     #[serde(borrow)] pub ReadParam<'s, Error>,

@@ -82,9 +82,7 @@ impl Spanned for ParseError {
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, BorrowDecode, Serialize, Deserialize,
-)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, BorrowDecode, Serialize, Deserialize)]
 pub struct File<'s, Error = Infallible> {
     #[serde(borrow)]
     pub statements: Vec<Labelled<'s, Option<Statement<'s, Error>>>>,
@@ -119,7 +117,7 @@ where
 }
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
 )]
 pub struct Labelled<'s, T> {
     #[serde(borrow)]
@@ -176,19 +174,13 @@ impl<'s, T> From<T> for Labelled<'s, T> {
 }
 
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Encode,
-    BorrowDecode,
-    Serialize,
-    Deserialize,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
 )]
+/**
+    Definition of a label
+
+    This is not `Clone` as a ward against duplicating code defining the same label
+*/
 pub struct LabelDef<'s> {
     #[serde(borrow)]
     pub label: Identifier<'s>,
@@ -235,7 +227,7 @@ impl From<SpecialIdentifier> for LabelRef<'_> {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
 )]
 pub enum Statement<'s, Error = Infallible> {
     Ints(#[serde(borrow)] IntsStm<'s, Error>),
@@ -255,7 +247,7 @@ pub enum Statement<'s, Error = Infallible> {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, BorrowDecode, Serialize, Deserialize,
 )]
 pub enum Instruction<'s, Error = Infallible> {
     Add(
@@ -317,12 +309,21 @@ impl<'s> Instruction<'s> {
             | Instruction::Seq(a, b, c) => {
                 ArrayVec::from([a.into_value(), b.into_value(), c.into_value()])
             }
-            Instruction::In(a) => ArrayVec::try_from([a.into_value()].as_slice()).unwrap(),
+            Instruction::In(a) => {
+                let mut v = ArrayVec::new();
+                v.push(a.into_value());
+                v
+            }
             Instruction::Out(a) | Instruction::Incb(a) => {
-                ArrayVec::try_from([a.into_value()].as_slice()).unwrap()
+                let mut v = ArrayVec::new();
+                v.push(a.into_value());
+                v
             }
             Instruction::Jz(a, b) | Instruction::Jnz(a, b) => {
-                ArrayVec::try_from([a.into_value(), b.into_value()].as_slice()).unwrap()
+                let mut v = ArrayVec::new();
+                v.push(a.into_value());
+                v.push(b.into_value());
+                v
             }
             Instruction::Halt => ArrayVec::new(),
             Instruction::Error(e) => <!>::from(e),
