@@ -632,7 +632,6 @@ dependencies = [
  "lazy-regex",
  "lexer",
  "map_in_place",
- "proc-macro2",
  "serde",
  "serde_json",
  "test_sources",

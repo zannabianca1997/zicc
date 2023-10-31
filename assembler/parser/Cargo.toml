@@ -4,7 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-parse = ["dep:lalrpop-util"]
+parse = [
+    "dep:lalrpop-util",
+    "dep:cargo-emit",
+    "dep:lazy-regex",
+    "dep:serde_json",
+    "dep:keyword_expand",
+]
 
 [dependencies]
 arrayvec = "0.7.4"
@@ -24,9 +30,8 @@ test_sources = { path = "../test_sources" }
 serde_json = "1.0.107"
 
 [build-dependencies]
-cargo-emit = "0.2.1"
-keyword_expand = { path = "../keyword_expand" }
-lalrpop = { version = "0.20.0", features = ["unicode"] }
-proc-macro2 = "1.0.69"
-lazy-regex = "3.0.2"
-serde_json = "1.0.107"
+cargo-emit = { version = "0.2.1", optional = true }
+keyword_expand = { path = "../keyword_expand", optional = true }
+lalrpop = { version = "0.20.0", features = ["unicode"], optional = true }
+lazy-regex = { version = "3.0.2", optional = true }
+serde_json = { version = "1.0.107", optional = true }
