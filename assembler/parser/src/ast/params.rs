@@ -18,6 +18,14 @@ impl<'s> ReadParam<'s> {
             ReadParam::Error(e) => <!>::from(*e),
         }
     }
+    pub fn as_value(&self) -> &Labelled<'s, Box<Expression<'s>>> {
+        match self {
+            ReadParam::Absolute(AbsoluteParam { value })
+            | ReadParam::Immediate(ImmediateParam { value })
+            | ReadParam::Relative(RelativeParam { value }) => value,
+            ReadParam::Error(e) => <!>::from(*e),
+        }
+    }
     pub fn as_value_mut(&mut self) -> &mut Labelled<'s, Box<Expression<'s>>> {
         match self {
             ReadParam::Absolute(AbsoluteParam { value })
@@ -111,6 +119,13 @@ impl<'s> WriteParam<'s> {
         }
     }
 
+    pub fn as_value(&self) -> &Labelled<'s, Box<Expression<'s>>> {
+        match self {
+            WriteParam::Absolute(AbsoluteParam { value })
+            | WriteParam::Relative(RelativeParam { value }) => value,
+            WriteParam::Error(e) => <!>::from(*e),
+        }
+    }
     pub fn as_value_mut(&mut self) -> &mut Labelled<'s, Box<Expression<'s>>> {
         match self {
             WriteParam::Absolute(AbsoluteParam { value })
@@ -210,6 +225,31 @@ impl<'s> UnlabelledReadParam<'s> {
             UnlabelledReadParam::Error(e) => <!>::from(*e),
         }
     }
+
+    pub fn as_value(&self) -> &Box<Expression<'s>> {
+        match self {
+            Self::Absolute(UnlabelledAbsoluteParam { value })
+            | Self::Immediate(UnlabelledImmediateParam { value })
+            | Self::Relative(UnlabelledRelativeParam { value }) => value,
+            Self::Error(e) => <!>::from(*e),
+        }
+    }
+    pub fn as_value_mut(&mut self) -> &mut Box<Expression<'s>> {
+        match self {
+            Self::Absolute(UnlabelledAbsoluteParam { value })
+            | Self::Immediate(UnlabelledImmediateParam { value })
+            | Self::Relative(UnlabelledRelativeParam { value }) => value,
+            Self::Error(e) => <!>::from(*e),
+        }
+    }
+    pub fn into_value(self) -> Box<Expression<'s>> {
+        match self {
+            Self::Absolute(UnlabelledAbsoluteParam { value })
+            | Self::Immediate(UnlabelledImmediateParam { value })
+            | Self::Relative(UnlabelledRelativeParam { value }) => value,
+            Self::Error(e) => <!>::from(e),
+        }
+    }
 }
 impl<'s, E> From<UnlabelledWriteParam<'s, E>> for UnlabelledReadParam<'s, E> {
     fn from(value: UnlabelledWriteParam<'s, E>) -> Self {
@@ -273,6 +313,28 @@ impl<'s> UnlabelledWriteParam<'s> {
             UnlabelledWriteParam::Absolute(_) => 0,
             UnlabelledWriteParam::Relative(_) => 2,
             UnlabelledWriteParam::Error(e) => <!>::from(*e),
+        }
+    }
+
+    pub fn as_value(&self) -> &Box<Expression<'s>> {
+        match self {
+            Self::Absolute(UnlabelledAbsoluteParam { value })
+            | Self::Relative(UnlabelledRelativeParam { value }) => value,
+            Self::Error(e) => <!>::from(*e),
+        }
+    }
+    pub fn as_value_mut(&mut self) -> &mut Box<Expression<'s>> {
+        match self {
+            Self::Absolute(UnlabelledAbsoluteParam { value })
+            | Self::Relative(UnlabelledRelativeParam { value }) => value,
+            Self::Error(e) => <!>::from(*e),
+        }
+    }
+    pub fn into_value(self) -> Box<Expression<'s>> {
+        match self {
+            Self::Absolute(UnlabelledAbsoluteParam { value })
+            | Self::Relative(UnlabelledRelativeParam { value }) => value,
+            Self::Error(e) => <!>::from(e),
         }
     }
 }

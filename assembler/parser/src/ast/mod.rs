@@ -376,3 +376,6 @@ mod expression;
 
 pub use ast_nodes::AstNode;
 mod ast_nodes;
+
+pub use unparse::Unparse;
+mod unparse;

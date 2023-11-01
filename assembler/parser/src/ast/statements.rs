@@ -83,6 +83,10 @@ pub enum LoadStm<'s, Error = Infallible> {
     },
 }
 impl<E> LoadStm<'_, E> {
+    pub fn relative(&self) -> &bool {
+        let (Self::Single { relative, .. } | Self::Multiple { relative, .. }) = self;
+        relative
+    }
     pub fn relative_mut(&mut self) -> &mut bool {
         let (Self::Single { relative, .. } | Self::Multiple { relative, .. }) = self;
         relative
@@ -110,6 +114,10 @@ pub enum StoreStm<'s, Error = Infallible> {
     },
 }
 impl<E> StoreStm<'_, E> {
+    pub fn relative(&self) -> &bool {
+        let (Self::Single { relative, .. } | Self::Multiple { relative, .. }) = self;
+        relative
+    }
     pub fn relative_mut(&mut self) -> &mut bool {
         let (Self::Single { relative, .. } | Self::Multiple { relative, .. }) = self;
         relative
