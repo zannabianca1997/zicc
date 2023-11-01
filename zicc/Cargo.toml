@@ -18,3 +18,4 @@ bincode = { version = "2.0.0-rc.3" }
 itertools = "0.11.0"
 lazy-regex = "3.0.2"
 utf8-chars = "3.0.1"
+arrayvec = "0.7.4"

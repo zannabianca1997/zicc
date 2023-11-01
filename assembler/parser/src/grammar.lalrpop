@@ -42,6 +42,8 @@ Statement: Statement<'s, AstErrorRecovery<'s>> = {
   "mov"   <ParamMov>   => Statement::Mov(<>),
   "load"  <ParamLoad>  => Statement::Load(<>),
   "store" <ParamStore> => Statement::Store(<>),
+  "loadr"  <mut stm:ParamLoad>  => {*stm.relative_mut() = true; Statement::Load(stm)},
+  "storer" <mut stm:ParamStore> => {*stm.relative_mut() = true; Statement::Store(stm)},
   "zeros" <Expression> => Statement::Zeros(ZerosStm(<>)),
   "call"  <ParamCall>  => Statement::Call(<>),
   "ret"   => Statement::Ret(RetStm),

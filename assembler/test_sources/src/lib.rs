@@ -13,6 +13,7 @@ mod impls {
     use std::mem;
 
     use quote::{format_ident, quote, ToTokens};
+    use syn::ItemFn;
     use vm::VMInt;
 
     static SOURCES: &[(&str, SourceFile)] = include!(env!("SOURCES"));
@@ -44,7 +45,13 @@ mod impls {
                     "The attribute takes no parameter",
                 ))
             }
-            match syn::parse2(function) {
+            match syn::parse2::<ItemFn>(function).and_then(|f| match f.sig.inputs.len() {
+                1 | 2 => Ok(f),
+                _ => Err(syn::Error::new_spanned(
+                    f.sig.inputs,
+                    "Expected 2 or 3 inputs",
+                )),
+            }) {
                 Ok(f) => f,
                 Err(e2) => {
                     return match errors {
@@ -81,7 +88,12 @@ mod impls {
             |(
                 name,
                 SourceFile {
-                    source: Source { descr, source, .. },
+                    source:
+                        Source {
+                            descr,
+                            source,
+                            assembled,
+                        },
                     ..
                 },
             )| {
@@ -91,13 +103,27 @@ mod impls {
                 let name = format_ident!("{name}");
                 let test_fn_name = &test_fn.sig.ident;
 
-                quote!(
-                    #descr
-                    #[test]
-                    pub fn #name() {
-                        #test_fn_name(#source)
-                    }
-                )
+                if test_fn.sig.inputs.len() == 1 {
+                    quote!(
+                        #descr
+                        #[test]
+                        pub fn #name() {
+                            #test_fn_name(#source)
+                        }
+                    )
+                } else {
+                    let assembled = assembled
+                        .as_ref()
+                        .map(|a| quote!(Some(&[#(#a),*])))
+                        .unwrap_or_else(|| quote!(None));
+                    quote!(
+                        #descr
+                        #[test]
+                        pub fn #name() {
+                            #test_fn_name(#source, #assembled)
+                        }
+                    )
+                }
             },
         );
 

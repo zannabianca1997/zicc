@@ -82,6 +82,12 @@ pub enum LoadStm<'s, Error = Infallible> {
         l: Box<Expression<'s, Error>>,
     },
 }
+impl<E> LoadStm<'_, E> {
+    pub fn relative_mut(&mut self) -> &mut bool {
+        let (Self::Single { relative, .. } | Self::Multiple { relative, .. }) = self;
+        relative
+    }
+}
 #[derive(
     Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Encode, BorrowDecode,
 )]
@@ -102,6 +108,12 @@ pub enum StoreStm<'s, Error = Infallible> {
         #[serde(borrow)]
         l: Box<Expression<'s, Error>>,
     },
+}
+impl<E> StoreStm<'_, E> {
+    pub fn relative_mut(&mut self) -> &mut bool {
+        let (Self::Single { relative, .. } | Self::Multiple { relative, .. }) = self;
+        relative
+    }
 }
 
 #[derive(

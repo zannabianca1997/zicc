@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 parse = [
     "dep:lalrpop-util",
+    "dep:lalrpop",
     "dep:cargo-emit",
     "dep:lazy-regex",
     "dep:serde_json",

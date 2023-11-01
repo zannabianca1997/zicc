@@ -801,7 +801,7 @@ mod tests {
     }
 
     #[test_sources]
-    fn assemble(source: &str) {
+    fn assemble(source: &str, assembled: Option<&[vm::VMInt]>) {
         use errors::PanicAccumulator;
         let ast = parser::parse(source, &mut PanicAccumulator::<ParseError>::new()).unwrap();
         let mut errors = RootAccumulator::<AssembleError>::new();
@@ -814,12 +814,18 @@ mod tests {
         }
         let mut code = Code::new();
         code.push_unit(unit, &mut errors);
-        let _ = code.emit(&mut errors);
+        let code = code.emit(&mut errors);
         if let Err(errs) = errors.checkpoint() {
             for err in errs {
                 eprintln!("{:?}", err)
             }
             panic!("Errors during linking")
+        }
+        if let Some(assembled) = assembled {
+            assert_eq!(
+                &code, assembled,
+                "The assembled code is different from the provided one"
+            )
         }
     }
 

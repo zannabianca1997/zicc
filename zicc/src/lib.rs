@@ -3,7 +3,9 @@
 
 use std::{
     fmt::Display,
-    io::{self, stdin, stdout, Read, StdinLock, StdoutLock, Write},
+    io::{self, stderr, stdin, stdout, Read, StdinLock, StdoutLock, Write},
+    num::NonZeroUsize,
+    str::FromStr,
 };
 
 use anyhow::{bail, Context};
@@ -329,7 +331,7 @@ fn link(
         inputs,
         input_type,
         input_format,
-        mut output,
+        output,
         output_format,
     }: Link,
 ) -> anyhow::Result<()> {
@@ -341,6 +343,13 @@ fn link(
     {
         bail!("Cannot read stdin more than once")
     }
+    let mut output = output.or_else(|| {
+        // if is a single file, we can guess the name
+        let [inp] = &inputs[..] else {
+            return None;
+        };
+        Some(inp.with_extension("ints"))
+    });
     let mut errors = RootAccumulator::<anyhow::Error>::new();
     let sources: Vec<_> = errors
         .handle_iter(
@@ -386,7 +395,7 @@ fn link(
         }
     };
 
-    // printing to out
+    // printing to output
     let Some(output) = output else {
         bail!("Cannot determine output name")
     };
@@ -472,6 +481,41 @@ pub struct Run {
     /// Format of the output stream
     #[arg(long, short, default_value = "bytes")]
     output: IOFormat,
+    /// How often, if any, debug on stdout
+    #[arg(long, short)]
+    debug_rate: Option<Option<NonZeroUsize>>,
+    /// Arguments for the debug printout
+    #[command(flatten)]
+    debug_args: DebugArgs,
+}
+
+/// Arguments for the debug printout
+#[derive(Debug, Clone, Copy, Args)]
+struct DebugArgs {
+    /// How large is the window around pc
+    #[arg(long, default_value = "8")]
+    pc_window: DashOrT<NonZeroUsize>,
+    /// How large is the window around pc
+    #[arg(long, default_value = "10")]
+    rb_window: DashOrT<NonZeroUsize>,
+}
+
+/// Arguments for the debug printout
+#[derive(Debug, Clone, Copy)]
+enum DashOrT<T> {
+    Dash,
+    T(T),
+}
+impl<T: FromStr> FromStr for DashOrT<T> {
+    type Err = T::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "-" {
+            Ok(Self::Dash)
+        } else {
+            T::from_str(s).map(Self::T)
+        }
+    }
 }
 
 mod format_functions {
@@ -613,6 +657,8 @@ fn run(
         format,
         input,
         output,
+        debug_rate,
+        debug_args: debug,
     }: Run,
 ) -> anyhow::Result<()> {
     let content = {
@@ -637,18 +683,216 @@ fn run(
     let mut stdout = stdout().lock();
 
     let mut io = IO::new(&mut stdin, input, &mut stdout, output);
-    loop {
-        match vm.run().context("Runtime error")? {
-            vm::StopState::NeedInput(need_input) => need_input.give(
-                io.input()
-                    .context("Error during input")?
-                    .context("Unexpected EOF")?,
-            ),
-            vm::StopState::HasOutput(has_output) => {
-                io.output(has_output.get()).context("Error during output")?
+    if let Some(debug_rate) = debug_rate {
+        let debug_rate = debug_rate.unwrap_or(NonZeroUsize::new(1).unwrap());
+        loop {
+            for _ in 0..debug_rate.get() {
+                match vm.step().context("Runtime error")? {
+                    vm::State::Stopped(vm::StopState::NeedInput(need_input)) => need_input.give(
+                        io.input()
+                            .context("Error during input")?
+                            .context("Unexpected EOF")?,
+                    ),
+                    vm::State::Stopped(vm::StopState::HasOutput(has_output)) => {
+                        io.output(has_output.get()).context("Error during output")?
+                    }
+                    vm::State::Stopped(vm::StopState::Halted) => return Ok(()),
+                    vm::State::Running => (),
+                }
             }
-            vm::StopState::Halted => return Ok(()),
+            debug::debug(stderr(), vm.memory(), &debug).context("Cannot write to stderr")?
         }
+    } else {
+        loop {
+            match vm.run().context("Runtime error")? {
+                vm::StopState::NeedInput(need_input) => need_input.give(
+                    io.input()
+                        .context("Error during input")?
+                        .context("Unexpected EOF")?,
+                ),
+                vm::StopState::HasOutput(has_output) => {
+                    io.output(has_output.get()).context("Error during output")?
+                }
+                vm::StopState::Halted => return Ok(()),
+            }
+        }
+    }
+}
+
+mod debug {
+    use std::io;
+    use std::{fmt::Write, iter::repeat};
+
+    use super::DebugArgs;
+    use arrayvec::ArrayVec;
+    use itertools::{Itertools, Position};
+
+    pub(crate) fn debug(
+        mut fout: impl io::Write,
+        memory: &vm::Memory,
+        DebugArgs {
+            pc_window,
+            rb_window,
+        }: &DebugArgs,
+    ) -> io::Result<()> {
+        let pc = memory.pc();
+        let rb = memory.rb();
+        let memory = memory.memory();
+
+        let pc_window = match pc_window {
+            crate::DashOrT::Dash => 0..memory.len(),
+            crate::DashOrT::T(l) => pc.saturating_sub(l.get())..(pc + l.get()).min(memory.len()),
+        };
+        let rb_window = match rb_window {
+            crate::DashOrT::Dash => 0..memory.len(),
+            crate::DashOrT::T(l) => {
+                usize::try_from(rb - l.get() as isize).unwrap_or(0)
+                    ..usize::try_from(rb + l.get() as isize)
+                        .unwrap_or(0)
+                        .min(memory.len())
+            }
+        };
+
+        let mut ranges = ArrayVec::<_, 5>::new();
+        if pc_window.start <= rb_window.end && rb_window.start <= pc_window.end {
+            let common_window = usize::min(pc_window.start, rb_window.start)
+                ..usize::max(pc_window.end, rb_window.end);
+            if common_window.start > 0 {
+                ranges.push((false, 0..common_window.start));
+            }
+            ranges.push((true, common_window.clone()));
+            if common_window.end < memory.len() {
+                ranges.push((false, common_window.end..memory.len()));
+            }
+        } else {
+            let (w1, w2) = if pc_window.start < rb_window.start {
+                (pc_window, rb_window)
+            } else {
+                (rb_window, pc_window)
+            };
+            debug_assert!(w1.end < w2.end);
+
+            if w1.start > 0 {
+                ranges.push((false, 0..w1.start));
+            }
+            ranges.push((true, w1.clone()));
+            ranges.push((false, w1.end..w2.start));
+            ranges.push((true, w2.clone()));
+            if w2.end < memory.len() {
+                ranges.push((false, w2.end..memory.len()));
+            }
+        }
+
+        let rb = usize::try_from(rb).ok();
+
+        // print memory
+
+        let mut rb_marker = None;
+        let mut pc_marker = None;
+        let mut buf = String::with_capacity(
+            ranges
+                .iter()
+                .map(|(show, range)| {
+                    if *show {
+                        range.len() * ("11101, 11, 11, 11".len() / 4)
+                    } else {
+                        " ... ".len()
+                    }
+                })
+                .sum(),
+        );
+        for (show, range) in ranges {
+            if !show {
+                buf.push_str(" ... ");
+            } else {
+                for (position, i) in range.with_position() {
+                    let start = buf.len();
+                    write!(buf, "{}", memory[i]).unwrap();
+                    let mut end = buf.len();
+
+                    let is_pc = i == pc;
+                    let is_rb = rb.is_some_and(|rb| i == rb);
+
+                    if is_pc && is_rb && end - start == 1 {
+                        buf.push(' ');
+                        end += 1;
+                    }
+                    if is_pc {
+                        pc_marker = Some(start..end)
+                    }
+                    if is_rb {
+                        rb_marker = Some(start..end)
+                    }
+
+                    if let Position::First | Position::Middle = position {
+                        write!(buf, ", ").unwrap();
+                    }
+                }
+            }
+        }
+        buf.push('\n');
+        fout.write_all(buf.as_bytes())?;
+        buf.clear();
+
+        // print pointers
+        match (rb_marker, pc_marker) {
+            (None, None) => (),
+            (None, Some(pc)) => {
+                for _ in 0..pc.start {
+                    buf.push(' ')
+                }
+                for _ in pc {
+                    buf.push('#')
+                }
+            }
+            (Some(rb), None) => {
+                for _ in 0..rb.start {
+                    buf.push(' ')
+                }
+                for _ in rb {
+                    buf.push('@')
+                }
+            }
+            (Some(m1), Some(m2)) if m1 == m2 => {
+                for _ in 0..m1.start {
+                    buf.push(' ')
+                }
+                for ch in repeat(['#', '@']).flatten().take(m1.len()) {
+                    buf.push(ch)
+                }
+            }
+            (Some(rb), Some(pc)) if rb.start < pc.start => {
+                for _ in 0..rb.start {
+                    buf.push(' ')
+                }
+                for _ in rb.clone() {
+                    buf.push('@')
+                }
+                for _ in rb.end..pc.start {
+                    buf.push(' ')
+                }
+                for _ in pc {
+                    buf.push('#')
+                }
+            }
+            (Some(rb), Some(pc)) => {
+                for _ in 0..pc.start {
+                    buf.push(' ')
+                }
+                for _ in pc.clone() {
+                    buf.push('#')
+                }
+                for _ in pc.end..rb.start {
+                    buf.push(' ')
+                }
+                for _ in rb {
+                    buf.push('@')
+                }
+            }
+        }
+        buf.push('\n');
+        fout.write_all(buf.as_bytes())?;
+        Ok(())
     }
 }
 

@@ -89,19 +89,29 @@ struct Source {
     descr: Option<String>,
     #[serde(skip_deserializing)]
     source: String,
+    #[serde(default)]
+    assembled: Option<Vec<VMInt>>,
 }
 impl ToTokens for Source {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Source { descr, source } = self;
+        let Source {
+            descr,
+            source,
+            assembled,
+        } = self;
         let descr = descr
             .as_ref()
             .map(|d| quote!(Some(#d)))
+            .unwrap_or_else(|| quote!(None));
+        let assembled = assembled
+            .as_ref()
+            .map(|a| quote!(Some(&[#(#a),*])))
             .unwrap_or_else(|| quote!(None));
         quote!(
             Source {
                 descr: #descr,
                 source: #source,
-                assembled: None,
+                assembled: #assembled,
             }
         )
         .to_tokens(tokens)

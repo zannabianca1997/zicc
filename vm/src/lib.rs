@@ -134,6 +134,29 @@ impl Memory {
             }
         }
     }
+
+    pub fn memory(&self) -> &[i64] {
+        let mem: &[VMInt] = self.memory.as_ref();
+        /*
+           `Memory` emulate infinite memory, so any storage after the last non zero value must not change public values
+        */
+        let end = {
+            let mut end = mem.len();
+            while end > 0 && mem[end - 1] == 0 {
+                end -= 1
+            }
+            end
+        };
+        &mem[..end]
+    }
+
+    pub fn pc(&self) -> usize {
+        self.pc
+    }
+
+    pub fn rb(&self) -> isize {
+        self.rb
+    }
 }
 
 /// A intcode virtual machine
@@ -179,6 +202,10 @@ impl VM {
             StopStateBase::HasOutput => StopState::HasOutput(HasOutput(&mut self.output)),
             StopStateBase::Halted => StopState::Halted,
         }
+    }
+
+    pub fn memory(&self) -> &Memory {
+        &self.memory
     }
 }
 

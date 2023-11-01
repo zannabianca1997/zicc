@@ -1,0 +1,164 @@
+descr: Quicksort implementation
+tests:
+    empty:
+        in: [0]
+        out: []
+    rand:
+        in: [3,2,3,4,5,1,2,0]
+        out: [1,2,2,3,3,4,5]
+    rev:
+        in: [9,8,7,6,5,4,3,2,1,0]
+        out: [1,2,3,4,5,6,7,8,9]
+---
+// read until 0 at the start of the Stack
+IN readed_ch
+JZ readed_ch #$1
+$0: 
+    STORE readed_ch list_end
+    INC list_end
+    IN readed_ch
+    JNZ readed_ch #$0
+$1:
+// setting stack start
+INCB list_end
+
+// setting parameters and calling quicksort
+MOV #$end @0
+MOV list_end @1
+call #qsort 2
+
+// calling output function (parameters are already set)
+call #print 2
+
+// halting
+halt
+
+// static variables for the initialization phase
+INTS \
+    list_end: $end \
+    readed_ch: 0
+
+// quicksort function
+qsort:
+    /*
+        Stack is:
+            -3: slice start
+            -2: slice end
+            -1: return address
+    */
+    /*
+        Splitting the array in two:
+            0: middle element, then index of the middle element
+            1: slice index
+            2: current element
+            3: comparison result
+            4: bottom slice idx
+            5: top slice idx
+            6: slice_len
+            7..7 + slice_len: bottom slice
+            7 + slice_len..7 + 2*slice_len: top slice
+    */
+    // recursion bottom case
+
+    // calculating slice len
+    MUL @-3 #-1 @6
+    ADD @-2 @6  @6
+    // fast exit if slice len is < 2
+    SLT @6 #2 @3
+    JZ @3 #$3
+        RET // slice is trivially sorted
+    $3:
+
+    // -- Inizialization of variables
+
+    // choosing first as middle element
+    LOAD @-3 @0
+    // slice start at 1 (first element after the middle)
+    ADD @-3 #1 @1
+    // setting subslice indices
+    MOV #7 @4
+    MOV #7 @5
+    ADD @5 @6 @5
+
+    // -- Splitting array
+    $6:
+        LOAD @1 @2
+        SLT  @2 @0 @3
+        JZ @3 #$4
+            // bottom slice
+            STORER @2 @4
+            INC @4
+        JMP #$5
+        $4:
+            // top slice
+            STORER @2 @5
+            INC @5
+        $5:
+        INC @1
+    SLT @1 @-2 @3
+    JNZ @3 #$6
+
+    /*
+        Putting back the array popping the values first from the top slice, then the bottom one
+    */
+
+    $7:
+        // check if slice is empty
+        MUL @6 #-1 @3 // @3 -> -slice_len
+        ADD @3 #-7 @3 // @3 -> -7-slice_len
+        ADD @5 @3  @3 // @3 -> @5-7-slice_len
+        JZ @3 #$8
+
+        DEC @5
+        LOADR  @5 @2
+        DEC @1
+        STORE @2 @1
+        JMP #$7
+    $8:
+
+    // add middle element
+    DEC @1
+    STORE @0 @1
+    MOV @1 @0
+
+
+    $9:
+        // check if slice is empty
+        MOV #-7 @3    // @3 -> -7
+        ADD @4 @3  @3 // @3 -> @4-7
+        JZ @3 #$10
+
+        DEC @4
+        LOADR  @4 @2
+        DEC @1
+        STORE @2 @1
+
+        JMP #$9
+    $10:
+
+    /*
+        Recursive call:
+            0: index of the middle element
+            1: index of the start of the subslice
+            2: index of the end of the subslice
+    */
+    MOV @-3 @1
+    MOV @0  @2
+    CALL #qsort 3
+    ADD @0 #1 @1
+    MOV @-2   @2
+    CALL #qsort 3
+
+    RET
+
+// print function
+print:
+    $2: 
+        SLT @-3 @-2 @0
+        JZ  @0 #print_end
+            LOAD @-3 @1
+            OUT @1
+            INC @-3
+    JMP #$2
+    print_end:
+        RET
