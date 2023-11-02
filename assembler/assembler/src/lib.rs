@@ -305,11 +305,13 @@ where
     fn const_expr(&mut self, arg: Expression<'s>) -> Option<VMInt> {
         arg.replace(&mut |lbl| Err(AssembleError::LabelInConstExpr(*lbl)))
             .extract_errs(&mut self.errors)
-            .map(|e| {
-                if let Expression::Num(e) = e.constant_folding() {
-                    e
-                } else {
-                    unreachable!()
+            .map(|e| match e.constant_folding() {
+                Expression::Num(e) => e,
+                f => {
+                    unreachable!(
+                        "expressions should have totally folded by now, instead `{}` remained",
+                        f.display().to_string()
+                    )
                 }
             })
     }

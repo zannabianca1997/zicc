@@ -2,46 +2,13 @@ use super::*;
 
 impl<'s, E> AstNode<E> for Expression<'s, E> {
     fn constant_folding(self) -> Self {
-        match self {
-            Expression::Sum(a, b) => match (a.constant_folding(), b.constant_folding()) {
-                (box Expression::Num(a), box Expression::Num(b)) => Expression::Num(a + b),
-                (box Expression::Num(0), a) | (a, box Expression::Num(0)) => *a,
-                (a, b) => Expression::Sum(a, b),
-            },
-            Expression::Sub(a, b) => match (a.constant_folding(), b.constant_folding()) {
-                (box Expression::Num(a), box Expression::Num(b)) => Expression::Num(a - b),
-                (a, box Expression::Num(0)) => *a,
-                (box Expression::Num(0), box Expression::Neg(a)) => *a,
-                (a, box Expression::Neg(b)) => Expression::Sum(a, b),
-                (box Expression::Num(0), a) => Expression::Neg(a),
-                (a, b) => Expression::Sub(a, b),
-            },
-            Expression::Mul(a, b) => match (a.constant_folding(), b.constant_folding()) {
-                (box Expression::Num(a), box Expression::Num(b)) => Expression::Num(a * b),
-                (box Expression::Num(0), _) | (_, box Expression::Num(0)) => Expression::Num(0),
-                (box Expression::Num(1), a) | (a, box Expression::Num(1)) => *a,
-                (a, b) => Expression::Mul(a, b),
-            },
-            Expression::Div(a, b) => match (a.constant_folding(), b.constant_folding()) {
-                (box Expression::Num(a), box Expression::Num(b)) => Expression::Num(a / b),
-                (box Expression::Num(0), _) => Expression::Num(0),
-                (a, box Expression::Num(1)) => *a,
-                (a, b) => Expression::Div(a, b),
-            },
-            Expression::Mod(a, b) => match (a.constant_folding(), b.constant_folding()) {
-                (box Expression::Num(a), box Expression::Num(b)) => Expression::Num(a % b),
-                (box Expression::Num(0), _) | (_, box Expression::Num(1)) => Expression::Num(0),
-                (a, b) => Expression::Mod(a, b),
-            },
-            Expression::Neg(a) => match a.constant_folding() {
-                box Expression::Num(a) => Expression::Num(-a),
-                box Expression::Neg(a) => Box::into_inner(a),
-                a => Expression::Neg(a),
-            },
-            Expression::Num(n) => Expression::Num(n),
-            Expression::Ref(r) => Expression::Ref(r.constant_folding()),
-            Expression::Error(e) => Expression::Error(e),
-        }
+        self.simplify().recursive_map(|a| {
+            if let Expression::Ref(r) = a {
+                Expression::Ref(r.constant_folding())
+            } else {
+                a
+            }
+        })
     }
 
     type ErrMapped<EE> = Expression<'s, EE>;

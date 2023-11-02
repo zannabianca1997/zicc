@@ -167,7 +167,7 @@ impl NeedComma<Box<Expression<'_>>> for Labelled<'_, Box<Expression<'_>>> {
     }
 }
 impl NeedComma<Box<Expression<'_>>> for Box<Expression<'_>> {
-    fn need_comma(&self, before: &Box<Expression>) -> bool {
+    fn need_comma(&self, _: &Box<Expression>) -> bool {
         self.starts_with_minus()
     }
 }

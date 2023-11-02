@@ -23,6 +23,18 @@ impl<'s, E> AstNode<E> for File<'s, E> {
                 .statements
                 .into_iter()
                 .map(AstNode::constant_folding)
+                .map(|a| {
+                    a.map(|o| {
+                        o.and_then(|s| match s {
+                            Statement::Export(ExportStm { exported }) if exported.is_empty() => {
+                                None
+                            }
+                            Statement::Zeros(ZerosStm(box Expression::Num(0))) => None,
+                            Statement::Ints(IntsStm { values }) if values.is_empty() => None,
+                            s => Some(s),
+                        })
+                    })
+                })
                 .coalesce(|a, b| match (a, b) {
                     (
                         Labelled {
