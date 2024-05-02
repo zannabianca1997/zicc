@@ -1,5 +1,3 @@
-#![feature(os_str_bytes)]
-
 use std::{
     borrow::Cow,
     collections::BTreeMap,
@@ -28,7 +26,7 @@ impl Examples {
                 && item.path().extension().is_some_and(|ext| ext == "ica")
             {
                 let name = syn::parse_str::<Ident>(from_utf8(
-                    item.path().file_stem().unwrap().as_os_str_bytes(),
+                    item.path().file_stem().unwrap().as_encoded_bytes(),
                 )?)?;
                 let content = fs::read_to_string(item.path())?;
                 // split the yaml part

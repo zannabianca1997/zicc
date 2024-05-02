@@ -2,11 +2,13 @@
 //!
 //! This is kept indipendent from the rest of the project, so it can be substituted with any equivalent implementation
 
-use std::num::NonZeroI64;
+use std::num::{NonZeroI64, NonZeroU64};
 use thiserror::Error;
 
 pub type VMInt = i64;
 pub type NonZeroVMInt = NonZeroI64;
+pub type VMUInt = u64;
+pub type NonZeroVMUInt = NonZeroU64;
 
 /// Any state of a machine
 #[derive(Debug)]

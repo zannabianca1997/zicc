@@ -1,4 +1,3 @@
-#![feature(os_str_bytes)]
 #![feature(unwrap_infallible)]
 
 use std::{

@@ -22,7 +22,7 @@ impl PathOrDash {
 
 impl From<OsString> for PathOrDash {
     fn from(value: OsString) -> Self {
-        if value.as_os_str_bytes() == b"-" {
+        if value.as_encoded_bytes() == b"-" {
             Self::Dash
         } else {
             Self::Path(PathBuf::from(value))
