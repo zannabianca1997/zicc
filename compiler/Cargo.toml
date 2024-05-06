@@ -15,4 +15,4 @@ thiserror = "1.0.50"
 vm = { path = "../vm" }
 errors = {path = "../errors"}
 nonempty = "0.8.1"
-generational-arena = "0.2.9"
+slotmap = "1.0.7"

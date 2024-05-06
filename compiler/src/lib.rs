@@ -6,6 +6,7 @@
 #![feature(unwrap_infallible)]
 #![feature(map_try_insert)]
 #![feature(iter_next_chunk)]
+#![feature(maybe_uninit_uninit_array)]
 
 pub mod types;
 
