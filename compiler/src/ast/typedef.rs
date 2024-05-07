@@ -1,7 +1,5 @@
 use either::Either;
 
-use crate::span::Spanned;
-
 use super::{expression, punctuated, tokens::*};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -44,7 +42,7 @@ pub struct TypeDefStruct {
         (Either<Identifier, PunctUnderscore>, PunctColon, TypeDefData),
         PunctComma,
     >,
-    pub bracket_close: PunctBraceClose,
+    pub brace_close: PunctBraceClose,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -56,7 +54,7 @@ pub struct TypeDefUnion {
         (Either<Identifier, PunctUnderscore>, PunctColon, TypeDefData),
         PunctComma,
     >,
-    pub bracket_close: PunctBraceClose,
+    pub brace_close: PunctBraceClose,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

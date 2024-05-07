@@ -19,9 +19,9 @@ pub mod span {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Pos {
         /// Source file, if any
-        source: Option<DefaultSymbol>,
+        pub(super) source: Option<DefaultSymbol>,
         /// Position in the source
-        position: Option<NonMaxU32>,
+        pub(super) position: Option<NonMaxU32>,
     }
     impl Pos {
         pub fn missing() -> Self {
@@ -34,11 +34,11 @@ pub mod span {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Span {
         /// Source file, if any
-        source: Option<DefaultSymbol>,
+        pub(super) source: Option<DefaultSymbol>,
         /// Start position in the source
-        start: Option<NonMaxU32>,
+        pub(super) start: Option<NonMaxU32>,
         /// End position in the source
-        end: Option<NonMaxU32>,
+        pub(super) end: Option<NonMaxU32>,
     }
 
     pub trait Spanned {

@@ -72,8 +72,8 @@ pub mod punctuated {
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Punctuated<T, P> {
-        inner: Vec<(T, P)>,
-        last: Option<Box<T>>,
+        pub inner: Vec<(T, P)>,
+        pub last: Option<Box<T>>,
     }
     impl<T, P> Punctuated<T, P> {
         pub fn iter(&self) -> impl Iterator<Item = &T> {
@@ -114,14 +114,155 @@ pub mod punctuated {
 }
 
 pub mod expression {
-    use crate::span::Spanned;
+    use super::tokens;
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub enum Expression {}
-
-    impl Spanned for Expression {
-        fn span(&self) -> crate::span::Span {
-            todo!()
-        }
+    pub enum Expression {
+        Literal(tokens::Literal),
     }
+}
+
+peg::parser! {
+  pub grammar parser() for [Token] {
+    // EXPRESSIONS
+
+    rule expression() -> expression::Expression
+      = [Token::Literal(n)] {expression::Expression::Literal(n)}
+
+    // PUNCTUATED STUFF
+    rule punctuated<E,P>(element: rule<E>, punctuator: rule<P>) -> punctuated::Punctuated<E,P>
+      = inner: (e:element() p:punctuator() {(e,p)})* last:element()? {
+        punctuated::Punctuated { inner, last: last.map(Box::new) }
+      }
+
+    // TYPES
+
+    rule typedef() -> typedef::TypeDef
+      = def: typedefdata()   { typedef::TypeDef::Data(def)   }
+      / def: typedefunknow() { typedef::TypeDef::Unknow(def) }
+      / def: typedeffn()     { typedef::TypeDef::Fn(def)     }
+
+    rule typedefunknow() -> typedef::TypeDefUnknow
+      = [Token::Punct(Punct::Underscore(underscore))] {typedef::TypeDefUnknow{underscore}}
+
+    rule typedeffn() -> typedef::TypeDefFn
+      = [Token::Keyword(Keyword::Fn(fn_kw))]
+        [Token::Punct(Punct::ParenOpen(paren_open))]
+        inputs: punctuated(<typedefdata()>,<[Token::Punct(Punct::Comma(comma))] {comma}>)
+        [Token::Punct(Punct::ParenClose(paren_close))]
+        output: (
+            [Token::Punct(Punct::RightArrow(arrow))]
+            out: typedefdata()
+            { (arrow, out) }
+        )?
+        {
+            typedef::TypeDefFn { fn_kw, paren_open, inputs, paren_close, output }
+        }
+
+    rule typedefdata() -> typedef::TypeDefData
+      = def: typedefint()     { typedef::TypeDefData::Int(def)     }
+      / def: typedefarray()   { typedef::TypeDefData::Array(def)   }
+      / def: typedefunion()   { typedef::TypeDefData::Union(def)   }
+      / def: typedefstruct()  { typedef::TypeDefData::Struct(def)  }
+      / def: typedefpointer() { typedef::TypeDefData::Pointer(def) }
+      / [Token::Identifier(ident)] { typedef::TypeDefData::Named(ident) }
+
+    rule typedefint() -> typedef::TypeDefInt
+      = [Token::Keyword(Keyword::Int(int_kwd))] { typedef::TypeDefInt{ int_kwd }}
+    rule typedefarray() -> typedef::TypeDefArray
+      = [Token::Punct(Punct::BracketOpen(bracket_open))]
+        element: typedefdata()
+        [Token::Punct(Punct::Semi(semi))]
+        lenght: expression()
+        [Token::Punct(Punct::BracketClose(bracket_close))]
+      {
+        typedef::TypeDefArray{ bracket_open, element: Box::new(element), semi, lenght, bracket_close }
+      }
+
+    rule compositefielddef() -> (either::Either<Identifier, PunctUnderscore>, PunctColon, typedef::TypeDefData)
+      = name: (
+                  [Token::Identifier(ident)] {either::Either::Left(ident)}
+                  / [Token::Punct(Punct::Underscore(under))] {either::Either::Right(under)}
+              )
+              [Token::Punct(Punct::Colon(colon))]
+              ty: typedefdata()
+              { (name, colon, ty) }
+
+    rule typedefstruct() -> typedef::TypeDefStruct
+      = [Token::Keyword(Keyword::Struct(struct_kw))]
+        name: ([Token::Identifier(name)] {name})?
+        [Token::Punct(Punct::BraceOpen(brace_open))]
+        fields: punctuated(<compositefielddef()>,<[Token::Punct(Punct::Comma(comma))] {comma}>
+        )
+        [Token::Punct(Punct::BraceClose(brace_close))]
+      {
+        typedef::TypeDefStruct { struct_kw, name, brace_open, fields, brace_close }
+      }
+
+    rule typedefunion() -> typedef::TypeDefUnion
+      = [Token::Keyword(Keyword::Union(union_kw))]
+        name: ([Token::Identifier(name)] {name})?
+        [Token::Punct(Punct::BraceOpen(brace_open))]
+        variants: punctuated(<compositefielddef()>,<[Token::Punct(Punct::Comma(comma))] {comma}>
+        )
+        [Token::Punct(Punct::BraceClose(brace_close))]
+      {
+        typedef::TypeDefUnion { union_kw, name, brace_open, variants, brace_close }
+      }
+
+    rule typedefpointer() -> typedef::TypeDefPointer
+      = kind:(
+            [Token::Punct(Punct::Ampersand(amp))] { typedef::PointerKindDef::Static(amp)}
+            / [Token::Punct(Punct::At(at))] { typedef::PointerKindDef::Stack(at)}
+        ) pointee: typedef()
+        { typedef::TypeDefPointer { kind, pointee: Box::new(pointee) }}
+
+
+    // ITEMS
+
+    rule itemstatic() -> ItemStatic
+      = [Token::Keyword(Keyword::Static(static_kw))]
+        [Token::Identifier(ident)]
+        [Token::Punct(Punct::Colon(colon))]
+        ty: typedefdata()
+        init: (
+            [Token::Punct(Punct::Eq(eq))]
+            value: expression()
+            { (eq, value) }
+        )?
+        [Token::Punct(Punct::Semi(semi))]
+      {
+        ItemStatic { static_kw, ident, colon, ty, init, semi }
+      }
+
+    rule itemextern() -> ItemExtern
+      = [Token::Keyword(Keyword::Extern(extern_kw))]
+        [Token::Identifier(ident)]
+        [Token::Punct(Punct::Colon(colon))]
+        ty: typedef()
+        [Token::Punct(Punct::Semi(semi))]
+      {
+          ItemExtern { extern_kw, ident, colon, ty, semi }
+      }
+
+    rule itemtype() -> ItemType
+      = [Token::Keyword(Keyword::Type(type_kw))]
+        [Token::Identifier(ident)]
+        [Token::Punct(Punct::Eq(eq))]
+        ty: typedef()
+        [Token::Punct(Punct::Semi(semi))]
+      {
+          ItemType { type_kw, ident, eq, ty, semi }
+      }
+
+    rule item() -> Item
+      = item: itemstatic() { Item::Static(item)}
+      / item: itemextern() { Item::Extern(item)}
+      / item: itemtype()   { Item::Type(item)}
+
+    // FILE
+
+    pub rule file() -> File
+      = items:(item() *) ![_] { File { items } }
+  }
 }
