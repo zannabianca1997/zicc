@@ -105,10 +105,8 @@ struct RegisteringPhaseMaps<'d> {
 
 impl<'d> RegisteringPhaseMaps<'d> {
     /// Bind a name to a definition
-    fn bind(&mut self, name: Identifier, def: Either<&'d TypeDef, &'d TypeDefData>) -> OutTypeId {
-        let idx = self.register(def);
+    fn bind(&mut self, name: Identifier, idx: OutTypeId) {
         self.bindings.entry(name).or_default().insert(idx);
-        idx
     }
 
     /// Register a type definition
@@ -142,7 +140,20 @@ impl<'d> RegisteringPhaseMaps<'d> {
                 Left(idx)
             }
         };
-        self.idxs_mapping.insert(reference)
+        let idx = self.idxs_mapping.insert(reference);
+        // named struct are automatically bound
+        if let Left(TypeDef::Data(def)) | Right(def) = def {
+            if let (TypeDefData::Struct(TypeDefStruct {
+                name: Some(name), ..
+            })
+            | TypeDefData::Union(TypeDefUnion {
+                name: Some(name), ..
+            })) = def
+            {
+                self.bind(*name, idx)
+            }
+        }
+        idx
     }
 
     /// register the subtypes of a datatype
@@ -595,13 +606,16 @@ impl<'d> DeduplicationMaps<'_, 'd> {
 }
 
 pub(crate) fn generate<'d, Solver: SizeExpressionSolver<SizeError>>(
-    type_defs: impl Iterator<Item = (Identifier, Either<&'d TypeDef, &'d TypeDefData>)>,
+    type_defs: impl Iterator<Item = (Option<Identifier>, Either<&'d TypeDef, &'d TypeDefData>)>,
     solver: Solver,
 ) -> Result<TypeTable<Solver>, TypeDeclareError> {
     // Inserting all types recursively
     let mut maps = RegisteringPhaseMaps::default();
     for (name, def) in type_defs {
-        maps.bind(name, def);
+        let idx = maps.register(def);
+        if let Some(name) = name {
+            maps.bind(name, idx)
+        };
     }
     let RegisteringPhaseMaps {
         idxs_mapping,

@@ -1,13 +1,17 @@
 use std::{cell::RefCell, collections::BTreeMap, error::Error};
 
-use either::Either;
+use either::Either::{self, Left};
 use elsa::FrozenVec;
+use itertools::Itertools;
 use thiserror::Error;
 use vm::VMUInt;
 
 use crate::ast::{
     tokens::Identifier,
-    typedef::{PointerKindDef, TypeDef, TypeDefArray, TypeDefData, TypeDefFn},
+    typedef::{
+        PointerKindDef, TypeDef, TypeDefArray, TypeDefData, TypeDefFn, TypeDefPointer,
+        TypeDefStruct, TypeDefUnion,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -131,18 +135,6 @@ pub struct TypeFn {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeUnknow;
 
-#[derive(Debug, Error)]
-pub enum RegisterError {
-    #[error("A named type was not found")]
-    NameNotFound(Identifier),
-    #[error("A named unsized type was used in place of a sized one")]
-    UnsizedInSized(Identifier),
-    #[error("An array lenght was found to be unsolvable")]
-    UnsolvableLenght(#[source] Box<dyn Error>),
-    #[error("An array lenght was found to be negative")]
-    NegativeArrayLength,
-}
-
 #[derive(Debug, Clone)]
 struct TypeEntry {
     /// The type
@@ -218,76 +210,16 @@ impl<S> TypeTable<S> {
 impl<S: SizeExpressionSolver<SizeError>> TypeTable<S> {
     /// Create a table with all the declared names
     pub fn new<'d>(
-        defs: impl Iterator<Item = (Identifier, Either<&'d TypeDef, &'d TypeDefData>)>,
+        type_defs: impl Iterator<Item = (Identifier, &'d TypeDef)>,
+        type_used: impl Iterator<Item = Either<&'d TypeDef, &'d TypeDefData>>,
         solver: S,
     ) -> Result<Self, type_table_generation::TypeDeclareError> {
-        type_table_generation::generate(defs, solver)
-    }
-}
-
-impl<S: SizeExpressionSolver<RegisterError>> TypeTable<S> {
-    /// Register a type into the table
-    pub fn register(&self, def: &TypeDef) -> Result<TypeId, RegisterError> {
-        // All loops in type definitions are already solved, so we can recurse fearlessly
-        Ok(match def {
-            // names are a special case, as they can refer to unsized types
-            TypeDef::Data(TypeDefData::Named(name)) => *self
-                .names
-                .get(name)
-                .ok_or(RegisterError::NameNotFound(*name))?,
-            TypeDef::Data(def) => self.register_data(def)?.into_id(),
-            TypeDef::Fn(TypeDefFn { inputs, output, .. }) => {
-                let inputs = inputs
-                    .iter()
-                    .map(|inp| self.register_data(inp))
-                    .try_collect()?;
-                let output = output
-                    .as_ref()
-                    .map(|(_, out)| self.register_data(out))
-                    .transpose()?
-                    .unwrap_or(UNIT_ID);
-                self.type_id(Type::Fn(TypeFn { inputs, output }))
-            }
-            TypeDef::Unknow(_) => UNKNOW_ID,
-        })
-    }
-    /// Register a data type into the table
-    pub fn register_data(&self, def: &TypeDefData) -> Result<TypeIdData, RegisterError> {
-        // All loops in type definitions are already solved, so we can recurse fearlessly
-        Ok(match def {
-            TypeDefData::Int(_) => INT_ID,
-            TypeDefData::Array(TypeDefArray {
-                box element,
-                lenght,
-                ..
-            }) => {
-                let element = self.register_data(element)?;
-                let lenght = self
-                    .solver
-                    .solve(lenght, |def| {
-                        let id = self.register_data(def)?;
-                        Ok(self.size_of(id))
-                    })
-                    .map_err(|err| RegisterError::UnsolvableLenght(Box::new(err)))?
-                    .try_into()
-                    .map_err(|_| RegisterError::NegativeArrayLength)?;
-                self.type_id_data(TypeData::Array(TypeArray { element, lenght }))
-            }
-            TypeDefData::Struct(_) => todo!(),
-            TypeDefData::Union(_) => todo!(),
-            TypeDefData::Pointer(_) => todo!(),
-            TypeDefData::Named(name) => {
-                let id = *self
-                    .names
-                    .get(name)
-                    .ok_or(RegisterError::NameNotFound(*name))?;
-                if matches!(self.types[id.0].typ, Type::Data(_)) {
-                    TypeIdData(id)
-                } else {
-                    return Err(RegisterError::UnsizedInSized(*name));
-                }
-            }
-        })
+        type_table_generation::generate(
+            type_defs
+                .map(|(name, def)| (Some(name), Left(def)))
+                .chain(type_used.map(|def| (None, def))),
+            solver,
+        )
     }
 }
 
