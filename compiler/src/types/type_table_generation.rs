@@ -814,10 +814,12 @@ pub(crate) fn generate<'d, Solver: SizeExpressionSolver<SizeError>>(
     types[0] = Some(TypeEntry {
         typ: Type::Data(TypeData::Int(TypeInt)),
         name: None,
+        size: Some(1),
     });
     types[1] = Some(TypeEntry {
         typ: Type::Unknow(TypeUnknow),
         name: None,
+        size: None,
     });
     types[2] = Some(TypeEntry {
         typ: Type::Data(TypeData::Composite(TypeComposite {
@@ -826,6 +828,7 @@ pub(crate) fn generate<'d, Solver: SizeExpressionSolver<SizeError>>(
             size: 0,
         })),
         name: None,
+        size: Some(0),
     });
     for id in unique_ids {
         let mut name = None;
@@ -880,7 +883,8 @@ pub(crate) fn generate<'d, Solver: SizeExpressionSolver<SizeError>>(
                 TypeDefData::Named(_) => unreachable!(),
             }),
         };
-        types[type_ids[id].0] = Some(TypeEntry { typ, name });
+        let size = type_sizes[id];
+        types[type_ids[id].0] = Some(TypeEntry { typ, name, size });
     }
 
     let types = types

@@ -141,6 +141,8 @@ struct TypeEntry {
     typ: Type,
     /// Optional specific name of the type, if declared
     name: Option<Identifier>,
+    /// Size of the type
+    size: Option<VMUInt>,
 }
 
 #[derive(Clone)]
@@ -159,8 +161,10 @@ impl<S> TypeTable<S> {
                 return TypeId(id);
             }
         }
-        // Nope. Need to add it
+        // Nope. Need to add it.
+        // This should be rare, only when the compiler generate new type
         self.types.push(Box::new(TypeEntry {
+            size: self.calculate_size(&searching),
             typ: searching,
             name: None,
         }));
@@ -202,8 +206,21 @@ impl<S> TypeTable<S> {
         }
     }
 
-    fn size_of(&self, id: TypeIdData) -> VMUInt {
+    /// Return the size of a datatype
+    pub fn size_of(&self, id: TypeIdData) -> VMUInt {
         todo!()
+    }
+
+    /// Helper to calculate the size of a type
+    fn calculate_size(&self, typ: &Type) -> Option<VMUInt> {
+        match typ {
+            Type::Data(typ) => Some(match typ {
+                TypeData::Int(_) | TypeData::Pointer(_) => 1,
+                TypeData::Array(TypeArray { element, lenght }) => self.size_of(*element) * lenght,
+                TypeData::Composite(TypeComposite { size, .. }) => *size,
+            }),
+            Type::Fn(_) | Type::Unknow(_) => None,
+        }
     }
 }
 
