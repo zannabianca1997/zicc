@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use either::Either::{self, Left, Right};
 use itertools::Itertools;
@@ -19,12 +22,12 @@ use crate::ast::{
     },
 };
 
-#[derive(Debug, Clone, Error)]
-pub enum TypeDeclareError<E> {
+#[derive(Debug, Error)]
+pub enum TypeDeclareError {
     #[error("Named types with no definition")]
     TypesWithNoDefinition(BTreeSet<Identifier>),
     #[error(transparent)]
-    RecursiveTypeSizeError(#[from] SizeError<E>),
+    RecursiveTypeSizeError(#[from] SizeError),
     #[error("Named type with different, non equivalent definitions")]
     DifferentDefinitions {
         name: Identifier,
@@ -32,16 +35,12 @@ pub enum TypeDeclareError<E> {
     },
 }
 
-#[derive(Debug, Clone, Error)]
-pub enum SizeError<E> {
+#[derive(Debug, Error)]
+pub enum SizeError {
     #[error("Cannor find size of recursive type")]
     RecursiveTypeSizeError,
     #[error("Cannot resolve array lenght")]
-    UnsolvableArrayLenght(
-        #[source]
-        #[from]
-        E,
-    ),
+    UnsolvableArrayLenght(#[source] Box<dyn std::error::Error>),
     #[error("Array with elements of size {element_size} and length {lenght} is too big to fit in the address space")]
     OverflowingArraySize {
         element_size: VMUInt,
@@ -249,9 +248,9 @@ struct SizeCalculationMaps<'m, 'd, Solver> {
 
 impl<'d, Solver> SizeCalculationMaps<'_, 'd, Solver>
 where
-    Solver: SizeExpressionSolver<'d>,
+    Solver: SizeExpressionSolver<SizeError>,
 {
-    fn calculate_sizes(&mut self) -> Result<(), SizeError<Solver::Error>> {
+    fn calculate_sizes(&mut self) -> Result<(), SizeError> {
         for (in_idx, def) in self.type_defs {
             match def {
                 Left(_) => {
@@ -269,7 +268,7 @@ where
         &mut self,
         in_idx: InTypeId,
         def: &'d TypeDefData,
-    ) -> Result<VMUInt, SizeError<Solver::Error>> {
+    ) -> Result<VMUInt, SizeError> {
         if let Some(size) = self.type_sizes.get(in_idx) {
             return Ok(size.unwrap());
         }
@@ -317,10 +316,7 @@ where
         Ok(size)
     }
 
-    fn calculate_size_out(
-        &mut self,
-        out_idx: OutTypeId,
-    ) -> Result<VMUInt, SizeError<Solver::Error>> {
+    fn calculate_size_out(&mut self, out_idx: OutTypeId) -> Result<VMUInt, SizeError> {
         let in_idx = self.merged_idxs[out_idx];
         let def = self.type_defs[in_idx];
         match def {
@@ -330,7 +326,7 @@ where
     }
 
     /// Calculate lenght of the array
-    fn calculate_lenght(&mut self, in_idx: InTypeId) -> Result<VMUInt, SizeError<Solver::Error>> {
+    fn calculate_lenght(&mut self, in_idx: InTypeId) -> Result<VMUInt, SizeError> {
         if let Some(len) = self.array_lenghts.get(in_idx) {
             return Ok(*len);
         }
@@ -338,17 +334,15 @@ where
             self.expr_solver
                 .solve(self.array_lenghts_exprs[in_idx], &mut |def| {
                     self.calculate_size_def(def)
-                })?,
+                })
+                .map_err(|err| SizeError::UnsolvableArrayLenght(Box::new(err)))?,
         )
         .map_err(SizeError::NegativeArrayLenght)?;
         self.array_lenghts.insert(in_idx, len);
         Ok(len)
     }
 
-    fn calculate_size_def(
-        &mut self,
-        def: &'d TypeDefData,
-    ) -> Result<VMUInt, SizeError<Solver::Error>> {
+    fn calculate_size_def(&mut self, def: &'d TypeDefData) -> Result<VMUInt, SizeError> {
         match def {
             TypeDefData::Int(_) | TypeDefData::Pointer(_) => Ok(1),
 
@@ -372,7 +366,8 @@ where
                 let element_size = self.calculate_size_def(element)?;
                 let lenght = VMUInt::try_from(
                     self.expr_solver
-                        .solve(lenght, &mut |def| self.calculate_size_def(def))?,
+                        .solve(lenght, &mut |def| self.calculate_size_def(def))
+                        .map_err(|err| SizeError::UnsolvableArrayLenght(Box::new(err)))?,
                 )
                 .map_err(SizeError::NegativeArrayLenght)?;
 
@@ -599,10 +594,10 @@ impl<'d> DeduplicationMaps<'_, 'd> {
     }
 }
 
-pub(crate) fn generate<'d, Solver: SizeExpressionSolver<'d>>(
+pub(crate) fn generate<'d, Solver: SizeExpressionSolver<SizeError>>(
     type_defs: impl Iterator<Item = (Identifier, Either<&'d TypeDef, &'d TypeDefData>)>,
-    expr_solver: Solver,
-) -> Result<TypeTable, TypeDeclareError<Solver::Error>> {
+    solver: Solver,
+) -> Result<TypeTable<Solver>, TypeDeclareError> {
     // Inserting all types recursively
     let mut maps = RegisteringPhaseMaps::default();
     for (name, def) in type_defs {
@@ -672,7 +667,7 @@ pub(crate) fn generate<'d, Solver: SizeExpressionSolver<'d>>(
         array_elements: &array_elements,
         array_lenghts_exprs: &array_lenghts_exprs,
         composite_size: &composite_size,
-        expr_solver: &expr_solver,
+        expr_solver: &solver,
         recurring_on: SecondaryMap::new(),
         type_sizes: SecondaryMap::new(),
         array_lenghts: SparseSecondaryMap::new(),
@@ -742,7 +737,7 @@ pub(crate) fn generate<'d, Solver: SizeExpressionSolver<'d>>(
                 .collect::<BTreeSet<_>>();
             if targets.len() > 1 {
                 // Different InTypeId!!
-                Err(TypeDeclareError::DifferentDefinitions::<Solver::Error> {
+                Err(TypeDeclareError::DifferentDefinitions {
                     name,
                     defs: targets
                         .into_iter()
@@ -874,21 +869,28 @@ pub(crate) fn generate<'d, Solver: SizeExpressionSolver<'d>>(
         types[type_ids[id].0] = Some(TypeEntry { typ, name });
     }
 
-    let types = types.into_iter().map(Option::unwrap).collect_vec();
+    let types = types
+        .into_iter()
+        .map(|entry| Box::new(entry.unwrap()))
+        .collect();
     let names = bindings
         .into_iter()
         .map(|(name, id)| (name, type_ids[id]))
         .collect();
 
-    Ok(TypeTable { types, names })
+    Ok(TypeTable {
+        types,
+        names,
+        solver,
+    })
 }
 
 /// A solver able to transform expressions containing `size_of(type)` calls into values
-pub trait SizeExpressionSolver<'d> {
-    type Error;
-    fn solve(
+pub trait SizeExpressionSolver<CallbackError> {
+    type Error: std::error::Error + 'static;
+    fn solve<'d>(
         &self,
         expr: &'d Expression,
-        callback: impl FnMut(&'d TypeDefData) -> Result<vm::VMUInt, SizeError<Self::Error>>,
+        callback: impl FnMut(&'d TypeDefData) -> Result<vm::VMUInt, CallbackError>,
     ) -> Result<vm::VMInt, Self::Error>;
 }
