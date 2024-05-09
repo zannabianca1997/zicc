@@ -1,19 +1,98 @@
 #![feature(box_into_inner)]
 #![feature(iter_intersperse)]
+#![feature(box_patterns)]
 
-use std::fmt::Debug;
+use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
+use ast_node::{AstNode, AstVisitor};
 use display_context::DisplayWithContext;
 use either::Either::{Left, Right};
+use errors::{Accumulator, Multiple, RootAccumulator};
+use logos::Logos;
 use string_interner::DefaultStringInterner;
+use thiserror::Error;
 
 use self::tokens::*;
 
 pub mod tokens;
+pub mod ast_node {
+
+    use display_context::DisplayWithContext;
+    use string_interner::DefaultStringInterner;
+
+    pub trait AstNode: DisplayWithContext<DefaultStringInterner> {
+        fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result;
+        fn visited_by_mut<Visitor: AstVisitorMut>(
+            &mut self,
+            visitor: &mut Visitor,
+        ) -> Visitor::Result;
+    }
+
+    pub trait AstVisitor {
+        type ChildVisitor: AstVisitor;
+        type Result;
+        /// Visit a node, and return the visitor that will visit the childs
+        fn enter(&mut self, node: &impl AstNode) -> Self::ChildVisitor;
+        /// Ended the child visit, exit the visitor
+        fn exit(&mut self, node: &impl AstNode, child_visitor: Self::ChildVisitor) -> Self::Result;
+    }
+    pub trait AstVisitorMut {
+        type ChildVisitor: AstVisitorMut;
+        type Result;
+        /// Visit a mutable node, and return the visitor that will visit the childs
+        fn enter_mut(&mut self, node: &mut impl AstNode) -> Self::ChildVisitor;
+        /// Ended the child visit, exit the visitor
+        fn exit_mut(
+            &mut self,
+            node: &mut impl AstNode,
+            child_visitor: Self::ChildVisitor,
+        ) -> Self::Result;
+    }
+
+    impl<T> AstVisitorMut for T
+    where
+        T: AstVisitor,
+    {
+        type ChildVisitor = <Self as AstVisitor>::ChildVisitor;
+        type Result = <Self as AstVisitor>::Result;
+
+        fn enter_mut(&mut self, node: &mut impl AstNode) -> Self::ChildVisitor {
+            self.enter(node)
+        }
+        fn exit_mut(
+            &mut self,
+            node: &mut impl AstNode,
+            child_visitor: Self::ChildVisitor,
+        ) -> Self::Result {
+            self.exit(node, child_visitor)
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct File {
     pub items: Vec<Item>,
+}
+
+impl AstNode for File {
+    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        for item in &self.items {
+            item.visited_by(&mut child_visitor);
+        }
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        for item in &mut self.items {
+            item.visited_by_mut(&mut child_visitor);
+        }
+        visitor.exit_mut(self, child_visitor)
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for File {
@@ -41,6 +120,33 @@ pub enum Item {
     Fn(ItemFn),
 }
 
+impl AstNode for Item {
+    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        match self {
+            Item::Static(child) => child.visited_by(&mut child_visitor),
+            Item::Extern(child) => child.visited_by(&mut child_visitor),
+            Item::Type(child) => child.visited_by(&mut child_visitor),
+            Item::Fn(child) => child.visited_by(&mut child_visitor),
+        };
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        match self {
+            Item::Static(child) => child.visited_by_mut(&mut child_visitor),
+            Item::Extern(child) => child.visited_by_mut(&mut child_visitor),
+            Item::Type(child) => child.visited_by_mut(&mut child_visitor),
+            Item::Fn(child) => child.visited_by_mut(&mut child_visitor),
+        };
+        visitor.exit_mut(self, child_visitor)
+    }
+}
+
 impl DisplayWithContext<DefaultStringInterner> for Item {
     fn fmt(
         &self,
@@ -64,6 +170,39 @@ pub struct ItemStatic {
     pub ty: typedef::TypeDefData,
     pub init: Option<(PunctEq, expression::Expression)>,
     pub semi: PunctSemi,
+}
+
+impl AstNode for ItemStatic {
+    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.static_kw.visited_by(&mut child_visitor);
+        self.ident.visited_by(&mut child_visitor);
+        self.colon.visited_by(&mut child_visitor);
+        self.ty.visited_by(&mut child_visitor);
+        if let Some((eq, init)) = &self.init {
+            eq.visited_by(&mut child_visitor);
+            init.visited_by(&mut child_visitor);
+        }
+        self.semi.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.static_kw.visited_by_mut(&mut child_visitor);
+        self.ident.visited_by_mut(&mut child_visitor);
+        self.colon.visited_by_mut(&mut child_visitor);
+        self.ty.visited_by_mut(&mut child_visitor);
+        if let Some((eq, init)) = &mut self.init {
+            eq.visited_by_mut(&mut child_visitor);
+            init.visited_by_mut(&mut child_visitor);
+        }
+        self.semi.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for ItemStatic {
@@ -98,6 +237,31 @@ pub struct ItemExtern {
     pub semi: PunctSemi,
 }
 
+impl AstNode for ItemExtern {
+    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.extern_kw.visited_by(&mut child_visitor);
+        self.ident.visited_by(&mut child_visitor);
+        self.colon.visited_by(&mut child_visitor);
+        self.ty.visited_by(&mut child_visitor);
+        self.semi.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.extern_kw.visited_by_mut(&mut child_visitor);
+        self.ident.visited_by_mut(&mut child_visitor);
+        self.colon.visited_by_mut(&mut child_visitor);
+        self.ty.visited_by_mut(&mut child_visitor);
+        self.semi.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
+}
+
 impl DisplayWithContext<DefaultStringInterner> for ItemExtern {
     fn fmt(
         &self,
@@ -124,6 +288,31 @@ pub struct ItemType {
     pub semi: PunctSemi,
 }
 
+impl AstNode for ItemType {
+    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.type_kw.visited_by(&mut child_visitor);
+        self.ident.visited_by(&mut child_visitor);
+        self.eq.visited_by(&mut child_visitor);
+        self.ty.visited_by(&mut child_visitor);
+        self.semi.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.type_kw.visited_by_mut(&mut child_visitor);
+        self.ident.visited_by_mut(&mut child_visitor);
+        self.eq.visited_by_mut(&mut child_visitor);
+        self.ty.visited_by_mut(&mut child_visitor);
+        self.semi.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
+}
+
 impl DisplayWithContext<DefaultStringInterner> for ItemType {
     fn fmt(
         &self,
@@ -148,6 +337,25 @@ pub struct ItemFn {
     pub body: statements::StatementBlock,
 }
 
+impl AstNode for ItemFn {
+    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.sig.visited_by(&mut child_visitor);
+        self.body.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.sig.visited_by_mut(&mut child_visitor);
+        self.body.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
+}
+
 impl DisplayWithContext<DefaultStringInterner> for ItemFn {
     fn fmt(
         &self,
@@ -169,6 +377,61 @@ pub struct Signature {
     pub inputs: punctuated::Punctuated<(Identifier, PunctColon, typedef::TypeDefData), PunctComma>,
     pub paren_close: PunctParenClose,
     pub output: Option<(PunctRightArrow, typedef::TypeDefData)>,
+}
+
+impl AstNode for Signature {
+    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.fn_kw.visited_by(&mut child_visitor);
+        self.ident.visited_by(&mut child_visitor);
+        self.paren_open.visited_by(&mut child_visitor);
+        for child in self.inputs.iter_all() {
+            match child {
+                Left((ident, colon, ty)) => {
+                    ident.visited_by(&mut child_visitor);
+                    colon.visited_by(&mut child_visitor);
+                    ty.visited_by(&mut child_visitor);
+                }
+                Right(comma) => {
+                    comma.visited_by(&mut child_visitor);
+                }
+            }
+        }
+        self.paren_close.visited_by(&mut child_visitor);
+        if let Some((arrow, out)) = &self.output {
+            arrow.visited_by(&mut child_visitor);
+            out.visited_by(&mut child_visitor);
+        }
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.fn_kw.visited_by_mut(&mut child_visitor);
+        self.ident.visited_by_mut(&mut child_visitor);
+        self.paren_open.visited_by_mut(&mut child_visitor);
+        for child in self.inputs.iter_all_mut() {
+            match child {
+                Left((ident, colon, ty)) => {
+                    ident.visited_by_mut(&mut child_visitor);
+                    colon.visited_by_mut(&mut child_visitor);
+                    ty.visited_by_mut(&mut child_visitor);
+                }
+                Right(comma) => {
+                    comma.visited_by_mut(&mut child_visitor);
+                }
+            }
+        }
+        self.paren_close.visited_by_mut(&mut child_visitor);
+        if let Some((arrow, out)) = &mut self.output {
+            arrow.visited_by_mut(&mut child_visitor);
+            out.visited_by_mut(&mut child_visitor);
+        }
+        visitor.exit_mut(self, child_visitor)
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for Signature {
@@ -227,12 +490,25 @@ pub mod punctuated {
                 .map(|(item, _)| item)
                 .chain(self.last.as_ref().map(|x| Box::as_ref(x)))
         }
+        pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+            self.inner
+                .iter_mut()
+                .map(|(item, _)| item)
+                .chain(self.last.as_mut().map(|x| Box::as_mut(x)))
+        }
 
         pub fn iter_all(&self) -> impl Iterator<Item = Either<&T, &P>> {
             self.inner
                 .iter()
                 .flat_map(|(t, p)| [Left(t), Right(p)])
                 .chain(self.last.as_ref().map(|x| Left(Box::as_ref(x))))
+        }
+
+        pub fn iter_all_mut(&mut self) -> impl Iterator<Item = Either<&mut T, &mut P>> {
+            self.inner
+                .iter_mut()
+                .flat_map(|(t, p)| [Left(t), Right(p)])
+                .chain(self.last.as_mut().map(|x| Left(Box::as_mut(x))))
         }
 
         pub fn is_empty(&self) -> bool {
@@ -265,203 +541,7 @@ pub mod punctuated {
     }
 }
 
-pub mod expression {
-    use display_context::DisplayWithContext;
-    use either::Either;
-    use string_interner::DefaultStringInterner;
-
-    use crate::{
-        punctuated::Punctuated, Identifier, PunctAmpersand, PunctAt, PunctBracketClose,
-        PunctBracketOpen, PunctComma, PunctDot, PunctEq, PunctEqEq, PunctGe, PunctGt, PunctLe,
-        PunctLt, PunctNoEq, PunctParenClose, PunctParenOpen,
-    };
-
-    use super::{Literal, PunctMinus, PunctPlus, PunctStar};
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub enum Expression {
-        Literal(Box<Literal>),
-        Name(Box<Identifier>),
-        Set(Box<BinExpr<PunctEq>>),
-        Eq(Box<BinExpr<PunctEqEq>>),
-        NoEq(Box<BinExpr<PunctNoEq>>),
-        Ge(Box<BinExpr<PunctGe>>),
-        Gt(Box<BinExpr<PunctGt>>),
-        Le(Box<BinExpr<PunctLe>>),
-        Lt(Box<BinExpr<PunctLt>>),
-        MemberAccess(Box<MemberAccess>),
-        IndexAccess(Box<IndexAccess>),
-        Deref(Box<UnExpr<PunctStar>>),
-        TakeRef(Box<UnExpr<Either<PunctAmpersand, PunctAt>>>),
-        Call(Box<ExpressionCall>),
-        Add(Box<BinExpr<PunctPlus>>),
-        Sub(Box<BinExpr<PunctMinus>>),
-        Neg(Box<UnExpr<PunctMinus>>),
-        Mul(Box<BinExpr<PunctStar>>),
-        Parenthesized(Box<Parenthesized>),
-    }
-
-    impl DisplayWithContext<DefaultStringInterner> for Expression {
-        fn fmt(
-            &self,
-            f: &mut std::fmt::Formatter<'_>,
-            context: &DefaultStringInterner,
-        ) -> std::fmt::Result {
-            match self {
-                Expression::Literal(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Name(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Set(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Eq(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::NoEq(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Ge(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Gt(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Le(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Lt(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::MemberAccess(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::IndexAccess(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Deref(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::TakeRef(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Call(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Add(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Sub(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Neg(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Mul(expr) => DisplayWithContext::fmt(expr, f, context),
-                Expression::Parenthesized(expr) => DisplayWithContext::fmt(expr, f, context),
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct MemberAccess {
-        pub lhs: Expression,
-        pub dot: PunctDot,
-        pub member: Identifier,
-    }
-    impl DisplayWithContext<DefaultStringInterner> for MemberAccess {
-        fn fmt(
-            &self,
-            f: &mut std::fmt::Formatter<'_>,
-            context: &DefaultStringInterner,
-        ) -> std::fmt::Result {
-            DisplayWithContext::fmt(&self.lhs, f, context)?;
-            DisplayWithContext::fmt(&self.dot, f, context)?;
-            DisplayWithContext::fmt(&self.member, f, context)?;
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct ExpressionCall {
-        pub fun: Identifier,
-        pub open_par: PunctParenOpen,
-        pub inputs: Punctuated<Expression, PunctComma>,
-        pub close_par: PunctParenClose,
-    }
-    impl DisplayWithContext<DefaultStringInterner> for ExpressionCall {
-        fn fmt(
-            &self,
-            f: &mut std::fmt::Formatter<'_>,
-            context: &DefaultStringInterner,
-        ) -> std::fmt::Result {
-            DisplayWithContext::fmt(&self.fun, f, context)?;
-            DisplayWithContext::fmt(&self.open_par, f, context)?;
-            for input_or_comma in self.inputs.iter_all() {
-                match input_or_comma {
-                    Either::Left(inp) => DisplayWithContext::fmt(inp, f, context)?,
-                    Either::Right(comma) => {
-                        DisplayWithContext::fmt(comma, f, context)?;
-                        f.write_str(" ")?;
-                    }
-                }
-            }
-            DisplayWithContext::fmt(&self.close_par, f, context)?;
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct IndexAccess {
-        pub lhs: Expression,
-        pub braket_open: PunctBracketOpen,
-        pub index: Identifier,
-        pub braket_close: PunctBracketClose,
-    }
-    impl DisplayWithContext<DefaultStringInterner> for IndexAccess {
-        fn fmt(
-            &self,
-            f: &mut std::fmt::Formatter<'_>,
-            context: &DefaultStringInterner,
-        ) -> std::fmt::Result {
-            DisplayWithContext::fmt(&self.lhs, f, context)?;
-            DisplayWithContext::fmt(&self.braket_open, f, context)?;
-            DisplayWithContext::fmt(&self.index, f, context)?;
-            DisplayWithContext::fmt(&self.braket_close, f, context)?;
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct BinExpr<Op> {
-        pub lhs: Expression,
-        pub op: Op,
-        pub rhs: Expression,
-    }
-    impl<Op> DisplayWithContext<DefaultStringInterner> for BinExpr<Op>
-    where
-        Op: DisplayWithContext<DefaultStringInterner>,
-    {
-        fn fmt(
-            &self,
-            f: &mut std::fmt::Formatter<'_>,
-            context: &DefaultStringInterner,
-        ) -> std::fmt::Result {
-            DisplayWithContext::fmt(&self.lhs, f, context)?;
-            DisplayWithContext::fmt(&self.op, f, context)?;
-            DisplayWithContext::fmt(&self.rhs, f, context)?;
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct UnExpr<Op> {
-        pub op: Op,
-        pub rhs: Expression,
-    }
-    impl<Op> DisplayWithContext<DefaultStringInterner> for UnExpr<Op>
-    where
-        Op: DisplayWithContext<DefaultStringInterner>,
-    {
-        fn fmt(
-            &self,
-            f: &mut std::fmt::Formatter<'_>,
-            context: &DefaultStringInterner,
-        ) -> std::fmt::Result {
-            DisplayWithContext::fmt(&self.op, f, context)?;
-            DisplayWithContext::fmt(&self.rhs, f, context)?;
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct Parenthesized {
-        pub open_par: PunctParenOpen,
-        pub inner: Expression,
-        pub close_par: PunctParenClose,
-    }
-
-    impl DisplayWithContext<DefaultStringInterner> for Parenthesized {
-        fn fmt(
-            &self,
-            f: &mut std::fmt::Formatter<'_>,
-            context: &DefaultStringInterner,
-        ) -> std::fmt::Result {
-            DisplayWithContext::fmt(&self.open_par, f, context)?;
-            DisplayWithContext::fmt(&self.inner, f, context)?;
-            DisplayWithContext::fmt(&self.close_par, f, context)?;
-            Ok(())
-        }
-    }
-}
+pub mod expression;
 
 peg::parser! {
   pub grammar parser() for [Token] {
@@ -606,4 +686,33 @@ peg::parser! {
     pub rule file() -> File
       = items:(item() *) ![_] { File { items } }
   }
+}
+
+#[derive(Debug, Error)]
+pub enum ParseError {
+    #[error(transparent)]
+    Lex(#[from] tokens::LexError),
+    #[error(transparent)]
+    Parse(#[from] peg::error::ParseError<usize>),
+}
+
+pub fn parse(
+    source: &str,
+    source_name: Option<&str>,
+    interner: Rc<RefCell<DefaultStringInterner>>,
+) -> Result<File, Multiple<ParseError>> {
+    let mut errors: RootAccumulator<ParseError> = RootAccumulator::new();
+    let tokens: Box<[Token]> = errors
+        .handle_iter(tokens::Token::lexer_with_extras(
+            source,
+            tokens::LexerExtras::new(source_name, interner),
+        ))
+        .flatten()
+        .collect();
+    // No use proceeding if some errors where found while tokenizing
+    errors.checkpoint()?;
+
+    let ast = errors.handle(parser::file(&tokens));
+
+    errors.finish(|| ast.unwrap())
 }

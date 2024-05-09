@@ -5,6 +5,8 @@ use either::Either::{self, Left, Right};
 use indenter::indented;
 use string_interner::DefaultStringInterner;
 
+use crate::ast_node::AstNode;
+
 use super::{expression, punctuated, tokens::*};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -12,6 +14,22 @@ pub enum TypeDef {
     Data(TypeDefData),
     Fn(TypeDefFn),
     Unknow(TypeDefUnknow),
+}
+
+impl AstNode for TypeDef {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        todo!()
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        todo!()
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for TypeDef {
@@ -36,6 +54,22 @@ pub enum TypeDefData {
     Union(TypeDefUnion),
     Pointer(TypeDefPointer),
     Named(Identifier),
+}
+
+impl AstNode for TypeDefData {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        todo!()
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        todo!()
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for TypeDefData {
@@ -160,7 +194,7 @@ fn display_fields(
                 Either::Left((name, colon, ty)) => {
                     write!(
                         f,
-                        "{}{} {}",
+                        "\n{}{} {}",
                         name.with_context(context),
                         colon.with_context(context),
                         ty.with_context(context)

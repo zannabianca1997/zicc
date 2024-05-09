@@ -707,6 +707,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "parse_and_emit"
+version = "0.1.0"
+dependencies = [
+ "ast",
+ "display_context",
+ "errors",
+ "indenter",
+ "string-interner",
+ "thiserror",
+ "types",
+]
+
+[[package]]
 name = "parse_from_rust"
 version = "0.1.0"
 dependencies = [

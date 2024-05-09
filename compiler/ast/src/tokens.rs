@@ -9,6 +9,8 @@ use errors::Accumulator;
 use spans::{Pos, Span, Spanned};
 use vm::VMInt;
 
+use crate::ast_node::AstNode;
+
 macro_rules! keywords {
     ( $($ident:ident $str:literal ;)*) => {
         ::paste::paste!{
@@ -35,6 +37,23 @@ macro_rules! keywords {
                 impl std::fmt::Display for [<Keyword $ident>] {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                         f.write_str($str)
+                    }
+                }
+                impl AstNode for [<Keyword $ident>] {
+                    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+                        &self,
+                        visitor: &mut Visitor,
+                    ) -> Visitor::Result {
+                        let child_visitor = visitor.enter(self);
+                        visitor.exit(self, child_visitor)
+                    }
+
+                    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+                        &mut self,
+                        visitor: &mut Visitor,
+                    ) -> Visitor::Result {
+                        let child_visitor = visitor.enter_mut(self);
+                        visitor.exit_mut(self, child_visitor)
                     }
                 }
                 display_with_any_context!{[<Keyword $ident>]}
@@ -89,6 +108,23 @@ pub struct Identifier {
     symbol: DefaultSymbol,
     span: Span,
 }
+impl AstNode for Identifier {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let child_visitor = visitor.enter(self);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let child_visitor = visitor.enter_mut(self);
+        visitor.exit_mut(self, child_visitor)
+    }
+}
 impl DisplayWithContext<StringInterner> for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>, context: &StringInterner) -> std::fmt::Result {
         f.write_str(
@@ -129,6 +165,23 @@ impl Spanned for Identifier {
 pub struct Literal {
     span: Span,
     value: VMInt,
+}
+impl AstNode for Literal {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let child_visitor = visitor.enter(self);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let child_visitor = visitor.enter_mut(self);
+        visitor.exit_mut(self, child_visitor)
+    }
 }
 impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -172,6 +225,7 @@ macro_rules! punctuators {
                     $ident([<Punct $ident>]),
                 )*
             }
+
             impl std::fmt::Display for Punct {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     match self {
@@ -186,6 +240,25 @@ macro_rules! punctuators {
             $(
                 #[derive(Debug, Clone, Copy)]
                 pub struct [<Punct $ident>] (Pos);
+
+                impl AstNode for [<Punct $ident>] {
+                    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+                        &self,
+                        visitor: &mut Visitor,
+                    ) -> Visitor::Result {
+                        let child_visitor = visitor.enter(self);
+                        visitor.exit(self, child_visitor)
+                    }
+
+                    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+                        &mut self,
+                        visitor: &mut Visitor,
+                    ) -> Visitor::Result {
+                        let child_visitor = visitor.enter_mut(self);
+                        visitor.exit_mut(self, child_visitor)
+                    }
+                }
+
                 impl std::fmt::Display for [<Punct $ident>] {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                         f.write_str($str)
@@ -245,7 +318,7 @@ punctuators! {
 
 fn lex_identifier<'s>(lex: &mut logos::Lexer<'s, Token>) -> Identifier {
     Identifier {
-        symbol: lex.extras.interner.borrow_mut().get_or_intern(lex.source()),
+        symbol: lex.extras.interner.borrow_mut().get_or_intern(lex.slice()),
         span: Span {
             source: lex.extras.source,
             start: Some((lex.span().start as u32).try_into().unwrap()),

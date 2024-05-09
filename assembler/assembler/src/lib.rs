@@ -148,6 +148,7 @@ impl<'s> Code<'s> {
     }
 }
 
+/// Generate the prologur for an executable. It calls the entry point, then exit immediately
 fn prologue(entry_offset: VMInt) -> impl IntoIterator<Item = Expression<'static>> {
     let entry = Box::new(Expression::Sum(
         Box::new(Expression::Ref(LabelRef::SpecialIdentifier(
@@ -726,6 +727,7 @@ impl<'s> CodeGen<'s> for CallStm<'s> {
         E: Accumulator<Error = AssembleError<'s>>,
     {
         let Self(addr, stack_top) = self;
+        // adding 1 to the offset for the return address
         let offset =
             Box::new(Expression::Sum(stack_top, Box::new(Expression::Num(1)))).constant_folding();
         let label = unit.unnamed_label();

@@ -1,0 +1,15 @@
+[package]
+name = "parse_and_emit"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ast = { version = "0.1.0", path = "../ast" }
+display_context = { version = "0.1.0", path = "../display_context" }
+errors = { version = "0.1.0", path = "../../errors" }
+indenter = "0.3.3"
+string-interner = "0.17.0"
+thiserror = "1.0.60"
+types = { version = "0.1.0", path = "../types" }
