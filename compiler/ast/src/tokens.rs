@@ -1,16 +1,13 @@
 use std::{cell::RefCell, fmt::Display, hash::Hash, rc::Rc};
 
-use errors::Accumulator;
 use logos::Logos;
-use string_interner::{symbol::DefaultSymbol, StringInterner};
+use string_interner::{symbol::DefaultSymbol, DefaultStringInterner as StringInterner};
 use thiserror::Error;
-use vm::VMInt;
 
-use crate::{
-    display_with_any_context,
-    span::{Pos, Span, Spanned},
-    DisplayWithContext,
-};
+use display_context::{display_with_any_context, DisplayWithContext};
+use errors::Accumulator;
+use spans::{Pos, Span, Spanned};
+use vm::VMInt;
 
 macro_rules! keywords {
     ( $($ident:ident $str:literal ;)*) => {

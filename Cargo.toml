@@ -7,10 +7,11 @@ members = [
     "assembler/test_sources",
     "assembler/keyword_expand",
     "assembler/keyword_expand_macro",
-    "compiler",
+    "compiler/ast",
+    "compiler/types",
     "vm",
     "zicc",
     "errors",
-    "utils",
+    "utils", "compiler/spans", "compiler/display_context",
 ]
 resolver = "2"

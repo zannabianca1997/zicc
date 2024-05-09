@@ -1,13 +1,15 @@
-use std::{collections::BTreeMap, fmt::Display};
+#![feature(box_patterns)]
+
+use std::collections::BTreeMap;
 
 use either::Either::{self, Left};
 use elsa::FrozenVec;
-use vm::VMUInt;
 
-use crate::ast::{
+use ast::{
     tokens::Identifier,
     typedef::{PointerKindDef, TypeDef, TypeDefData},
 };
+use vm::VMUInt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeId(usize);

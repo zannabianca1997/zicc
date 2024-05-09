@@ -1,3 +1,5 @@
+#![feature(box_into_inner)]
+
 use std::fmt::Debug;
 
 use self::tokens::*;

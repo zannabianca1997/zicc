@@ -1,19 +1,15 @@
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use either::Either::{self, Left, Right};
 use itertools::Itertools;
 use slotmap::{new_key_type, SecondaryMap, SlotMap, SparseSecondaryMap};
 use thiserror::Error;
-use vm::VMUInt;
 
 use super::{
     PointerKind, Type, TypeArray, TypeComposite, TypeData, TypeEntry, TypeFn, TypeId, TypeIdData,
     TypeInt, TypePointer, TypeTable, TypeUnknow, INT_ID, UNIT_ID, UNKNOW_ID,
 };
-use crate::ast::{
+use ast::{
     expression::Expression,
     tokens::Identifier,
     typedef::{
@@ -21,6 +17,7 @@ use crate::ast::{
         TypeDefUnknow,
     },
 };
+use vm::VMUInt;
 
 #[derive(Debug, Error)]
 pub enum TypeDeclareError {
@@ -143,12 +140,12 @@ impl<'d> RegisteringPhaseMaps<'d> {
         let idx = self.idxs_mapping.insert(reference);
         // named struct are automatically bound
         if let Left(TypeDef::Data(def)) | Right(def) = def {
-            if let (TypeDefData::Struct(TypeDefStruct {
+            if let TypeDefData::Struct(TypeDefStruct {
                 name: Some(name), ..
             })
             | TypeDefData::Union(TypeDefUnion {
                 name: Some(name), ..
-            })) = def
+            }) = def
             {
                 self.bind(*name, idx)
             }
