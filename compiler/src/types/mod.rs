@@ -1,17 +1,12 @@
-use std::{cell::RefCell, collections::BTreeMap, error::Error};
+use std::{collections::BTreeMap, fmt::Display};
 
 use either::Either::{self, Left};
 use elsa::FrozenVec;
-use itertools::Itertools;
-use thiserror::Error;
 use vm::VMUInt;
 
 use crate::ast::{
     tokens::Identifier,
-    typedef::{
-        PointerKindDef, TypeDef, TypeDefArray, TypeDefData, TypeDefFn, TypeDefPointer,
-        TypeDefStruct, TypeDefUnion,
-    },
+    typedef::{PointerKindDef, TypeDef, TypeDefData},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -208,7 +203,17 @@ impl<S> TypeTable<S> {
 
     /// Return the size of a datatype
     pub fn size_of(&self, id: TypeIdData) -> VMUInt {
-        todo!()
+        self.types[id.0 .0]
+            .size
+            .expect("All datatypes should have a size")
+    }
+
+    pub fn is_data(&self, id: TypeId) -> bool {
+        matches!(self.types[id.0].typ, Type::Data(_))
+    }
+
+    pub fn as_data(&self, id: TypeId) -> Option<TypeIdData> {
+        self.is_data(id).then_some(TypeIdData(id))
     }
 
     /// Helper to calculate the size of a type

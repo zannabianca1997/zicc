@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use self::tokens::*;
 
 pub mod tokens;

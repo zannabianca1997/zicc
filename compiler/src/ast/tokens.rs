@@ -1,4 +1,4 @@
-use std::{cell::RefCell, hash::Hash, rc::Rc};
+use std::{cell::RefCell, fmt::Display, hash::Hash, rc::Rc};
 
 use errors::Accumulator;
 use logos::Logos;
@@ -6,7 +6,11 @@ use string_interner::{symbol::DefaultSymbol, StringInterner};
 use thiserror::Error;
 use vm::VMInt;
 
-use crate::span::{Pos, Span, Spanned};
+use crate::{
+    display_with_any_context,
+    span::{Pos, Span, Spanned},
+    DisplayWithContext,
+};
 
 macro_rules! keywords {
     ( $($ident:ident $str:literal ;)*) => {
@@ -17,21 +21,29 @@ macro_rules! keywords {
                     $ident([<Keyword $ident>]),
                 )*
             }
-            impl Keyword {
-                pub fn as_ident(&self)->Identifier {
-                    todo!()
+            impl std::fmt::Display for Keyword {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    match self {
+                        $(
+                            Self::$ident(kwd) => <[<Keyword $ident>] as std::fmt::Display>::fmt(kwd, f),
+                        )*
+                    }
                 }
             }
+            display_with_any_context!{Keyword}
 
             $(
                 #[derive(Debug, Clone, Copy)]
                 pub struct [<Keyword $ident>] (Pos);
+                impl std::fmt::Display for [<Keyword $ident>] {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        f.write_str($str)
+                    }
+                }
+                display_with_any_context!{[<Keyword $ident>]}
                 impl [<Keyword $ident>] {
                     pub fn new()->Self {
                         Self(Pos::missing())
-                    }
-                    pub fn as_ident(&self)->Identifier {
-                        todo!()
                     }
                 }
                 impl PartialEq for [<Keyword $ident>] {
@@ -80,6 +92,15 @@ pub struct Identifier {
     symbol: DefaultSymbol,
     span: Span,
 }
+impl DisplayWithContext<StringInterner> for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>, context: &StringInterner) -> std::fmt::Result {
+        f.write_str(
+            context
+                .resolve(self.symbol)
+                .expect("Indentifier should be displaied with the right interner"),
+        )
+    }
+}
 impl PartialEq for Identifier {
     fn eq(&self, other: &Self) -> bool {
         self.symbol == other.symbol
@@ -112,6 +133,12 @@ pub struct Literal {
     span: Span,
     value: VMInt,
 }
+impl Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <VMInt as Display>::fmt(&self.value, f)
+    }
+}
+display_with_any_context! {Literal}
 impl PartialEq for Literal {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value
@@ -148,10 +175,26 @@ macro_rules! punctuators {
                     $ident([<Punct $ident>]),
                 )*
             }
+            impl std::fmt::Display for Punct {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    match self {
+                        $(
+                            Self::$ident(kwd) => <[<Punct $ident>] as std::fmt::Display>::fmt(kwd, f),
+                        )*
+                    }
+                }
+            }
+            display_with_any_context!{Punct}
 
             $(
                 #[derive(Debug, Clone, Copy)]
                 pub struct [<Punct $ident>] (Pos);
+                impl std::fmt::Display for [<Punct $ident>] {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        f.write_str($str)
+                    }
+                }
+                display_with_any_context!{[<Punct $ident>]}
                 impl PartialEq for [<Punct $ident>] {
                     fn eq(&self, _: &Self) -> bool {
                         true
@@ -314,6 +357,25 @@ pub enum Token {
 
     #[regex(r"[0-9]+", lex_number)]
     Literal(Literal),
+}
+
+impl DisplayWithContext<StringInterner> for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>, context: &StringInterner) -> std::fmt::Result {
+        match self {
+            Token::Keyword(kwd) => {
+                <Keyword as DisplayWithContext<StringInterner>>::fmt(kwd, f, context)
+            }
+            Token::Punct(punct) => {
+                <Punct as DisplayWithContext<StringInterner>>::fmt(punct, f, context)
+            }
+            Token::Identifier(ident) => {
+                <Identifier as DisplayWithContext<StringInterner>>::fmt(ident, f, context)
+            }
+            Token::Literal(lit) => {
+                <Literal as DisplayWithContext<StringInterner>>::fmt(lit, f, context)
+            }
+        }
+    }
 }
 
 pub fn lex(
