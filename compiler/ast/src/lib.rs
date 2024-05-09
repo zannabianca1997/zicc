@@ -20,12 +20,38 @@ pub mod ast_node {
     use display_context::DisplayWithContext;
     use string_interner::DefaultStringInterner;
 
+    use crate::{
+        typedef::{TypeDef, TypeDefData},
+        ItemType,
+    };
+
     pub trait AstNode: DisplayWithContext<DefaultStringInterner> {
         fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result;
         fn visited_by_mut<Visitor: AstVisitorMut>(
             &mut self,
             visitor: &mut Visitor,
         ) -> Visitor::Result;
+
+        // extractor to extract various ast nodes
+
+        fn as_type_item(&self) -> Option<&ItemType> {
+            None
+        }
+        fn as_type_item_mut(&mut self) -> Option<&mut ItemType> {
+            None
+        }
+        fn as_type_def(&self) -> Option<&TypeDef> {
+            None
+        }
+        fn as_type_def_mut(&mut self) -> Option<&mut TypeDef> {
+            None
+        }
+        fn as_type_def_data(&self) -> Option<&TypeDefData> {
+            None
+        }
+        fn as_type_def_data_mut(&mut self) -> Option<&mut TypeDefData> {
+            None
+        }
     }
 
     pub trait AstVisitor {
@@ -310,6 +336,13 @@ impl AstNode for ItemType {
         self.ty.visited_by_mut(&mut child_visitor);
         self.semi.visited_by_mut(&mut child_visitor);
         visitor.exit_mut(self, child_visitor)
+    }
+
+    fn as_type_item(&self) -> Option<&ItemType> {
+        Some(self)
+    }
+    fn as_type_item_mut(&mut self) -> Option<&mut ItemType> {
+        Some(self)
     }
 }
 

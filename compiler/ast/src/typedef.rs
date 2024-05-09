@@ -30,6 +30,13 @@ impl AstNode for TypeDef {
     ) -> Visitor::Result {
         todo!()
     }
+
+    fn as_type_def(&self) -> Option<&TypeDef> {
+        Some(self)
+    }
+    fn as_type_def_mut(&mut self) -> Option<&mut TypeDef> {
+        Some(self)
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for TypeDef {
@@ -69,6 +76,13 @@ impl AstNode for TypeDefData {
         visitor: &mut Visitor,
     ) -> Visitor::Result {
         todo!()
+    }
+
+    fn as_type_def_data(&self) -> Option<&TypeDefData> {
+        Some(self)
+    }
+    fn as_type_def_data_mut(&mut self) -> Option<&mut TypeDefData> {
+        Some(self)
     }
 }
 

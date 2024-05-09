@@ -63,7 +63,7 @@ fn main_unreported() -> Result<(), MainError> {
         }
     };
 
-    let type_table = TypeTable::build(ast);
+    todo!("let type_table = TypeTable::build(ast);");
 
     // unparse
     let mut out = stdout();
