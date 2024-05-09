@@ -8,6 +8,7 @@ edition = "2021"
 display_context = { path = "../display_context" }
 either = "1.11.0"
 errors = { path = "../../errors" }
+indenter = "0.3.3"
 logos = "0.14.0"
 paste = "1.0.15"
 peg = "0.8.3"

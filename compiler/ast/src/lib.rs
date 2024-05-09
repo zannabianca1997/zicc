@@ -1,6 +1,11 @@
 #![feature(box_into_inner)]
+#![feature(iter_intersperse)]
 
 use std::fmt::Debug;
+
+use display_context::DisplayWithContext;
+use either::Either::{Left, Right};
+use string_interner::DefaultStringInterner;
 
 use self::tokens::*;
 
@@ -9,6 +14,19 @@ pub mod tokens;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct File {
     pub items: Vec<Item>,
+}
+
+impl DisplayWithContext<DefaultStringInterner> for File {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        for item in self.items.iter().map(Left).intersperse(Right("\n\n")) {
+            DisplayWithContext::fmt(&item, f, context)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -23,6 +41,21 @@ pub enum Item {
     Fn(ItemFn),
 }
 
+impl DisplayWithContext<DefaultStringInterner> for Item {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        match self {
+            Item::Static(item) => DisplayWithContext::fmt(item, f, context),
+            Item::Extern(item) => DisplayWithContext::fmt(item, f, context),
+            Item::Type(item) => DisplayWithContext::fmt(item, f, context),
+            Item::Fn(item) => DisplayWithContext::fmt(item, f, context),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ItemStatic {
     pub static_kw: KeywordStatic,
@@ -31,6 +64,29 @@ pub struct ItemStatic {
     pub ty: typedef::TypeDefData,
     pub init: Option<(PunctEq, expression::Expression)>,
     pub semi: PunctSemi,
+}
+
+impl DisplayWithContext<DefaultStringInterner> for ItemStatic {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        DisplayWithContext::fmt(&self.static_kw, f, context)?;
+        f.write_str(" ")?;
+        DisplayWithContext::fmt(&self.ident, f, context)?;
+        DisplayWithContext::fmt(&self.colon, f, context)?;
+        f.write_str(" ")?;
+        DisplayWithContext::fmt(&self.ty, f, context)?;
+        if let Some((eq, expr)) = &self.init {
+            f.write_str(" ")?;
+            DisplayWithContext::fmt(eq, f, context)?;
+            f.write_str(" ")?;
+            DisplayWithContext::fmt(expr, f, context)?;
+        }
+        DisplayWithContext::fmt(&self.semi, f, context)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -42,6 +98,23 @@ pub struct ItemExtern {
     pub semi: PunctSemi,
 }
 
+impl DisplayWithContext<DefaultStringInterner> for ItemExtern {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        DisplayWithContext::fmt(&self.extern_kw, f, context)?;
+        f.write_str(" ")?;
+        DisplayWithContext::fmt(&self.ident, f, context)?;
+        DisplayWithContext::fmt(&self.colon, f, context)?;
+        f.write_str(" ")?;
+        DisplayWithContext::fmt(&self.ty, f, context)?;
+        DisplayWithContext::fmt(&self.semi, f, context)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ItemType {
     pub type_kw: KeywordType,
@@ -51,10 +124,41 @@ pub struct ItemType {
     pub semi: PunctSemi,
 }
 
+impl DisplayWithContext<DefaultStringInterner> for ItemType {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        DisplayWithContext::fmt(&self.type_kw, f, context)?;
+        f.write_str(" ")?;
+        DisplayWithContext::fmt(&self.ident, f, context)?;
+        f.write_str(" ")?;
+        DisplayWithContext::fmt(&self.eq, f, context)?;
+        f.write_str(" ")?;
+        DisplayWithContext::fmt(&self.ty, f, context)?;
+        DisplayWithContext::fmt(&self.semi, f, context)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ItemFn {
     pub sig: Signature,
     pub body: statements::StatementBlock,
+}
+
+impl DisplayWithContext<DefaultStringInterner> for ItemFn {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        DisplayWithContext::fmt(&self.sig, f, context)?;
+        f.write_str("\n")?;
+        DisplayWithContext::fmt(&self.body, f, context)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -62,9 +166,44 @@ pub struct Signature {
     pub fn_kw: KeywordFn,
     pub ident: Identifier,
     pub paren_open: PunctParenOpen,
-    pub input: punctuated::Punctuated<(Identifier, PunctColon, typedef::TypeDefData), PunctComma>,
+    pub inputs: punctuated::Punctuated<(Identifier, PunctColon, typedef::TypeDefData), PunctComma>,
     pub paren_close: PunctParenClose,
     pub output: Option<(PunctRightArrow, typedef::TypeDefData)>,
+}
+
+impl DisplayWithContext<DefaultStringInterner> for Signature {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        DisplayWithContext::fmt(&self.fn_kw, f, context)?;
+        f.write_str(" ")?;
+        DisplayWithContext::fmt(&self.ident, f, context)?;
+        DisplayWithContext::fmt(&self.paren_open, f, context)?;
+        for comma_or_input in self.inputs.iter_all() {
+            match comma_or_input {
+                Left((name, colon, ty)) => {
+                    DisplayWithContext::fmt(name, f, context)?;
+                    DisplayWithContext::fmt(colon, f, context)?;
+                    f.write_str(" ")?;
+                    DisplayWithContext::fmt(ty, f, context)?;
+                }
+                Right(comma) => {
+                    DisplayWithContext::fmt(comma, f, context)?;
+                    f.write_str(" ")?;
+                }
+            }
+        }
+        DisplayWithContext::fmt(&self.paren_close, f, context)?;
+        if let Some((arrow, output)) = &self.output {
+            f.write_str(" ")?;
+            DisplayWithContext::fmt(arrow, f, context)?;
+            f.write_str(" ")?;
+            DisplayWithContext::fmt(output, f, context)?;
+        }
+        Ok(())
+    }
 }
 
 pub mod statements;
@@ -73,6 +212,8 @@ pub mod typedef;
 
 pub mod punctuated {
     use std::iter::{Chain, Map};
+
+    use either::Either::{self, Left, Right};
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Punctuated<T, P> {
@@ -85,6 +226,13 @@ pub mod punctuated {
                 .iter()
                 .map(|(item, _)| item)
                 .chain(self.last.as_ref().map(|x| Box::as_ref(x)))
+        }
+
+        pub fn iter_all(&self) -> impl Iterator<Item = Either<&T, &P>> {
+            self.inner
+                .iter()
+                .flat_map(|(t, p)| [Left(t), Right(p)])
+                .chain(self.last.as_ref().map(|x| Left(Box::as_ref(x))))
         }
 
         pub fn is_empty(&self) -> bool {
@@ -118,11 +266,200 @@ pub mod punctuated {
 }
 
 pub mod expression {
-    use super::tokens;
+    use display_context::DisplayWithContext;
+    use either::Either;
+    use string_interner::DefaultStringInterner;
+
+    use crate::{
+        punctuated::Punctuated, Identifier, PunctAmpersand, PunctAt, PunctBracketClose,
+        PunctBracketOpen, PunctComma, PunctDot, PunctEq, PunctEqEq, PunctGe, PunctGt, PunctLe,
+        PunctLt, PunctNoEq, PunctParenClose, PunctParenOpen,
+    };
+
+    use super::{Literal, PunctMinus, PunctPlus, PunctStar};
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum Expression {
-        Literal(tokens::Literal),
+        Literal(Box<Literal>),
+        Name(Box<Identifier>),
+        Set(Box<BinExpr<PunctEq>>),
+        Eq(Box<BinExpr<PunctEqEq>>),
+        NoEq(Box<BinExpr<PunctNoEq>>),
+        Ge(Box<BinExpr<PunctGe>>),
+        Gt(Box<BinExpr<PunctGt>>),
+        Le(Box<BinExpr<PunctLe>>),
+        Lt(Box<BinExpr<PunctLt>>),
+        MemberAccess(Box<MemberAccess>),
+        IndexAccess(Box<IndexAccess>),
+        Deref(Box<UnExpr<PunctStar>>),
+        TakeRef(Box<UnExpr<Either<PunctAmpersand, PunctAt>>>),
+        Call(Box<ExpressionCall>),
+        Add(Box<BinExpr<PunctPlus>>),
+        Sub(Box<BinExpr<PunctMinus>>),
+        Neg(Box<UnExpr<PunctMinus>>),
+        Mul(Box<BinExpr<PunctStar>>),
+        Parenthesized(Box<Parenthesized>),
+    }
+
+    impl DisplayWithContext<DefaultStringInterner> for Expression {
+        fn fmt(
+            &self,
+            f: &mut std::fmt::Formatter<'_>,
+            context: &DefaultStringInterner,
+        ) -> std::fmt::Result {
+            match self {
+                Expression::Literal(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Name(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Set(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Eq(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::NoEq(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Ge(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Gt(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Le(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Lt(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::MemberAccess(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::IndexAccess(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Deref(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::TakeRef(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Call(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Add(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Sub(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Neg(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Mul(expr) => DisplayWithContext::fmt(expr, f, context),
+                Expression::Parenthesized(expr) => DisplayWithContext::fmt(expr, f, context),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct MemberAccess {
+        pub lhs: Expression,
+        pub dot: PunctDot,
+        pub member: Identifier,
+    }
+    impl DisplayWithContext<DefaultStringInterner> for MemberAccess {
+        fn fmt(
+            &self,
+            f: &mut std::fmt::Formatter<'_>,
+            context: &DefaultStringInterner,
+        ) -> std::fmt::Result {
+            DisplayWithContext::fmt(&self.lhs, f, context)?;
+            DisplayWithContext::fmt(&self.dot, f, context)?;
+            DisplayWithContext::fmt(&self.member, f, context)?;
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct ExpressionCall {
+        pub fun: Identifier,
+        pub open_par: PunctParenOpen,
+        pub inputs: Punctuated<Expression, PunctComma>,
+        pub close_par: PunctParenClose,
+    }
+    impl DisplayWithContext<DefaultStringInterner> for ExpressionCall {
+        fn fmt(
+            &self,
+            f: &mut std::fmt::Formatter<'_>,
+            context: &DefaultStringInterner,
+        ) -> std::fmt::Result {
+            DisplayWithContext::fmt(&self.fun, f, context)?;
+            DisplayWithContext::fmt(&self.open_par, f, context)?;
+            for input_or_comma in self.inputs.iter_all() {
+                match input_or_comma {
+                    Either::Left(inp) => DisplayWithContext::fmt(inp, f, context)?,
+                    Either::Right(comma) => {
+                        DisplayWithContext::fmt(comma, f, context)?;
+                        f.write_str(" ")?;
+                    }
+                }
+            }
+            DisplayWithContext::fmt(&self.close_par, f, context)?;
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct IndexAccess {
+        pub lhs: Expression,
+        pub braket_open: PunctBracketOpen,
+        pub index: Identifier,
+        pub braket_close: PunctBracketClose,
+    }
+    impl DisplayWithContext<DefaultStringInterner> for IndexAccess {
+        fn fmt(
+            &self,
+            f: &mut std::fmt::Formatter<'_>,
+            context: &DefaultStringInterner,
+        ) -> std::fmt::Result {
+            DisplayWithContext::fmt(&self.lhs, f, context)?;
+            DisplayWithContext::fmt(&self.braket_open, f, context)?;
+            DisplayWithContext::fmt(&self.index, f, context)?;
+            DisplayWithContext::fmt(&self.braket_close, f, context)?;
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct BinExpr<Op> {
+        pub lhs: Expression,
+        pub op: Op,
+        pub rhs: Expression,
+    }
+    impl<Op> DisplayWithContext<DefaultStringInterner> for BinExpr<Op>
+    where
+        Op: DisplayWithContext<DefaultStringInterner>,
+    {
+        fn fmt(
+            &self,
+            f: &mut std::fmt::Formatter<'_>,
+            context: &DefaultStringInterner,
+        ) -> std::fmt::Result {
+            DisplayWithContext::fmt(&self.lhs, f, context)?;
+            DisplayWithContext::fmt(&self.op, f, context)?;
+            DisplayWithContext::fmt(&self.rhs, f, context)?;
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct UnExpr<Op> {
+        pub op: Op,
+        pub rhs: Expression,
+    }
+    impl<Op> DisplayWithContext<DefaultStringInterner> for UnExpr<Op>
+    where
+        Op: DisplayWithContext<DefaultStringInterner>,
+    {
+        fn fmt(
+            &self,
+            f: &mut std::fmt::Formatter<'_>,
+            context: &DefaultStringInterner,
+        ) -> std::fmt::Result {
+            DisplayWithContext::fmt(&self.op, f, context)?;
+            DisplayWithContext::fmt(&self.rhs, f, context)?;
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Parenthesized {
+        pub open_par: PunctParenOpen,
+        pub inner: Expression,
+        pub close_par: PunctParenClose,
+    }
+
+    impl DisplayWithContext<DefaultStringInterner> for Parenthesized {
+        fn fmt(
+            &self,
+            f: &mut std::fmt::Formatter<'_>,
+            context: &DefaultStringInterner,
+        ) -> std::fmt::Result {
+            DisplayWithContext::fmt(&self.open_par, f, context)?;
+            DisplayWithContext::fmt(&self.inner, f, context)?;
+            DisplayWithContext::fmt(&self.close_par, f, context)?;
+            Ok(())
+        }
     }
 }
 
@@ -131,7 +468,7 @@ peg::parser! {
     // EXPRESSIONS
 
     rule expression() -> expression::Expression
-      = [Token::Literal(n)] {expression::Expression::Literal(n)}
+      = [Token::Literal(n)] {expression::Expression::Literal(Box::new(n))}
 
     // PUNCTUATED STUFF
     rule punctuated<E,P>(element: rule<E>, punctuator: rule<P>) -> punctuated::Punctuated<E,P>

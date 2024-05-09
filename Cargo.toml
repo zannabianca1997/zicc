@@ -9,9 +9,11 @@ members = [
     "assembler/keyword_expand_macro",
     "compiler/ast",
     "compiler/types",
+    "compiler/spans",
+    "compiler/display_context",
     "vm",
     "zicc",
     "errors",
-    "utils", "compiler/spans", "compiler/display_context",
+    "utils",
 ]
 resolver = "2"
