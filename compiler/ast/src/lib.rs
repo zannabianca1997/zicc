@@ -54,6 +54,7 @@ pub mod ast_node {
         }
     }
 
+    /// Visit the AST recursively
     pub trait AstVisitor {
         type ChildVisitor: AstVisitor;
         type Result;
@@ -62,6 +63,8 @@ pub mod ast_node {
         /// Ended the child visit, exit the visitor
         fn exit(&mut self, node: &impl AstNode, child_visitor: Self::ChildVisitor) -> Self::Result;
     }
+
+    /// Visit the AST recursively, with mutable access
     pub trait AstVisitorMut {
         type ChildVisitor: AstVisitorMut;
         type Result;
@@ -91,6 +94,24 @@ pub mod ast_node {
             child_visitor: Self::ChildVisitor,
         ) -> Self::Result {
             self.exit(node, child_visitor)
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    /// A visitor that do nothing
+    pub struct NullVisitor;
+
+    impl AstVisitor for NullVisitor {
+        type ChildVisitor = NullVisitor;
+
+        type Result = ();
+
+        fn enter(&mut self, _: &impl AstNode) -> Self::ChildVisitor {
+            Self
+        }
+
+        fn exit(&mut self, _: &impl AstNode, _: Self::ChildVisitor) -> Self::Result {
+            ()
         }
     }
 }
@@ -597,15 +618,15 @@ peg::parser! {
       / def: typedeffn()     { typedef::TypeDef::Fn(def)     }
 
     rule typedefunknow() -> typedef::TypeDefUnknow
-      = [Token::Punct(Punct::Underscore(underscore))] {typedef::TypeDefUnknow{underscore}}
+      = [Token::PunctUnderscore(underscore)] {typedef::TypeDefUnknow{underscore}}
 
     rule typedeffn() -> typedef::TypeDefFn
-      = [Token::Keyword(Keyword::Fn(fn_kw))]
-        [Token::Punct(Punct::ParenOpen(paren_open))]
-        inputs: punctuated(<typedefdata()>,<[Token::Punct(Punct::Comma(comma))] {comma}>)
-        [Token::Punct(Punct::ParenClose(paren_close))]
+      = [Token::KeywordFn(fn_kw)]
+        [Token::PunctParenOpen(paren_open)]
+        inputs: punctuated(<typedefdata()>,<[Token::PunctComma(comma)] {comma}>)
+        [Token::PunctParenClose(paren_close)]
         output: (
-            [Token::Punct(Punct::RightArrow(arrow))]
+            [Token::PunctRightArrow(arrow)]
             out: typedefdata()
             { (arrow, out) }
         )?
@@ -622,13 +643,13 @@ peg::parser! {
       / [Token::Identifier(ident)] { typedef::TypeDefData::Named(ident) }
 
     rule typedefint() -> typedef::TypeDefInt
-      = [Token::Keyword(Keyword::Int(int_kwd))] { typedef::TypeDefInt{ int_kwd }}
+      = [Token::KeywordInt(int_kwd)] { typedef::TypeDefInt{ int_kwd }}
     rule typedefarray() -> typedef::TypeDefArray
-      = [Token::Punct(Punct::BracketOpen(bracket_open))]
+      = [Token::PunctBracketOpen(bracket_open)]
         element: typedefdata()
-        [Token::Punct(Punct::Semi(semi))]
+        [Token::PunctSemi(semi)]
         lenght: expression()
-        [Token::Punct(Punct::BracketClose(bracket_close))]
+        [Token::PunctBracketClose(bracket_close)]
       {
         typedef::TypeDefArray{ bracket_open, element: Box::new(element), semi, lenght, bracket_close }
       }
@@ -636,38 +657,38 @@ peg::parser! {
     rule compositefielddef() -> (either::Either<Identifier, PunctUnderscore>, PunctColon, typedef::TypeDefData)
       = name: (
                   [Token::Identifier(ident)] {either::Either::Left(ident)}
-                  / [Token::Punct(Punct::Underscore(under))] {either::Either::Right(under)}
+                  / [Token::PunctUnderscore(under)] {either::Either::Right(under)}
               )
-              [Token::Punct(Punct::Colon(colon))]
+              [Token::PunctColon(colon)]
               ty: typedefdata()
               { (name, colon, ty) }
 
     rule typedefstruct() -> typedef::TypeDefStruct
-      = [Token::Keyword(Keyword::Struct(struct_kw))]
+      = [Token::KeywordStruct(struct_kw)]
         name: ([Token::Identifier(name)] {name})?
-        [Token::Punct(Punct::BraceOpen(brace_open))]
-        fields: punctuated(<compositefielddef()>,<[Token::Punct(Punct::Comma(comma))] {comma}>
+        [Token::PunctBraceOpen(brace_open)]
+        fields: punctuated(<compositefielddef()>,<[Token::PunctComma(comma)] {comma}>
         )
-        [Token::Punct(Punct::BraceClose(brace_close))]
+        [Token::PunctBraceClose(brace_close)]
       {
         typedef::TypeDefStruct { struct_kw, name, brace_open, fields, brace_close }
       }
 
     rule typedefunion() -> typedef::TypeDefUnion
-      = [Token::Keyword(Keyword::Union(union_kw))]
+      = [Token::KeywordUnion(union_kw)]
         name: ([Token::Identifier(name)] {name})?
-        [Token::Punct(Punct::BraceOpen(brace_open))]
-        variants: punctuated(<compositefielddef()>,<[Token::Punct(Punct::Comma(comma))] {comma}>
+        [Token::PunctBraceOpen(brace_open)]
+        variants: punctuated(<compositefielddef()>,<[Token::PunctComma(comma)] {comma}>
         )
-        [Token::Punct(Punct::BraceClose(brace_close))]
+        [Token::PunctBraceClose(brace_close)]
       {
         typedef::TypeDefUnion { union_kw, name, brace_open, variants, brace_close }
       }
 
     rule typedefpointer() -> typedef::TypeDefPointer
       = kind:(
-            [Token::Punct(Punct::Ampersand(amp))] { typedef::PointerKindDef::Static(amp)}
-            / [Token::Punct(Punct::At(at))] { typedef::PointerKindDef::Stack(at)}
+            [Token::PunctAmpersand(amp)] { typedef::PointerKindDef::Static(amp)}
+            / [Token::PunctAt(at)] { typedef::PointerKindDef::Stack(at)}
         ) pointee: typedef()
         { typedef::TypeDefPointer { kind, pointee: Box::new(pointee) }}
 
@@ -675,36 +696,36 @@ peg::parser! {
     // ITEMS
 
     rule itemstatic() -> ItemStatic
-      = [Token::Keyword(Keyword::Static(static_kw))]
+      = [Token::KeywordStatic(static_kw)]
         [Token::Identifier(ident)]
-        [Token::Punct(Punct::Colon(colon))]
+        [Token::PunctColon(colon)]
         ty: typedefdata()
         init: (
-            [Token::Punct(Punct::Eq(eq))]
+            [Token::PunctEq(eq)]
             value: expression()
             { (eq, value) }
         )?
-        [Token::Punct(Punct::Semi(semi))]
+        [Token::PunctSemi(semi)]
       {
         ItemStatic { static_kw, ident, colon, ty, init, semi }
       }
 
     rule itemextern() -> ItemExtern
-      = [Token::Keyword(Keyword::Extern(extern_kw))]
+      = [Token::KeywordExtern(extern_kw)]
         [Token::Identifier(ident)]
-        [Token::Punct(Punct::Colon(colon))]
+        [Token::PunctColon(colon)]
         ty: typedef()
-        [Token::Punct(Punct::Semi(semi))]
+        [Token::PunctSemi(semi)]
       {
           ItemExtern { extern_kw, ident, colon, ty, semi }
       }
 
     rule itemtype() -> ItemType
-      = [Token::Keyword(Keyword::Type(type_kw))]
+      = [Token::KeywordType(type_kw)]
         [Token::Identifier(ident)]
-        [Token::Punct(Punct::Eq(eq))]
+        [Token::PunctEq(eq)]
         ty: typedef()
-        [Token::Punct(Punct::Semi(semi))]
+        [Token::PunctSemi(semi)]
       {
           ItemType { type_kw, ident, eq, ty, semi }
       }

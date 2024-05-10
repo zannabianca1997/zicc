@@ -11,98 +11,6 @@ use vm::VMInt;
 
 use crate::ast_node::AstNode;
 
-macro_rules! keywords {
-    ( $($ident:ident $str:literal ;)*) => {
-        ::paste::paste!{
-            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-            pub enum Keyword {
-                $(
-                    $ident([<Keyword $ident>]),
-                )*
-            }
-            impl std::fmt::Display for Keyword {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    match self {
-                        $(
-                            Self::$ident(kwd) => <[<Keyword $ident>] as std::fmt::Display>::fmt(kwd, f),
-                        )*
-                    }
-                }
-            }
-            display_with_any_context!{Keyword}
-
-            $(
-                #[derive(Debug, Clone, Copy)]
-                pub struct [<Keyword $ident>] (Pos);
-                impl std::fmt::Display for [<Keyword $ident>] {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        f.write_str($str)
-                    }
-                }
-                impl AstNode for [<Keyword $ident>] {
-                    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-                        &self,
-                        visitor: &mut Visitor,
-                    ) -> Visitor::Result {
-                        let child_visitor = visitor.enter(self);
-                        visitor.exit(self, child_visitor)
-                    }
-
-                    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-                        &mut self,
-                        visitor: &mut Visitor,
-                    ) -> Visitor::Result {
-                        let child_visitor = visitor.enter_mut(self);
-                        visitor.exit_mut(self, child_visitor)
-                    }
-                }
-                display_with_any_context!{[<Keyword $ident>]}
-                impl [<Keyword $ident>] {
-                    pub fn new()->Self {
-                        Self(Pos::missing())
-                    }
-                }
-                impl PartialEq for [<Keyword $ident>] {
-                    fn eq(&self, _: &Self) -> bool {
-                        true
-                    }
-                }
-                impl Eq for [<Keyword $ident>] {}
-                impl PartialOrd for [<Keyword $ident>] {
-                    fn partial_cmp(&self, _: &Self) -> Option<std::cmp::Ordering> {
-                        Some(std::cmp::Ordering::Equal)
-                    }
-                }
-                impl Ord for [<Keyword $ident>] {
-                    fn cmp(&self, _: &Self) -> std::cmp::Ordering {
-                        std::cmp::Ordering::Equal
-                    }
-                }
-                impl Hash for [<Keyword $ident>] {
-                    fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
-                }
-            )*
-        }
-    };
-}
-
-keywords! {
-    Type   "type";
-    Struct "struct";
-    Union  "union";
-    Fn     "fn";
-    If     "if";
-    For    "for";
-    While  "while";
-    Loop   "loop";
-    Pub    "pub";
-    Static "static";
-    Extern "extern";
-    Int    "int";
-    Let    "let";
-    Else   "else";
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct Identifier {
     symbol: DefaultSymbol,
@@ -216,13 +124,90 @@ impl Spanned for Literal {
     }
 }
 
-macro_rules! punctuators {
-    ( $($ident:ident $str:literal ;)*) => {
+// Common macro so token are automagically derived
+
+macro_rules! keywords_and_puncts {
+    (
+        keywords { $($keyword_ident:ident $keyword_str:literal ;)* }
+        punctuators { $($punct_ident:ident $punct_str:literal ;)* }
+    ) => {
         ::paste::paste!{
             #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+            /// Arbitrary enum keyword
+            pub enum Keyword {
+                $(
+                    $keyword_ident([<Keyword $keyword_ident>]),
+                )*
+            }
+            impl std::fmt::Display for Keyword {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    match self {
+                        $(
+                            Self::$keyword_ident(kwd) => <[<Keyword $keyword_ident>] as std::fmt::Display>::fmt(kwd, f),
+                        )*
+                    }
+                }
+            }
+            display_with_any_context!{Keyword}
+
+            $(
+                #[derive(Debug, Clone, Copy)]
+                #[doc = "The `" $keyword_str "` keyword"]
+                pub struct [<Keyword $keyword_ident>] (Pos);
+                impl std::fmt::Display for [<Keyword $keyword_ident>] {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        f.write_str($keyword_str)
+                    }
+                }
+                impl AstNode for [<Keyword $keyword_ident>] {
+                    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+                        &self,
+                        visitor: &mut Visitor,
+                    ) -> Visitor::Result {
+                        let child_visitor = visitor.enter(self);
+                        visitor.exit(self, child_visitor)
+                    }
+
+                    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+                        &mut self,
+                        visitor: &mut Visitor,
+                    ) -> Visitor::Result {
+                        let child_visitor = visitor.enter_mut(self);
+                        visitor.exit_mut(self, child_visitor)
+                    }
+                }
+                display_with_any_context!{[<Keyword $keyword_ident>]}
+                impl [<Keyword $keyword_ident>] {
+                    pub fn new()->Self {
+                        Self(Pos::missing())
+                    }
+                }
+                impl PartialEq for [<Keyword $keyword_ident>] {
+                    fn eq(&self, _: &Self) -> bool {
+                        true
+                    }
+                }
+                impl Eq for [<Keyword $keyword_ident>] {}
+                impl PartialOrd for [<Keyword $keyword_ident>] {
+                    fn partial_cmp(&self, _: &Self) -> Option<std::cmp::Ordering> {
+                        Some(std::cmp::Ordering::Equal)
+                    }
+                }
+                impl Ord for [<Keyword $keyword_ident>] {
+                    fn cmp(&self, _: &Self) -> std::cmp::Ordering {
+                        std::cmp::Ordering::Equal
+                    }
+                }
+                impl Hash for [<Keyword $keyword_ident>] {
+                    fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
+                }
+            )*
+
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+            /// Any punctuator
             pub enum Punct {
                 $(
-                    $ident([<Punct $ident>]),
+                    $punct_ident([<Punct $punct_ident>]),
                 )*
             }
 
@@ -230,7 +215,7 @@ macro_rules! punctuators {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     match self {
                         $(
-                            Self::$ident(kwd) => <[<Punct $ident>] as std::fmt::Display>::fmt(kwd, f),
+                            Self::$punct_ident(kwd) => <[<Punct $punct_ident>] as std::fmt::Display>::fmt(kwd, f),
                         )*
                     }
                 }
@@ -239,9 +224,10 @@ macro_rules! punctuators {
 
             $(
                 #[derive(Debug, Clone, Copy)]
-                pub struct [<Punct $ident>] (Pos);
+                #[doc = "The `" $punct_str "` punctuator"]
+                pub struct [<Punct $punct_ident>] (Pos);
 
-                impl AstNode for [<Punct $ident>] {
+                impl AstNode for [<Punct $punct_ident>] {
                     fn visited_by<Visitor: crate::ast_node::AstVisitor>(
                         &self,
                         visitor: &mut Visitor,
@@ -259,61 +245,124 @@ macro_rules! punctuators {
                     }
                 }
 
-                impl std::fmt::Display for [<Punct $ident>] {
+                impl std::fmt::Display for [<Punct $punct_ident>] {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        f.write_str($str)
+                        f.write_str($punct_str)
                     }
                 }
-                display_with_any_context!{[<Punct $ident>]}
-                impl PartialEq for [<Punct $ident>] {
+                display_with_any_context!{[<Punct $punct_ident>]}
+                impl PartialEq for [<Punct $punct_ident>] {
                     fn eq(&self, _: &Self) -> bool {
                         true
                     }
                 }
-                impl Eq for [<Punct $ident>] {}
-                impl PartialOrd for [<Punct $ident>] {
+                impl Eq for [<Punct $punct_ident>] {}
+                impl PartialOrd for [<Punct $punct_ident>] {
                     fn partial_cmp(&self, _: &Self) -> Option<std::cmp::Ordering> {
                         Some(std::cmp::Ordering::Equal)
                     }
                 }
-                impl Ord for [<Punct $ident>] {
+                impl Ord for [<Punct $punct_ident>] {
                     fn cmp(&self, _: &Self) -> std::cmp::Ordering {
                         std::cmp::Ordering::Equal
                     }
                 }
-                impl Hash for [<Punct $ident>] {
+                impl Hash for [<Punct $punct_ident>] {
                     fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
                 }
             )*
+
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Logos)]
+            #[logos(skip r"(?:\s+|//[^\n]*|/\*[^*]*\*+(?:[^*/][^*]*\*+)*/)+")]
+            #[logos(extras = LexerExtras)]
+            #[logos(error = LexError)]
+            pub enum Token {
+                $(
+                    #[token($keyword_str, |lex| [<Keyword $keyword_ident>](pos_from_lex(lex)))]
+                    [<Keyword $keyword_ident>]([<Keyword $keyword_ident>]),
+                )*
+                $(
+                    #[token($punct_str, |lex| [<Punct $punct_ident>](pos_from_lex(lex)))]
+                    [<Punct $punct_ident>]([<Punct $punct_ident>]),
+                )*
+
+                #[regex(r"(?:[a-zA-Z]|_[a-zA-Z0-9_])[a-zA-Z0-9_]*", lex_identifier)]
+                Identifier(Identifier),
+
+                #[regex(r"[0-9]+", lex_number)]
+                Literal(Literal),
+            }
+
+
+            impl DisplayWithContext<StringInterner> for Token {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>, context: &StringInterner) -> std::fmt::Result {
+                    match self {
+                        $(
+                            Token::[<Keyword $keyword_ident>](kwd) => {
+                                <[<Keyword $keyword_ident>] as DisplayWithContext<StringInterner>>::fmt(kwd, f, context)
+                            }
+                        )*
+                        $(
+                            Token::[<Punct $punct_ident>](kwd) => {
+                                <[<Punct $punct_ident>] as DisplayWithContext<StringInterner>>::fmt(kwd, f, context)
+                            }
+                        )*
+                        Token::Identifier(ident) => {
+                            <Identifier as DisplayWithContext<StringInterner>>::fmt(ident, f, context)
+                        }
+                        Token::Literal(lit) => {
+                            <Literal as DisplayWithContext<StringInterner>>::fmt(lit, f, context)
+                        }
+                    }
+                }
+            }
         }
     };
 }
-
-punctuators! {
-    Colon   ":";
-    Eq      "=";
-    Semi    ";";
-    Comma   ",";
-    Dot     ".";
-    Plus    "+";
-    Minus   "-";
-    Star    "*";
-    EqEq    "==";
-    NoEq    "!=";
-    Lt      "<";
-    Gt      ">";
-    Le      "<=";
-    Ge      ">=";
-    BraceOpen  "{";
-    BraceClose "}";
-    BracketOpen  "[";
-    BracketClose "]";
-    ParenOpen  "(";
-    ParenClose ")";
-    Ampersand  "&";
-    At         "@";
-    Underscore "_";
-    RightArrow "->";
+keywords_and_puncts! {
+    keywords {
+        Type   "type";
+        Struct "struct";
+        Union  "union";
+        Fn     "fn";
+        If     "if";
+        For    "for";
+        While  "while";
+        Loop   "loop";
+        Pub    "pub";
+        Static "static";
+        Extern "extern";
+        Int    "int";
+        Let    "let";
+        Else   "else";
+        SizeOf "size_of";
+    }
+    punctuators {
+        Colon   ":";
+        Eq      "=";
+        Semi    ";";
+        Comma   ",";
+        Dot     ".";
+        Plus    "+";
+        Minus   "-";
+        Star    "*";
+        EqEq    "==";
+        NoEq    "!=";
+        Lt      "<";
+        Gt      ">";
+        Le      "<=";
+        Ge      ">=";
+        BraceOpen  "{";
+        BraceClose "}";
+        BracketOpen  "[";
+        BracketClose "]";
+        ParenOpen  "(";
+        ParenClose ")";
+        Ampersand  "&";
+        At         "@";
+        Underscore "_";
+        RightArrow "->";
+    }
 }
 
 fn lex_identifier<'s>(lex: &mut logos::Lexer<'s, Token>) -> Identifier {
@@ -371,79 +420,6 @@ impl LexerExtras {
         Self {
             source: source.map(|s| interner.borrow_mut().get_or_intern(s)),
             interner,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Logos)]
-#[logos(skip r"(?:\s+|//[^\n]*|/\*[^*]*\*+(?:[^*/][^*]*\*+)*/)+")]
-#[logos(extras = LexerExtras)]
-#[logos(error = LexError)]
-pub enum Token {
-    #[token("type", |lex| Keyword::Type(KeywordType(pos_from_lex(lex))))]
-    #[token("struct", |lex| Keyword::Struct(KeywordStruct(pos_from_lex(lex))))]
-    #[token("union", |lex| Keyword::Union(KeywordUnion(pos_from_lex(lex))))]
-    #[token("fn", |lex| Keyword::Fn(KeywordFn(pos_from_lex(lex))))]
-    #[token("if", |lex| Keyword::If(KeywordIf(pos_from_lex(lex))))]
-    #[token("for", |lex| Keyword::For(KeywordFor(pos_from_lex(lex))))]
-    #[token("while", |lex| Keyword::While(KeywordWhile(pos_from_lex(lex))))]
-    #[token("loop", |lex| Keyword::Loop(KeywordLoop(pos_from_lex(lex))))]
-    #[token("pub", |lex| Keyword::Pub(KeywordPub(pos_from_lex(lex))))]
-    #[token("static", |lex| Keyword::Static(KeywordStatic(pos_from_lex(lex))))]
-    #[token("extern", |lex| Keyword::Extern(KeywordExtern(pos_from_lex(lex))))]
-    #[token("int", |lex| Keyword::Int(KeywordInt(pos_from_lex(lex))))]
-    #[token("let", |lex| Keyword::Let(KeywordLet(pos_from_lex(lex))))]
-    #[token("else", |lex| Keyword::Else(KeywordElse(pos_from_lex(lex))))]
-    Keyword(Keyword),
-
-    #[token(":", |lex| Punct::Colon(PunctColon(pos_from_lex(lex))))]
-    #[token("=", |lex| Punct::Eq(PunctEq(pos_from_lex(lex))))]
-    #[token(";", |lex| Punct::Semi(PunctSemi(pos_from_lex(lex))))]
-    #[token(",", |lex| Punct::Comma(PunctComma(pos_from_lex(lex))))]
-    #[token(".", |lex| Punct::Dot(PunctDot(pos_from_lex(lex))))]
-    #[token("+", |lex| Punct::Plus(PunctPlus(pos_from_lex(lex))))]
-    #[token("-", |lex| Punct::Minus(PunctMinus(pos_from_lex(lex))))]
-    #[token("*", |lex| Punct::Star(PunctStar(pos_from_lex(lex))))]
-    #[token("==", |lex| Punct::EqEq(PunctEqEq(pos_from_lex(lex))))]
-    #[token("!=", |lex| Punct::NoEq(PunctNoEq(pos_from_lex(lex))))]
-    #[token("<", |lex| Punct::Lt(PunctLt(pos_from_lex(lex))))]
-    #[token(">", |lex| Punct::Gt(PunctGt(pos_from_lex(lex))))]
-    #[token("<=", |lex| Punct::Le(PunctLe(pos_from_lex(lex))))]
-    #[token(">=", |lex| Punct::Ge(PunctGe(pos_from_lex(lex))))]
-    #[token("{", |lex| Punct::BraceOpen(PunctBraceOpen(pos_from_lex(lex))))]
-    #[token("}", |lex| Punct::BraceClose(PunctBraceClose(pos_from_lex(lex))))]
-    #[token("[", |lex| Punct::BracketOpen(PunctBracketOpen(pos_from_lex(lex))))]
-    #[token("]", |lex| Punct::BracketClose(PunctBracketClose(pos_from_lex(lex))))]
-    #[token("(", |lex| Punct::ParenOpen(PunctParenOpen(pos_from_lex(lex))))]
-    #[token(")", |lex| Punct::ParenClose(PunctParenClose(pos_from_lex(lex))))]
-    #[token("&", |lex| Punct::Ampersand(PunctAmpersand(pos_from_lex(lex))))]
-    #[token("@", |lex| Punct::At(PunctAt(pos_from_lex(lex))))]
-    #[token("_", |lex| Punct::Underscore(PunctUnderscore(pos_from_lex(lex))))]
-    #[token("->", |lex| Punct::RightArrow(PunctRightArrow(pos_from_lex(lex))))]
-    Punct(Punct),
-
-    #[regex(r"(?:[a-zA-Z]|_[a-zA-Z0-9_])[a-zA-Z0-9_]*", lex_identifier)]
-    Identifier(Identifier),
-
-    #[regex(r"[0-9]+", lex_number)]
-    Literal(Literal),
-}
-
-impl DisplayWithContext<StringInterner> for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>, context: &StringInterner) -> std::fmt::Result {
-        match self {
-            Token::Keyword(kwd) => {
-                <Keyword as DisplayWithContext<StringInterner>>::fmt(kwd, f, context)
-            }
-            Token::Punct(punct) => {
-                <Punct as DisplayWithContext<StringInterner>>::fmt(punct, f, context)
-            }
-            Token::Identifier(ident) => {
-                <Identifier as DisplayWithContext<StringInterner>>::fmt(ident, f, context)
-            }
-            Token::Literal(lit) => {
-                <Literal as DisplayWithContext<StringInterner>>::fmt(lit, f, context)
-            }
         }
     }
 }
