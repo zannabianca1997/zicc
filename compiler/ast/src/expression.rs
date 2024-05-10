@@ -3,9 +3,9 @@ use either::Either;
 use string_interner::DefaultStringInterner;
 
 use crate::{
-    ast_node::AstNode, punctuated::Punctuated, Identifier, PunctAmpersand, PunctAt,
-    PunctBracketClose, PunctBracketOpen, PunctComma, PunctDot, PunctEq, PunctEqEq, PunctGe,
-    PunctGt, PunctLe, PunctLt, PunctNoEq, PunctParenClose, PunctParenOpen,
+    ast_node::AstNode, punctuated::Punctuated, typedef::TypeDefData, Identifier, KeywordSizeOf,
+    PunctAmpersand, PunctAt, PunctBracketClose, PunctBracketOpen, PunctComma, PunctDot, PunctEq,
+    PunctEqEq, PunctGe, PunctGt, PunctLe, PunctLt, PunctNoEq, PunctParenClose, PunctParenOpen,
 };
 
 use super::{Literal, PunctMinus, PunctPlus, PunctStar};
@@ -26,6 +26,7 @@ pub enum Expression {
     Deref(Box<UnExpr<PunctStar>>),
     TakeRef(Box<UnExpr<Either<PunctAmpersand, PunctAt>>>),
     Call(Box<ExpressionCall>),
+    SizeOf(Box<ExpressionSizeOf>),
     Add(Box<BinExpr<PunctPlus>>),
     Sub(Box<BinExpr<PunctMinus>>),
     Neg(Box<UnExpr<PunctMinus>>),
@@ -59,6 +60,7 @@ impl AstNode for Expression {
             Expression::Neg(box expr) => expr.visited_by(&mut child_visitor),
             Expression::Mul(box expr) => expr.visited_by(&mut child_visitor),
             Expression::Parenthesized(box expr) => expr.visited_by(&mut child_visitor),
+            Expression::SizeOf(box expr) => expr.visited_by(&mut child_visitor),
         };
         visitor.exit(self, child_visitor)
     }
@@ -88,6 +90,7 @@ impl AstNode for Expression {
             Expression::Neg(box expr) => expr.visited_by_mut(&mut child_visitor),
             Expression::Mul(box expr) => expr.visited_by_mut(&mut child_visitor),
             Expression::Parenthesized(box expr) => expr.visited_by_mut(&mut child_visitor),
+            Expression::SizeOf(box expr) => expr.visited_by_mut(&mut child_visitor),
         };
         visitor.exit_mut(self, child_visitor)
     }
@@ -119,6 +122,7 @@ impl DisplayWithContext<DefaultStringInterner> for Expression {
             Expression::Neg(expr) => DisplayWithContext::fmt(expr, f, context),
             Expression::Mul(expr) => DisplayWithContext::fmt(expr, f, context),
             Expression::Parenthesized(expr) => DisplayWithContext::fmt(expr, f, context),
+            Expression::SizeOf(expr) => DisplayWithContext::fmt(expr, f, context),
         }
     }
 }
@@ -232,6 +236,54 @@ impl DisplayWithContext<DefaultStringInterner> for ExpressionCall {
                 }
             }
         }
+        DisplayWithContext::fmt(&self.close_par, f, context)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExpressionSizeOf {
+    pub size_of_kw: KeywordSizeOf,
+    pub open_par: PunctParenOpen,
+    pub ty: TypeDefData,
+    pub close_par: PunctParenClose,
+}
+
+impl AstNode for ExpressionSizeOf {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.size_of_kw.visited_by(&mut child_visitor);
+        self.open_par.visited_by(&mut child_visitor);
+        self.ty.visited_by(&mut child_visitor);
+        self.close_par.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.size_of_kw.visited_by_mut(&mut child_visitor);
+        self.open_par.visited_by_mut(&mut child_visitor);
+        self.ty.visited_by_mut(&mut child_visitor);
+        self.close_par.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
+}
+
+impl DisplayWithContext<DefaultStringInterner> for ExpressionSizeOf {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        DisplayWithContext::fmt(&self.size_of_kw, f, context)?;
+        DisplayWithContext::fmt(&self.open_par, f, context)?;
+        DisplayWithContext::fmt(&self.ty, f, context)?;
         DisplayWithContext::fmt(&self.close_par, f, context)?;
         Ok(())
     }
