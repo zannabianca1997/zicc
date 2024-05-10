@@ -26,22 +26,85 @@ pub trait SizeExpressionSolver<CallbackError> {
 
 pub mod const_expr {
     use thiserror::Error;
+    use vm::VMInt;
 
-    use super::SizeExpressionSolver;
+    use super::{
+        BinExpr, Expression, ExpressionSizeOf, Parenthesized, SizeExpressionSolver, UnExpr,
+    };
 
     #[derive(Debug, Error)]
-    pub enum ConstExpressionSolveError {}
+    pub enum ConstExpressionSolveError<CallbackError> {
+        #[error("Invalid const expression")]
+        Unsupported(Expression),
+        #[error("Unable to determine the size of a `size_of` argument")]
+        SizeOf(CallbackError),
+        #[error("Overflow during const expression evaluation")]
+        Overflow(Expression),
+    }
 
     pub struct ConstExpressionSolver;
-    impl<CallbackError> SizeExpressionSolver<CallbackError> for ConstExpressionSolver {
-        type Error = ConstExpressionSolveError;
+    impl<CallbackError> SizeExpressionSolver<CallbackError> for ConstExpressionSolver
+    where
+        CallbackError: std::error::Error + 'static,
+    {
+        type Error = ConstExpressionSolveError<CallbackError>;
 
         fn solve<'d>(
             &self,
-            expr: &'d super::Expression,
-            callback: impl FnMut(&'d crate::typedef::TypeDefData) -> Result<vm::VMUInt, CallbackError>,
+            expr: &'d Expression,
+            mut callback: impl FnMut(
+                &'d crate::typedef::TypeDefData,
+            ) -> Result<vm::VMUInt, CallbackError>,
         ) -> Result<vm::VMInt, Self::Error> {
-            todo!()
+            match expr {
+                Expression::Literal(box lit) => Ok(lit.value()),
+
+                Expression::Eq(box BinExpr { lhs, rhs, .. })
+                | Expression::NoEq(box BinExpr { lhs, rhs, .. })
+                | Expression::Ge(box BinExpr { lhs, rhs, .. })
+                | Expression::Gt(box BinExpr { lhs, rhs, .. })
+                | Expression::Le(box BinExpr { lhs, rhs, .. })
+                | Expression::Lt(box BinExpr { lhs, rhs, .. })
+                | Expression::Add(box BinExpr { lhs, rhs, .. })
+                | Expression::Sub(box BinExpr { lhs, rhs, .. })
+                | Expression::Mul(box BinExpr { lhs, rhs, .. }) => {
+                    let lhs = self.solve(lhs, &mut callback)?;
+                    let rhs = self.solve(rhs, callback)?;
+                    match expr {
+                        Expression::Eq(_) => Some((lhs == rhs).into()),
+                        Expression::NoEq(_) => Some((lhs != rhs).into()),
+                        Expression::Ge(_) => Some((lhs >= rhs).into()),
+                        Expression::Gt(_) => Some((lhs > rhs).into()),
+                        Expression::Le(_) => Some((lhs <= rhs).into()),
+                        Expression::Lt(_) => Some((lhs < rhs).into()),
+
+                        Expression::Add(_) => VMInt::checked_add(lhs, rhs),
+                        Expression::Sub(_) => VMInt::checked_sub(lhs, rhs),
+                        Expression::Mul(_) => VMInt::checked_mul(lhs, rhs),
+
+                        _ => unreachable!(),
+                    }
+                    .ok_or_else(|| ConstExpressionSolveError::Overflow(expr.clone()))
+                }
+
+                Expression::Neg(box UnExpr { rhs, .. }) => self
+                    .solve(rhs, callback)?
+                    .checked_neg()
+                    .ok_or_else(|| ConstExpressionSolveError::Overflow(expr.clone())),
+
+                Expression::SizeOf(box ExpressionSizeOf { ty, .. }) => callback(ty)
+                    .map_err(ConstExpressionSolveError::SizeOf)
+                    .and_then(|v| {
+                        v.try_into()
+                            .map_err(|_| ConstExpressionSolveError::Overflow(expr.clone()))
+                    }),
+
+                Expression::Parenthesized(box Parenthesized { inner, .. }) => {
+                    self.solve(inner, callback)
+                }
+
+                _ => Err(ConstExpressionSolveError::Unsupported(expr.clone())),
+            }
         }
     }
 }

@@ -2,13 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use either::Either::{self, Left};
 use elsa::FrozenVec;
 
 use ast::{
-    expression::const_expr::ConstExpressionSolver,
-    tokens::Identifier,
-    typedef::{PointerKindDef, TypeDef, TypeDefData},
+    expression::const_expr::ConstExpressionSolver, tokens::Identifier, typedef::PointerKindDef,
     File,
 };
 use vm::VMUInt;

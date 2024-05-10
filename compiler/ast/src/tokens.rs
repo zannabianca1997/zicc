@@ -72,6 +72,11 @@ pub struct Literal {
     span: Span,
     value: VMInt,
 }
+impl Literal {
+    pub(crate) fn value(&self) -> VMInt {
+        self.value
+    }
+}
 impl AstNode for Literal {
     extractors! {Literal}
     fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
