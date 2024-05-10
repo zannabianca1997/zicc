@@ -21,14 +21,26 @@ impl AstNode for TypeDef {
         &self,
         visitor: &mut Visitor,
     ) -> Visitor::Result {
-        todo!()
+        let mut child_visitor = visitor.enter(self);
+        match self {
+            TypeDef::Data(def) => def.visited_by(&mut child_visitor),
+            TypeDef::Fn(def) => def.visited_by(&mut child_visitor),
+            TypeDef::Unknow(def) => def.visited_by(&mut child_visitor),
+        };
+        visitor.exit(self, child_visitor)
     }
 
     fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
         &mut self,
         visitor: &mut Visitor,
     ) -> Visitor::Result {
-        todo!()
+        let mut child_visitor = visitor.enter_mut(self);
+        match self {
+            TypeDef::Data(def) => def.visited_by_mut(&mut child_visitor),
+            TypeDef::Fn(def) => def.visited_by_mut(&mut child_visitor),
+            TypeDef::Unknow(def) => def.visited_by_mut(&mut child_visitor),
+        };
+        visitor.exit_mut(self, child_visitor)
     }
 
     fn as_type_def(&self) -> Option<&TypeDef> {
@@ -68,14 +80,32 @@ impl AstNode for TypeDefData {
         &self,
         visitor: &mut Visitor,
     ) -> Visitor::Result {
-        todo!()
+        let mut child_visitor = visitor.enter(self);
+        match self {
+            TypeDefData::Int(def) => def.visited_by(&mut child_visitor),
+            TypeDefData::Array(def) => def.visited_by(&mut child_visitor),
+            TypeDefData::Struct(def) => def.visited_by(&mut child_visitor),
+            TypeDefData::Union(def) => def.visited_by(&mut child_visitor),
+            TypeDefData::Pointer(def) => def.visited_by(&mut child_visitor),
+            TypeDefData::Named(def) => def.visited_by(&mut child_visitor),
+        };
+        visitor.exit(self, child_visitor)
     }
 
     fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
         &mut self,
         visitor: &mut Visitor,
     ) -> Visitor::Result {
-        todo!()
+        let mut child_visitor = visitor.enter_mut(self);
+        match self {
+            TypeDefData::Int(def) => def.visited_by_mut(&mut child_visitor),
+            TypeDefData::Array(def) => def.visited_by_mut(&mut child_visitor),
+            TypeDefData::Struct(def) => def.visited_by_mut(&mut child_visitor),
+            TypeDefData::Union(def) => def.visited_by_mut(&mut child_visitor),
+            TypeDefData::Pointer(def) => def.visited_by_mut(&mut child_visitor),
+            TypeDefData::Named(def) => def.visited_by_mut(&mut child_visitor),
+        };
+        visitor.exit_mut(self, child_visitor)
     }
 
     fn as_type_def_data(&self) -> Option<&TypeDefData> {
@@ -107,6 +137,25 @@ impl DisplayWithContext<DefaultStringInterner> for TypeDefData {
 pub struct TypeDefInt {
     pub int_kwd: KeywordInt,
 }
+impl AstNode for TypeDefInt {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.int_kwd.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.int_kwd.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
+}
 
 impl DisplayWithContext<DefaultStringInterner> for TypeDefInt {
     fn fmt(
@@ -125,6 +174,34 @@ pub struct TypeDefArray {
     pub semi: PunctSemi,
     pub lenght: expression::Expression,
     pub bracket_close: PunctBracketClose,
+}
+
+impl AstNode for TypeDefArray {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.bracket_open.visited_by(&mut child_visitor);
+        self.element.visited_by(&mut child_visitor);
+        self.semi.visited_by(&mut child_visitor);
+        self.lenght.visited_by(&mut child_visitor);
+        self.bracket_close.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.bracket_open.visited_by_mut(&mut child_visitor);
+        self.element.visited_by_mut(&mut child_visitor);
+        self.semi.visited_by_mut(&mut child_visitor);
+        self.lenght.visited_by_mut(&mut child_visitor);
+        self.bracket_close.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for TypeDefArray {
@@ -154,6 +231,66 @@ pub struct TypeDefStruct {
         PunctComma,
     >,
     pub brace_close: PunctBraceClose,
+}
+
+impl AstNode for TypeDefStruct {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.struct_kw.visited_by(&mut child_visitor);
+        if let Some(name) = &self.name {
+            name.visited_by(&mut child_visitor);
+        }
+        self.brace_open.visited_by(&mut child_visitor);
+        for child in self.fields.iter_all() {
+            match child {
+                Left((name, colon, ty)) => {
+                    match name {
+                        Left(name) => name.visited_by(&mut child_visitor),
+                        Right(under) => under.visited_by(&mut child_visitor),
+                    };
+                    colon.visited_by(&mut child_visitor);
+                    ty.visited_by(&mut child_visitor);
+                }
+                Right(comma) => {
+                    comma.visited_by(&mut child_visitor);
+                }
+            }
+        }
+        self.brace_close.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.struct_kw.visited_by_mut(&mut child_visitor);
+        if let Some(name) = &mut self.name {
+            name.visited_by_mut(&mut child_visitor);
+        }
+        self.brace_open.visited_by_mut(&mut child_visitor);
+        for child in self.fields.iter_all_mut() {
+            match child {
+                Left((name, colon, ty)) => {
+                    match name {
+                        Left(name) => name.visited_by_mut(&mut child_visitor),
+                        Right(under) => under.visited_by_mut(&mut child_visitor),
+                    };
+                    colon.visited_by_mut(&mut child_visitor);
+                    ty.visited_by_mut(&mut child_visitor);
+                }
+                Right(comma) => {
+                    comma.visited_by_mut(&mut child_visitor);
+                }
+            }
+        }
+        self.brace_close.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for TypeDefStruct {
@@ -237,10 +374,92 @@ pub struct TypeDefUnion {
     pub brace_close: PunctBraceClose,
 }
 
+impl AstNode for TypeDefUnion {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.union_kw.visited_by(&mut child_visitor);
+        if let Some(name) = &self.name {
+            name.visited_by(&mut child_visitor);
+        }
+        self.brace_open.visited_by(&mut child_visitor);
+        for child in self.variants.iter_all() {
+            match child {
+                Left((name, colon, ty)) => {
+                    match name {
+                        Left(name) => name.visited_by(&mut child_visitor),
+                        Right(under) => under.visited_by(&mut child_visitor),
+                    };
+                    colon.visited_by(&mut child_visitor);
+                    ty.visited_by(&mut child_visitor);
+                }
+                Right(comma) => {
+                    comma.visited_by(&mut child_visitor);
+                }
+            }
+        }
+        self.brace_close.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.union_kw.visited_by_mut(&mut child_visitor);
+        if let Some(name) = &mut self.name {
+            name.visited_by_mut(&mut child_visitor);
+        }
+        self.brace_open.visited_by_mut(&mut child_visitor);
+        for child in self.variants.iter_all_mut() {
+            match child {
+                Left((name, colon, ty)) => {
+                    match name {
+                        Left(name) => name.visited_by_mut(&mut child_visitor),
+                        Right(under) => under.visited_by_mut(&mut child_visitor),
+                    };
+                    colon.visited_by_mut(&mut child_visitor);
+                    ty.visited_by_mut(&mut child_visitor);
+                }
+                Right(comma) => {
+                    comma.visited_by_mut(&mut child_visitor);
+                }
+            }
+        }
+        self.brace_close.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeDefPointer {
     pub kind: PointerKindDef,
     pub pointee: Box<TypeDef>,
+}
+
+impl AstNode for TypeDefPointer {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.kind.visited_by(&mut child_visitor);
+        self.pointee.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.kind.visited_by_mut(&mut child_visitor);
+        self.pointee.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for TypeDefPointer {
@@ -259,6 +478,32 @@ impl DisplayWithContext<DefaultStringInterner> for TypeDefPointer {
 pub enum PointerKindDef {
     Stack(PunctAt),
     Static(PunctAmpersand),
+}
+
+impl AstNode for PointerKindDef {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        match self {
+            PointerKindDef::Stack(at) => at.visited_by(&mut child_visitor),
+            PointerKindDef::Static(amp) => amp.visited_by(&mut child_visitor),
+        };
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        match self {
+            PointerKindDef::Stack(at) => at.visited_by_mut(&mut child_visitor),
+            PointerKindDef::Static(amp) => amp.visited_by_mut(&mut child_visitor),
+        };
+        visitor.exit_mut(self, child_visitor)
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for PointerKindDef {
@@ -281,6 +526,50 @@ pub struct TypeDefFn {
     pub inputs: punctuated::Punctuated<TypeDefData, PunctComma>,
     pub paren_close: PunctParenClose,
     pub output: Option<(PunctRightArrow, TypeDefData)>,
+}
+
+impl AstNode for TypeDefFn {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.fn_kw.visited_by(&mut child_visitor);
+        self.paren_open.visited_by(&mut child_visitor);
+        for child in self.inputs.iter_all() {
+            match child {
+                Right(inp) => inp.visited_by(&mut child_visitor),
+                Left(comma) => comma.visited_by(&mut child_visitor),
+            };
+        }
+        self.paren_close.visited_by(&mut child_visitor);
+        if let Some((arrow, out)) = &self.output {
+            arrow.visited_by(&mut child_visitor);
+            out.visited_by(&mut child_visitor);
+        }
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.fn_kw.visited_by_mut(&mut child_visitor);
+        self.paren_open.visited_by_mut(&mut child_visitor);
+        for child in self.inputs.iter_all_mut() {
+            match child {
+                Right(inp) => inp.visited_by_mut(&mut child_visitor),
+                Left(comma) => comma.visited_by_mut(&mut child_visitor),
+            };
+        }
+        self.paren_close.visited_by_mut(&mut child_visitor);
+        if let Some((arrow, out)) = &mut self.output {
+            arrow.visited_by_mut(&mut child_visitor);
+            out.visited_by_mut(&mut child_visitor);
+        }
+        visitor.exit_mut(self, child_visitor)
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for TypeDefFn {
@@ -316,6 +605,26 @@ impl DisplayWithContext<DefaultStringInterner> for TypeDefFn {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeDefUnknow {
     pub underscore: PunctUnderscore,
+}
+
+impl AstNode for TypeDefUnknow {
+    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
+        &self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.underscore.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
+    }
+
+    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
+        &mut self,
+        visitor: &mut Visitor,
+    ) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.underscore.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
+    }
 }
 
 impl DisplayWithContext<DefaultStringInterner> for TypeDefUnknow {
