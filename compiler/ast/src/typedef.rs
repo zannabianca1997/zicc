@@ -5,7 +5,10 @@ use either::Either::{self, Left, Right};
 use indenter::indented;
 use string_interner::DefaultStringInterner;
 
-use crate::ast_node::AstNode;
+use crate::{
+    ast_node::{AstNode, AstVisitor, AstVisitorMut},
+    extractors,
+};
 
 use super::{expression, punctuated, tokens::*};
 
@@ -17,10 +20,8 @@ pub enum TypeDef {
 }
 
 impl AstNode for TypeDef {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {TypeDef}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         match self {
             TypeDef::Data(def) => def.visited_by(&mut child_visitor),
@@ -30,10 +31,7 @@ impl AstNode for TypeDef {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         match self {
             TypeDef::Data(def) => def.visited_by_mut(&mut child_visitor),
@@ -41,13 +39,6 @@ impl AstNode for TypeDef {
             TypeDef::Unknow(def) => def.visited_by_mut(&mut child_visitor),
         };
         visitor.exit_mut(self, child_visitor)
-    }
-
-    fn as_type_def(&self) -> Option<&TypeDef> {
-        Some(self)
-    }
-    fn as_type_def_mut(&mut self) -> Option<&mut TypeDef> {
-        Some(self)
     }
 }
 
@@ -76,10 +67,8 @@ pub enum TypeDefData {
 }
 
 impl AstNode for TypeDefData {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {TypeDefData}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         match self {
             TypeDefData::Int(def) => def.visited_by(&mut child_visitor),
@@ -92,10 +81,7 @@ impl AstNode for TypeDefData {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         match self {
             TypeDefData::Int(def) => def.visited_by_mut(&mut child_visitor),
@@ -106,13 +92,6 @@ impl AstNode for TypeDefData {
             TypeDefData::Named(def) => def.visited_by_mut(&mut child_visitor),
         };
         visitor.exit_mut(self, child_visitor)
-    }
-
-    fn as_type_def_data(&self) -> Option<&TypeDefData> {
-        Some(self)
-    }
-    fn as_type_def_data_mut(&mut self) -> Option<&mut TypeDefData> {
-        Some(self)
     }
 }
 
@@ -138,19 +117,14 @@ pub struct TypeDefInt {
     pub int_kwd: KeywordInt,
 }
 impl AstNode for TypeDefInt {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {TypeDefInt}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.int_kwd.visited_by(&mut child_visitor);
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.int_kwd.visited_by_mut(&mut child_visitor);
         visitor.exit_mut(self, child_visitor)
@@ -177,10 +151,8 @@ pub struct TypeDefArray {
 }
 
 impl AstNode for TypeDefArray {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {TypeDefArray}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.bracket_open.visited_by(&mut child_visitor);
         self.element.visited_by(&mut child_visitor);
@@ -190,10 +162,7 @@ impl AstNode for TypeDefArray {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.bracket_open.visited_by_mut(&mut child_visitor);
         self.element.visited_by_mut(&mut child_visitor);
@@ -234,10 +203,8 @@ pub struct TypeDefStruct {
 }
 
 impl AstNode for TypeDefStruct {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {TypeDefStruct}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.struct_kw.visited_by(&mut child_visitor);
         if let Some(name) = &self.name {
@@ -263,10 +230,7 @@ impl AstNode for TypeDefStruct {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.struct_kw.visited_by_mut(&mut child_visitor);
         if let Some(name) = &mut self.name {
@@ -375,10 +339,8 @@ pub struct TypeDefUnion {
 }
 
 impl AstNode for TypeDefUnion {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {TypeDefUnion}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.union_kw.visited_by(&mut child_visitor);
         if let Some(name) = &self.name {
@@ -404,10 +366,7 @@ impl AstNode for TypeDefUnion {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.union_kw.visited_by_mut(&mut child_visitor);
         if let Some(name) = &mut self.name {
@@ -441,20 +400,15 @@ pub struct TypeDefPointer {
 }
 
 impl AstNode for TypeDefPointer {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {TypeDefPointer}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.kind.visited_by(&mut child_visitor);
         self.pointee.visited_by(&mut child_visitor);
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.kind.visited_by_mut(&mut child_visitor);
         self.pointee.visited_by_mut(&mut child_visitor);
@@ -481,10 +435,8 @@ pub enum PointerKindDef {
 }
 
 impl AstNode for PointerKindDef {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {PointerKindDef}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         match self {
             PointerKindDef::Stack(at) => at.visited_by(&mut child_visitor),
@@ -493,10 +445,7 @@ impl AstNode for PointerKindDef {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         match self {
             PointerKindDef::Stack(at) => at.visited_by_mut(&mut child_visitor),
@@ -529,10 +478,8 @@ pub struct TypeDefFn {
 }
 
 impl AstNode for TypeDefFn {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {TypeDefFn}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.fn_kw.visited_by(&mut child_visitor);
         self.paren_open.visited_by(&mut child_visitor);
@@ -550,10 +497,7 @@ impl AstNode for TypeDefFn {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.fn_kw.visited_by_mut(&mut child_visitor);
         self.paren_open.visited_by_mut(&mut child_visitor);
@@ -608,19 +552,14 @@ pub struct TypeDefUnknow {
 }
 
 impl AstNode for TypeDefUnknow {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {TypeDefUnknow}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.underscore.visited_by(&mut child_visitor);
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.underscore.visited_by_mut(&mut child_visitor);
         visitor.exit_mut(self, child_visitor)

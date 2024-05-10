@@ -6,8 +6,10 @@ use either::Either::{self, Left};
 use elsa::FrozenVec;
 
 use ast::{
+    expression::const_expr::ConstExpressionSolver,
     tokens::Identifier,
     typedef::{PointerKindDef, TypeDef, TypeDefData},
+    File,
 };
 use vm::VMUInt;
 
@@ -231,21 +233,12 @@ impl<S> TypeTable<S> {
     }
 }
 
-impl<S: SizeExpressionSolver<SizeError>> TypeTable<S> {
-    /// Create a table with all the declared names
-    pub fn new<'d>(
-        type_defs: impl Iterator<Item = (Identifier, &'d TypeDef)>,
-        type_used: impl Iterator<Item = Either<&'d TypeDef, &'d TypeDefData>>,
-        solver: S,
-    ) -> Result<Self, type_table_generation::TypeDeclareError> {
-        type_table_generation::generate(
-            type_defs
-                .map(|(name, def)| (Some(name), Left(def)))
-                .chain(type_used.map(|def| (None, def))),
-            solver,
-        )
+impl TypeTable<ConstExpressionSolver> {
+    /// Build a typetable from a AST
+    pub fn build(ast: &File) -> Result<Self, type_table_generation::TypeDeclareError> {
+        type_table_generation::generate(ast, ConstExpressionSolver)
     }
 }
 
 mod type_table_generation;
-pub use type_table_generation::{SizeError, SizeExpressionSolver, TypeDeclareError};
+pub use type_table_generation::{SizeError, TypeDeclareError};

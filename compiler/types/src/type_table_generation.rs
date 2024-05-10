@@ -10,12 +10,14 @@ use super::{
     TypeInt, TypePointer, TypeTable, TypeUnknow, INT_ID, UNIT_ID, UNKNOW_ID,
 };
 use ast::{
-    expression::Expression,
+    ast_node::{AstNode, AstVisitor},
+    expression::{Expression, SizeExpressionSolver},
     tokens::Identifier,
     typedef::{
         TypeDef, TypeDefArray, TypeDefData, TypeDefFn, TypeDefPointer, TypeDefStruct, TypeDefUnion,
         TypeDefUnknow,
     },
+    File, ItemType,
 };
 use vm::VMUInt;
 
@@ -137,20 +139,7 @@ impl<'d> RegisteringPhaseMaps<'d> {
                 Left(idx)
             }
         };
-        let idx = self.idxs_mapping.insert(reference);
-        // named struct are automatically bound
-        if let Left(TypeDef::Data(def)) | Right(def) = def {
-            if let TypeDefData::Struct(TypeDefStruct {
-                name: Some(name), ..
-            })
-            | TypeDefData::Union(TypeDefUnion {
-                name: Some(name), ..
-            }) = def
-            {
-                self.bind(*name, idx)
-            }
-        }
-        idx
+        self.idxs_mapping.insert(reference)
     }
 
     /// register the subtypes of a datatype
@@ -219,6 +208,87 @@ impl<'d> RegisteringPhaseMaps<'d> {
 
             TypeDefData::Named(_) => unreachable!(),
         }
+    }
+}
+
+struct AstRegisteringVisitor<'m, 'd> {
+    maps: Option<&'m mut RegisteringPhaseMaps<'d>>,
+    parent_as_type_def_data: Option<&'d TypeDefData>,
+}
+
+impl<'m, 'd> AstRegisteringVisitor<'m, 'd> {
+    fn new(maps: &'m mut RegisteringPhaseMaps<'d>) -> Self {
+        Self {
+            maps: Some(maps),
+            parent_as_type_def_data: None,
+        }
+    }
+}
+
+impl<'d> AstVisitor<'d> for AstRegisteringVisitor<'_, 'd> {
+    type ChildVisitor = Self;
+
+    type Result = ();
+
+    fn enter(&mut self, node: &'d impl ast::ast_node::AstNode) -> Self::ChildVisitor {
+        let maps = self.maps.take().unwrap();
+
+        /*
+           This code could appear as a bunch of branching.
+           Remember that all `as_*` and `is_*` function are effectively constants, and will be erased at compile time.
+           At runtime, the specialized version of this function should be empty for anything that could not contain the
+           searched nodes, and in case contains at maximum a single branch for the name of composites
+        */
+
+        // is this a `type A = B;` binding?
+        if let Some(ItemType { ident, ty, .. }) = node.as_item_type() {
+            // register the binding
+            let idx = maps.register(Left(ty));
+            maps.bind(*ident, idx);
+        }
+        // is it a composite with a name?
+        if let Some(TypeDefStruct {
+            name: Some(ident), ..
+        }) = node.as_type_def_struct()
+        {
+            let idx = maps.register(Right(
+                self.parent_as_type_def_data
+                    .expect("Struct are child only of TypeDefData"),
+            ));
+            maps.bind(*ident, idx);
+        }
+        if let Some(TypeDefUnion {
+            name: Some(ident), ..
+        }) = node.as_type_def_union()
+        {
+            let idx = maps.register(Right(
+                self.parent_as_type_def_data
+                    .expect("Struct are child only of TypeDefData"),
+            ));
+            maps.bind(*ident, idx);
+        }
+
+        /*
+           Those should be all possible points where a type alias is being defined.
+           If in future there are other nodes in the AST defining a type alias
+           they MUST be added here
+        */
+
+        // the mutable maps is passed down
+        Self {
+            maps: Some(maps),
+            parent_as_type_def_data: node.as_type_def_data(),
+        }
+    }
+
+    fn exit(
+        &mut self,
+        _: &'d impl ast::ast_node::AstNode,
+        Self { maps, .. }: Self::ChildVisitor,
+    ) -> Self::Result {
+        // recovering the maps handler
+        self.maps = Some(maps.unwrap());
+        ()
     }
 }
 
@@ -602,18 +672,15 @@ impl<'d> DeduplicationMaps<'_, 'd> {
     }
 }
 
-pub(crate) fn generate<'d, Solver: SizeExpressionSolver<SizeError>>(
-    type_defs: impl Iterator<Item = (Option<Identifier>, Either<&'d TypeDef, &'d TypeDefData>)>,
+pub(crate) fn generate<Solver: SizeExpressionSolver<SizeError>>(
+    ast: &File,
     solver: Solver,
 ) -> Result<TypeTable<Solver>, TypeDeclareError> {
     // Inserting all types recursively
     let mut maps = RegisteringPhaseMaps::default();
-    for (name, def) in type_defs {
-        let idx = maps.register(def);
-        if let Some(name) = name {
-            maps.bind(name, idx)
-        };
-    }
+
+    ast.visited_by(&mut AstRegisteringVisitor::new(&mut maps));
+
     let RegisteringPhaseMaps {
         idxs_mapping,
         type_defs,
@@ -898,14 +965,4 @@ pub(crate) fn generate<'d, Solver: SizeExpressionSolver<SizeError>>(
         names,
         solver,
     })
-}
-
-/// A solver able to transform expressions containing `size_of(type)` calls into values
-pub trait SizeExpressionSolver<CallbackError> {
-    type Error: std::error::Error + 'static;
-    fn solve<'d>(
-        &self,
-        expr: &'d Expression,
-        callback: impl FnMut(&'d TypeDefData) -> Result<vm::VMUInt, CallbackError>,
-    ) -> Result<vm::VMInt, Self::Error>;
 }

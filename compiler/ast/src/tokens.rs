@@ -9,7 +9,10 @@ use errors::Accumulator;
 use spans::{Pos, Span, Spanned};
 use vm::VMInt;
 
-use crate::ast_node::AstNode;
+use crate::{
+    ast_node::{AstNode, AstVisitor, AstVisitorMut},
+    extractors,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Identifier {
@@ -17,18 +20,13 @@ pub struct Identifier {
     span: Span,
 }
 impl AstNode for Identifier {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {Identifier}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let child_visitor = visitor.enter(self);
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let child_visitor = visitor.enter_mut(self);
         visitor.exit_mut(self, child_visitor)
     }
@@ -75,18 +73,13 @@ pub struct Literal {
     value: VMInt,
 }
 impl AstNode for Literal {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {Literal}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let child_visitor = visitor.enter(self);
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let child_visitor = visitor.enter_mut(self);
         visitor.exit_mut(self, child_visitor)
     }
@@ -160,18 +153,15 @@ macro_rules! keywords_and_puncts {
                     }
                 }
                 impl AstNode for [<Keyword $keyword_ident>] {
-                    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-                        &self,
+                    fn visited_by<'s, Visitor: AstVisitor<'s>>(
+                        &'s  self,
                         visitor: &mut Visitor,
                     ) -> Visitor::Result {
                         let child_visitor = visitor.enter(self);
                         visitor.exit(self, child_visitor)
                     }
 
-                    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-                        &mut self,
-                        visitor: &mut Visitor,
-                    ) -> Visitor::Result {
+                    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
                         let child_visitor = visitor.enter_mut(self);
                         visitor.exit_mut(self, child_visitor)
                     }
@@ -228,18 +218,15 @@ macro_rules! keywords_and_puncts {
                 pub struct [<Punct $punct_ident>] (Pos);
 
                 impl AstNode for [<Punct $punct_ident>] {
-                    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-                        &self,
+                    fn visited_by<'s, Visitor: AstVisitor<'s>>(
+                        &'s  self,
                         visitor: &mut Visitor,
                     ) -> Visitor::Result {
                         let child_visitor = visitor.enter(self);
                         visitor.exit(self, child_visitor)
                     }
 
-                    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-                        &mut self,
-                        visitor: &mut Visitor,
-                    ) -> Visitor::Result {
+                    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
                         let child_visitor = visitor.enter_mut(self);
                         visitor.exit_mut(self, child_visitor)
                     }

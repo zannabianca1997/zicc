@@ -4,7 +4,7 @@
 
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
-use ast_node::{AstNode, AstVisitor};
+use ast_node::{AstNode, AstVisitor, AstVisitorMut};
 use display_context::DisplayWithContext;
 use either::Either::{Left, Right};
 use errors::{Accumulator, Multiple, RootAccumulator};
@@ -20,13 +20,48 @@ pub mod ast_node {
     use display_context::DisplayWithContext;
     use string_interner::DefaultStringInterner;
 
-    use crate::{
-        typedef::{TypeDef, TypeDefData},
-        ItemType,
-    };
+    use crate::{expression::*, statements::*, typedef::*, *};
+
+    macro_rules! extractors_default {
+        ($($node_type:ident)*) => {
+            ::paste::paste! {
+                $(
+                    fn [< is_ $node_type:snake >](&self) -> bool {
+                        false
+                    }
+                    fn [< as_ $node_type:snake >](&self) -> Option<& $node_type> {
+                        None
+                    }
+                    fn [< as_ $node_type:snake _mut >](&mut self) -> Option<&mut  $node_type> {
+                        None
+                    }
+                )*
+            }
+        };
+    }
+
+    #[macro_export]
+    macro_rules! extractors {
+        ($node_type:ident) => {
+            ::paste::paste! {
+                fn [< is_ $node_type:snake >](&self) -> bool {
+                    true
+                }
+                fn [< as_ $node_type:snake >](&self) -> Option<& $node_type> {
+                    Some(self)
+                }
+                fn [< as_ $node_type:snake _mut >](&mut self) -> Option<&mut  $node_type> {
+                    Some(self)
+                }
+            }
+        };
+    }
 
     pub trait AstNode: DisplayWithContext<DefaultStringInterner> {
-        fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result;
+        fn visited_by<'s, Visitor: AstVisitor<'s>>(
+            &'s self,
+            visitor: &mut Visitor,
+        ) -> Visitor::Result;
         fn visited_by_mut<Visitor: AstVisitorMut>(
             &mut self,
             visitor: &mut Visitor,
@@ -34,37 +69,40 @@ pub mod ast_node {
 
         // extractor to extract various ast nodes
 
-        fn as_type_item(&self) -> Option<&ItemType> {
-            None
-        }
-        fn as_type_item_mut(&mut self) -> Option<&mut ItemType> {
-            None
-        }
-        fn as_type_def(&self) -> Option<&TypeDef> {
-            None
-        }
-        fn as_type_def_mut(&mut self) -> Option<&mut TypeDef> {
-            None
-        }
-        fn as_type_def_data(&self) -> Option<&TypeDefData> {
-            None
-        }
-        fn as_type_def_data_mut(&mut self) -> Option<&mut TypeDefData> {
-            None
+        extractors_default! {
+            File Item
+
+            ItemExtern ItemStatic
+
+            ItemFn Signature
+            Statement StatementBlock StatementExpr StatementFor StatementIf StatementLet StatementLoop StatementWhile
+
+            ItemType
+            TypeDef TypeDefFn TypeDefUnknow
+            TypeDefData TypeDefArray TypeDefInt TypeDefPointer PointerKindDef TypeDefStruct TypeDefUnion
+            Expression ExpressionCall ExpressionSizeOf Parenthesized MemberAccess IndexAccess
+
+            Literal Identifier
         }
     }
 
     /// Visit the AST recursively
-    pub trait AstVisitor {
-        type ChildVisitor: AstVisitor;
+    // The lifetime of the AST is parametrized so the visitor can store references to it
+    pub trait AstVisitor<'a> {
+        type ChildVisitor: AstVisitor<'a>;
         type Result;
         /// Visit a node, and return the visitor that will visit the childs
-        fn enter(&mut self, node: &impl AstNode) -> Self::ChildVisitor;
+        fn enter(&mut self, node: &'a impl AstNode) -> Self::ChildVisitor;
         /// Ended the child visit, exit the visitor
-        fn exit(&mut self, node: &impl AstNode, child_visitor: Self::ChildVisitor) -> Self::Result;
+        fn exit(
+            &mut self,
+            node: &'a impl AstNode,
+            child_visitor: Self::ChildVisitor,
+        ) -> Self::Result;
     }
 
     /// Visit the AST recursively, with mutable access
+    // The lifetime of the ast cannot be parametrized, as we cannot save mutable references
     pub trait AstVisitorMut {
         type ChildVisitor: AstVisitorMut;
         type Result;
@@ -78,39 +116,34 @@ pub mod ast_node {
         ) -> Self::Result;
     }
 
-    impl<T> AstVisitorMut for T
-    where
-        T: AstVisitor,
-    {
-        type ChildVisitor = <Self as AstVisitor>::ChildVisitor;
-        type Result = <Self as AstVisitor>::Result;
-
-        fn enter_mut(&mut self, node: &mut impl AstNode) -> Self::ChildVisitor {
-            self.enter(node)
-        }
-        fn exit_mut(
-            &mut self,
-            node: &mut impl AstNode,
-            child_visitor: Self::ChildVisitor,
-        ) -> Self::Result {
-            self.exit(node, child_visitor)
-        }
-    }
-
     #[derive(Debug, Clone, Copy)]
     /// A visitor that do nothing
     pub struct NullVisitor;
 
-    impl AstVisitor for NullVisitor {
+    impl<'a> AstVisitor<'a> for NullVisitor {
         type ChildVisitor = NullVisitor;
 
         type Result = ();
 
-        fn enter(&mut self, _: &impl AstNode) -> Self::ChildVisitor {
+        fn enter(&mut self, _: &'a impl AstNode) -> Self::ChildVisitor {
             Self
         }
 
-        fn exit(&mut self, _: &impl AstNode, _: Self::ChildVisitor) -> Self::Result {
+        fn exit(&mut self, _: &'a impl AstNode, _: Self::ChildVisitor) -> Self::Result {
+            ()
+        }
+    }
+
+    impl AstVisitorMut for NullVisitor {
+        type ChildVisitor = NullVisitor;
+
+        type Result = ();
+
+        fn enter_mut(&mut self, _: &mut impl AstNode) -> Self::ChildVisitor {
+            Self
+        }
+
+        fn exit_mut(&mut self, _: &mut impl AstNode, _: Self::ChildVisitor) -> Self::Result {
             ()
         }
     }
@@ -122,7 +155,8 @@ pub struct File {
 }
 
 impl AstNode for File {
-    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+    extractors! {File}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         for item in &self.items {
             item.visited_by(&mut child_visitor);
@@ -130,10 +164,7 @@ impl AstNode for File {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         for item in &mut self.items {
             item.visited_by_mut(&mut child_visitor);
@@ -168,7 +199,8 @@ pub enum Item {
 }
 
 impl AstNode for Item {
-    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+    extractors! {Item}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         match self {
             Item::Static(child) => child.visited_by(&mut child_visitor),
@@ -179,10 +211,7 @@ impl AstNode for Item {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         match self {
             Item::Static(child) => child.visited_by_mut(&mut child_visitor),
@@ -220,7 +249,8 @@ pub struct ItemStatic {
 }
 
 impl AstNode for ItemStatic {
-    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+    extractors! {ItemStatic}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.static_kw.visited_by(&mut child_visitor);
         self.ident.visited_by(&mut child_visitor);
@@ -234,10 +264,7 @@ impl AstNode for ItemStatic {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.static_kw.visited_by_mut(&mut child_visitor);
         self.ident.visited_by_mut(&mut child_visitor);
@@ -285,7 +312,8 @@ pub struct ItemExtern {
 }
 
 impl AstNode for ItemExtern {
-    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+    extractors! {ItemExtern}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.extern_kw.visited_by(&mut child_visitor);
         self.ident.visited_by(&mut child_visitor);
@@ -295,10 +323,7 @@ impl AstNode for ItemExtern {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.extern_kw.visited_by_mut(&mut child_visitor);
         self.ident.visited_by_mut(&mut child_visitor);
@@ -336,7 +361,8 @@ pub struct ItemType {
 }
 
 impl AstNode for ItemType {
-    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+    extractors! {ItemType}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.type_kw.visited_by(&mut child_visitor);
         self.ident.visited_by(&mut child_visitor);
@@ -346,10 +372,7 @@ impl AstNode for ItemType {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.type_kw.visited_by_mut(&mut child_visitor);
         self.ident.visited_by_mut(&mut child_visitor);
@@ -357,13 +380,6 @@ impl AstNode for ItemType {
         self.ty.visited_by_mut(&mut child_visitor);
         self.semi.visited_by_mut(&mut child_visitor);
         visitor.exit_mut(self, child_visitor)
-    }
-
-    fn as_type_item(&self) -> Option<&ItemType> {
-        Some(self)
-    }
-    fn as_type_item_mut(&mut self) -> Option<&mut ItemType> {
-        Some(self)
     }
 }
 
@@ -392,17 +408,15 @@ pub struct ItemFn {
 }
 
 impl AstNode for ItemFn {
-    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+    extractors! {ItemFn}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.sig.visited_by(&mut child_visitor);
         self.body.visited_by(&mut child_visitor);
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.sig.visited_by_mut(&mut child_visitor);
         self.body.visited_by_mut(&mut child_visitor);
@@ -434,7 +448,8 @@ pub struct Signature {
 }
 
 impl AstNode for Signature {
-    fn visited_by<Visitor: AstVisitor>(&self, visitor: &mut Visitor) -> Visitor::Result {
+    extractors! {Signature}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.fn_kw.visited_by(&mut child_visitor);
         self.ident.visited_by(&mut child_visitor);
@@ -459,10 +474,7 @@ impl AstNode for Signature {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.fn_kw.visited_by_mut(&mut child_visitor);
         self.ident.visited_by_mut(&mut child_visitor);

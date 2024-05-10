@@ -4,7 +4,10 @@ use display_context::DisplayWithContext;
 use indenter::indented;
 use string_interner::DefaultStringInterner;
 
-use crate::ast_node::{AstNode, AstVisitorMut};
+use crate::{
+    ast_node::{AstNode, AstVisitor, AstVisitorMut},
+    extractors,
+};
 
 use super::{expression::Expression, punctuated::Punctuated, tokens::*, typedef::TypeDefData};
 
@@ -20,10 +23,8 @@ pub enum Statement {
 }
 
 impl AstNode for Statement {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {Statement}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         match self {
             Statement::Block(stm) => stm.visited_by(&mut child_visitor),
@@ -36,11 +37,7 @@ impl AstNode for Statement {
         };
         visitor.exit(self, child_visitor)
     }
-
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         match self {
             Statement::Block(stm) => stm.visited_by_mut(&mut child_visitor),
@@ -81,10 +78,8 @@ pub struct StatementBlock {
 }
 
 impl AstNode for StatementBlock {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {StatementBlock}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.brace_open.visited_by(&mut child_visitor);
         for child in self.statements.iter_all() {
@@ -96,11 +91,7 @@ impl AstNode for StatementBlock {
         self.brace_close.visited_by(&mut child_visitor);
         visitor.exit(self, child_visitor)
     }
-
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.brace_open.visited_by_mut(&mut child_visitor);
         for child in self.statements.iter_all_mut() {
@@ -148,10 +139,8 @@ pub struct StatementLet {
 }
 
 impl AstNode for StatementLet {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {StatementLet}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.let_kw.visited_by(&mut child_visitor);
         self.ident.visited_by(&mut child_visitor);
@@ -163,11 +152,7 @@ impl AstNode for StatementLet {
         }
         visitor.exit(self, child_visitor)
     }
-
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.let_kw.visited_by_mut(&mut child_visitor);
         self.ident.visited_by_mut(&mut child_visitor);
@@ -209,19 +194,13 @@ pub struct StatementExpr {
 }
 
 impl AstNode for StatementExpr {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {StatementExpr}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.expr.visited_by(&mut child_visitor);
         visitor.exit(self, child_visitor)
     }
-
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.expr.visited_by_mut(&mut child_visitor);
         visitor.exit_mut(self, child_visitor)
@@ -245,20 +224,14 @@ pub struct StatementLoop {
 }
 
 impl AstNode for StatementLoop {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {StatementLoop}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.loop_kw.visited_by(&mut child_visitor);
         self.body.visited_by(&mut child_visitor);
         visitor.exit(self, child_visitor)
     }
-
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.loop_kw.visited_by_mut(&mut child_visitor);
         self.body.visited_by_mut(&mut child_visitor);
@@ -288,10 +261,8 @@ pub struct StatementIf {
 }
 
 impl AstNode for StatementIf {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {StatementIf}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.if_kw.visited_by(&mut child_visitor);
         self.condition.visited_by(&mut child_visitor);
@@ -302,11 +273,7 @@ impl AstNode for StatementIf {
         }
         visitor.exit(self, child_visitor)
     }
-
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.if_kw.visited_by_mut(&mut child_visitor);
         self.condition.visited_by_mut(&mut child_visitor);
@@ -344,10 +311,8 @@ impl DisplayWithContext<DefaultStringInterner> for StatementIf {
 pub struct StatementFor {}
 
 impl AstNode for StatementFor {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {StatementFor}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         todo!()
     }
 
@@ -370,10 +335,8 @@ impl DisplayWithContext<DefaultStringInterner> for StatementFor {
 pub struct StatementWhile {}
 
 impl AstNode for StatementWhile {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {StatementWhile}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         todo!()
     }
 

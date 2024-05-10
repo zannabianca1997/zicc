@@ -3,12 +3,48 @@ use either::Either;
 use string_interner::DefaultStringInterner;
 
 use crate::{
-    ast_node::AstNode, punctuated::Punctuated, typedef::TypeDefData, Identifier, KeywordSizeOf,
-    PunctAmpersand, PunctAt, PunctBracketClose, PunctBracketOpen, PunctComma, PunctDot, PunctEq,
-    PunctEqEq, PunctGe, PunctGt, PunctLe, PunctLt, PunctNoEq, PunctParenClose, PunctParenOpen,
+    ast_node::{AstNode, AstVisitor, AstVisitorMut},
+    extractors,
+    punctuated::Punctuated,
+    typedef::TypeDefData,
+    Identifier, KeywordSizeOf, PunctAmpersand, PunctAt, PunctBracketClose, PunctBracketOpen,
+    PunctComma, PunctDot, PunctEq, PunctEqEq, PunctGe, PunctGt, PunctLe, PunctLt, PunctNoEq,
+    PunctParenClose, PunctParenOpen,
 };
 
 use super::{Literal, PunctMinus, PunctPlus, PunctStar};
+
+/// A solver able to transform expressions containing `size_of(type)` calls into values
+pub trait SizeExpressionSolver<CallbackError> {
+    type Error: std::error::Error + 'static;
+    fn solve<'d>(
+        &self,
+        expr: &'d Expression,
+        callback: impl FnMut(&'d TypeDefData) -> Result<vm::VMUInt, CallbackError>,
+    ) -> Result<vm::VMInt, Self::Error>;
+}
+
+pub mod const_expr {
+    use thiserror::Error;
+
+    use super::SizeExpressionSolver;
+
+    #[derive(Debug, Error)]
+    pub enum ConstExpressionSolveError {}
+
+    pub struct ConstExpressionSolver;
+    impl<CallbackError> SizeExpressionSolver<CallbackError> for ConstExpressionSolver {
+        type Error = ConstExpressionSolveError;
+
+        fn solve<'d>(
+            &self,
+            expr: &'d super::Expression,
+            callback: impl FnMut(&'d crate::typedef::TypeDefData) -> Result<vm::VMUInt, CallbackError>,
+        ) -> Result<vm::VMInt, Self::Error> {
+            todo!()
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Expression {
@@ -35,10 +71,8 @@ pub enum Expression {
 }
 
 impl AstNode for Expression {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {Expression}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         match self {
             Expression::Literal(box expr) => expr.visited_by(&mut child_visitor),
@@ -65,10 +99,7 @@ impl AstNode for Expression {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         match self {
             Expression::Literal(box expr) => expr.visited_by_mut(&mut child_visitor),
@@ -134,10 +165,8 @@ pub struct MemberAccess {
     pub member: Identifier,
 }
 impl AstNode for MemberAccess {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {MemberAccess}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.lhs.visited_by(&mut child_visitor);
         self.dot.visited_by(&mut child_visitor);
@@ -145,10 +174,7 @@ impl AstNode for MemberAccess {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.lhs.visited_by_mut(&mut child_visitor);
         self.dot.visited_by_mut(&mut child_visitor);
@@ -177,10 +203,8 @@ pub struct ExpressionCall {
     pub close_par: PunctParenClose,
 }
 impl AstNode for ExpressionCall {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {ExpressionCall}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.fun.visited_by(&mut child_visitor);
         self.open_par.visited_by(&mut child_visitor);
@@ -198,10 +222,7 @@ impl AstNode for ExpressionCall {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.fun.visited_by_mut(&mut child_visitor);
         self.open_par.visited_by_mut(&mut child_visitor);
@@ -250,10 +271,8 @@ pub struct ExpressionSizeOf {
 }
 
 impl AstNode for ExpressionSizeOf {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {ExpressionSizeOf}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.size_of_kw.visited_by(&mut child_visitor);
         self.open_par.visited_by(&mut child_visitor);
@@ -262,10 +281,7 @@ impl AstNode for ExpressionSizeOf {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.size_of_kw.visited_by_mut(&mut child_visitor);
         self.open_par.visited_by_mut(&mut child_visitor);
@@ -297,10 +313,8 @@ pub struct IndexAccess {
     pub braket_close: PunctBracketClose,
 }
 impl AstNode for IndexAccess {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {IndexAccess}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.lhs.visited_by(&mut child_visitor);
         self.braket_open.visited_by(&mut child_visitor);
@@ -309,10 +323,7 @@ impl AstNode for IndexAccess {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.lhs.visited_by_mut(&mut child_visitor);
         self.braket_open.visited_by_mut(&mut child_visitor);
@@ -342,10 +353,7 @@ pub struct BinExpr<Op> {
     pub rhs: Expression,
 }
 impl<Op: AstNode> AstNode for BinExpr<Op> {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.lhs.visited_by(&mut child_visitor);
         self.op.visited_by(&mut child_visitor);
@@ -353,10 +361,7 @@ impl<Op: AstNode> AstNode for BinExpr<Op> {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.lhs.visited_by_mut(&mut child_visitor);
         self.op.visited_by_mut(&mut child_visitor);
@@ -386,20 +391,14 @@ pub struct UnExpr<Op> {
     pub rhs: Expression,
 }
 impl<Op: AstNode> AstNode for UnExpr<Op> {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.op.visited_by(&mut child_visitor);
         self.rhs.visited_by(&mut child_visitor);
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.op.visited_by_mut(&mut child_visitor);
         self.rhs.visited_by_mut(&mut child_visitor);
@@ -407,10 +406,7 @@ impl<Op: AstNode> AstNode for UnExpr<Op> {
     }
 }
 impl<OpR: AstNode, OpL: AstNode> AstNode for UnExpr<Either<OpL, OpR>> {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         match &self.op {
             Either::Left(op) => op.visited_by(&mut child_visitor),
@@ -420,10 +416,7 @@ impl<OpR: AstNode, OpL: AstNode> AstNode for UnExpr<Either<OpL, OpR>> {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         match &mut self.op {
             Either::Left(op) => op.visited_by_mut(&mut child_visitor),
@@ -456,10 +449,8 @@ pub struct Parenthesized {
 }
 
 impl AstNode for Parenthesized {
-    fn visited_by<Visitor: crate::ast_node::AstVisitor>(
-        &self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    extractors! {Parenthesized}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter(self);
         self.open_par.visited_by(&mut child_visitor);
         self.inner.visited_by(&mut child_visitor);
@@ -467,10 +458,7 @@ impl AstNode for Parenthesized {
         visitor.exit(self, child_visitor)
     }
 
-    fn visited_by_mut<Visitor: crate::ast_node::AstVisitorMut>(
-        &mut self,
-        visitor: &mut Visitor,
-    ) -> Visitor::Result {
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
         let mut child_visitor = visitor.enter_mut(self);
         self.open_par.visited_by_mut(&mut child_visitor);
         self.inner.visited_by_mut(&mut child_visitor);
