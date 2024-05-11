@@ -15,7 +15,7 @@ use errors::Multiple;
 use indenter::indented;
 use string_interner::DefaultStringInterner;
 use thiserror::Error;
-use types::TypeTable;
+use types::{TypeDeclareError, TypeTable};
 
 #[derive(Debug, Error)]
 enum MainError {
@@ -25,6 +25,8 @@ enum MainError {
     Fmt(#[from] fmt::Error),
     #[error("Multiple errors in parsing")]
     Parse(Multiple<ParseError>),
+    #[error("Error in building the type table")]
+    Types(#[from] TypeDeclareError),
 }
 
 struct Io2Fmt<T>(T);
@@ -63,7 +65,7 @@ fn main_unreported() -> Result<(), MainError> {
         }
     };
 
-    let type_table = TypeTable::build(&ast);
+    let type_table = TypeTable::build(&ast)?;
 
     // unparse
     let mut out = stdout();
@@ -81,7 +83,7 @@ fn main_unreported() -> Result<(), MainError> {
     {
         let mut out = Io2Fmt(&mut out);
         let mut out = indented(&mut out);
-        writeln!(out, "")?;
+        writeln!(out, "{}", type_table.report_all_types(&*interner.borrow()))?;
     }
 
     Ok(())

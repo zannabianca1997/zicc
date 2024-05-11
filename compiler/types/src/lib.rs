@@ -1,17 +1,52 @@
 #![feature(box_patterns)]
+#![feature(iter_intersperse)]
 
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    fmt::{Debug, Display, Write as _},
+};
 
+use display_context::{display_with_any_context, DisplayWithContext};
 use elsa::FrozenVec;
 
 use ast::{
-    expression::const_expr::ConstExpressionSolver, tokens::Identifier, typedef::PointerKindDef,
+    expression::const_expr::ConstExpressionSolver,
+    tokens::{Identifier, KeywordInt, PunctAmpersand, PunctAt, PunctUnderscore},
+    typedef::PointerKindDef,
     File,
 };
+use indenter::indented;
+use itertools::Itertools;
 use vm::VMUInt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeId(usize);
+
+impl<S, IC: ?Sized> DisplayWithContext<TypeDisplayContext<'_, S, IC>> for TypeId
+where
+    Identifier: DisplayWithContext<IC>,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &TypeDisplayContext<'_, S, IC>,
+    ) -> std::fmt::Result {
+        match context.pushed() {
+            Some(pushed_c) => {
+                let ty = pushed_c.table.type_(*self);
+                if !context.expand_composites
+                    && ty.as_data().is_some_and(|data| data.is_composite())
+                {
+                    // do not show complex types
+                    write!(f, "<{}>", self.0)
+                } else {
+                    DisplayWithContext::fmt(ty, f, &pushed_c)
+                }
+            }
+            None => write!(f, "<{}>", self.0),
+        }
+    }
+}
 
 pub const UNKNOW_ID: TypeId = TypeId(1);
 
@@ -24,6 +59,19 @@ impl TypeIdData {
     }
     pub fn into_id(self) -> TypeId {
         self.0
+    }
+}
+
+impl<S, IC: ?Sized> DisplayWithContext<TypeDisplayContext<'_, S, IC>> for TypeIdData
+where
+    Identifier: DisplayWithContext<IC>,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &TypeDisplayContext<'_, S, IC>,
+    ) -> std::fmt::Result {
+        DisplayWithContext::fmt(&self.into_id(), f, &context)
     }
 }
 
@@ -49,6 +97,23 @@ pub enum Type {
     Data(TypeData),
     Fn(TypeFn),
     Unknow(TypeUnknow),
+}
+
+impl<S, IC: ?Sized> DisplayWithContext<TypeDisplayContext<'_, S, IC>> for Type
+where
+    Identifier: DisplayWithContext<IC>,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &TypeDisplayContext<'_, S, IC>,
+    ) -> std::fmt::Result {
+        match self {
+            Type::Data(ty) => DisplayWithContext::fmt(ty, f, context),
+            Type::Fn(ty) => DisplayWithContext::fmt(ty, f, context),
+            Type::Unknow(ty) => DisplayWithContext::fmt(ty, f, context),
+        }
+    }
 }
 
 impl Type {
@@ -85,13 +150,65 @@ pub enum TypeData {
     Pointer(TypePointer),
 }
 
+impl TypeData {
+    /// Returns `true` if the type data is [`Composite`].
+    ///
+    /// [`Composite`]: TypeData::Composite
+    #[must_use]
+    pub fn is_composite(&self) -> bool {
+        matches!(self, Self::Composite(..))
+    }
+}
+
+impl<S, IC: ?Sized> DisplayWithContext<TypeDisplayContext<'_, S, IC>> for TypeData
+where
+    Identifier: DisplayWithContext<IC>,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &TypeDisplayContext<'_, S, IC>,
+    ) -> std::fmt::Result {
+        match self {
+            TypeData::Int(ty) => DisplayWithContext::fmt(ty, f, context),
+            TypeData::Array(ty) => DisplayWithContext::fmt(ty, f, context),
+            TypeData::Composite(ty) => DisplayWithContext::fmt(ty, f, context),
+            TypeData::Pointer(ty) => DisplayWithContext::fmt(ty, f, context),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeInt;
+
+impl Display for TypeInt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&KeywordInt::new(), f)
+    }
+}
+display_with_any_context! {TypeInt}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeArray {
     pub element: TypeIdData,
     pub lenght: vm::VMUInt,
+}
+impl<S, IC: ?Sized> DisplayWithContext<TypeDisplayContext<'_, S, IC>> for TypeArray
+where
+    Identifier: DisplayWithContext<IC>,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &TypeDisplayContext<'_, S, IC>,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}; {}]",
+            self.element.with_context(&context),
+            self.lenght
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -100,11 +217,115 @@ pub struct TypeComposite {
     pub fields: BTreeMap<Identifier, (vm::VMUInt, TypeIdData)>,
     pub size: vm::VMUInt,
 }
+impl<S, IC: ?Sized> DisplayWithContext<TypeDisplayContext<'_, S, IC>> for TypeComposite
+where
+    Identifier: DisplayWithContext<IC>,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &TypeDisplayContext<'_, S, IC>,
+    ) -> std::fmt::Result {
+        // is a plain union?
+        if !self.fields.is_empty() && self.fields.values().all(|(offset, _)| *offset == 0) {
+            write!(f, "union")?;
+            if let Some(name) = self.name {
+                write!(f, " {}", name.with_context(context.ident_context))?;
+            }
+            {
+                let mut f = indented(f);
+                writeln!(f, "{{")?;
+                for (name, (_, ty)) in &self.fields {
+                    writeln!(
+                        f,
+                        "{}: {},",
+                        name.with_context(context.ident_context),
+                        ty.with_context(context)
+                    )?;
+                }
+                // padding if size is off
+                if self
+                    .fields
+                    .values()
+                    .map(|(_, ty)| context.table.size_of(*ty))
+                    .max()
+                    .unwrap()
+                    < self.size
+                {
+                    writeln!(f, "_: [int; {}],", self.size)?;
+                }
+            }
+            write!(f, "}}")
+        } else {
+            let mut fields = self
+                .fields
+                .iter()
+                .map(|(name, (start, ty))| {
+                    (*name, *start..*start + context.table.size_of(*ty), *ty)
+                })
+                .collect_vec();
+            // are all fields disjoint?
+            if fields
+                .iter()
+                .map(|(_, r, _)| r)
+                .flat_map(|r1| fields.iter().map(move |(_, r2, _)| (r1, r2)))
+                .all(|(r1, r2)| r1.start >= r2.end || r2.start >= r1.end)
+            {
+                // sort the fields by order of apparition
+                fields.sort_by(|(_, r1, _), (_, r2, _)| r1.start.cmp(&r2.start));
+
+                write!(f, "struct")?;
+                if let Some(name) = self.name {
+                    write!(f, " {}", name.with_context(context.ident_context))?;
+                }
+                {
+                    let mut f = indented(f);
+                    writeln!(f, "{{")?;
+                    let mut pos = 0;
+                    for (name, range, ty) in fields {
+                        if pos < range.start {
+                            // padding
+                            writeln!(f, "_: [int; {}],", range.start - pos)?;
+                        }
+                        writeln!(
+                            f,
+                            "{}: {},",
+                            name.with_context(context.ident_context),
+                            ty.with_context(context)
+                        )?;
+                        pos = range.end;
+                    }
+                    // ending padding
+                    if pos < self.size {
+                        writeln!(f, "_: [int; {}],", self.size - pos)?;
+                    }
+                }
+                write!(f, "}}")
+            } else {
+                // complex composite with overlapping, non-start field. Not really recostruible, but possible only with unnamed structs and union
+                unimplemented!("Complex composite printing")
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypePointer {
     pub kind: PointerKind,
     pub pointee: TypeId,
+}
+impl<S, IC: ?Sized> DisplayWithContext<TypeDisplayContext<'_, S, IC>> for TypePointer
+where
+    Identifier: DisplayWithContext<IC>,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &TypeDisplayContext<'_, S, IC>,
+    ) -> std::fmt::Result {
+        DisplayWithContext::fmt(&self.kind, f, context)?;
+        DisplayWithContext::fmt(&self.pointee, f, context)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -112,6 +333,15 @@ pub enum PointerKind {
     Stack,
     Static,
 }
+impl Display for PointerKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PointerKind::Stack => Display::fmt(&PunctAt::new(), f),
+            PointerKind::Static => Display::fmt(&PunctAmpersand::new(), f),
+        }
+    }
+}
+display_with_any_context! {PointerKind}
 
 impl From<PointerKindDef> for PointerKind {
     fn from(value: PointerKindDef) -> Self {
@@ -127,9 +357,35 @@ pub struct TypeFn {
     pub inputs: Vec<TypeIdData>,
     pub output: TypeIdData,
 }
+impl<S, IC: ?Sized> DisplayWithContext<TypeDisplayContext<'_, S, IC>> for TypeFn
+where
+    Identifier: DisplayWithContext<IC>,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &TypeDisplayContext<'_, S, IC>,
+    ) -> std::fmt::Result {
+        write!(f, "fn(")?;
+        for item in Iterator::intersperse(self.inputs.iter().map(Some), None) {
+            match item {
+                Some(inp) => DisplayWithContext::fmt(inp, f, context),
+                None => write!(f, ", "),
+            }?
+        }
+        write!(f, ") -> ")?;
+        DisplayWithContext::fmt(&self.output, f, context)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeUnknow;
+impl Display for TypeUnknow {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&PunctUnderscore::new(), f)
+    }
+}
+display_with_any_context! {TypeUnknow}
 
 #[derive(Debug, Clone)]
 struct TypeEntry {
@@ -178,9 +434,8 @@ impl<S> TypeTable<S> {
     }
 
     /// Get a type from a id
-    pub fn type_data(&self, searching: TypeId) -> &TypeData {
-        &self.types[searching.0]
-            .typ
+    pub fn type_data(&self, searching: TypeIdData) -> &TypeData {
+        self.type_(searching.into_id())
             .as_data()
             .expect("The table should create TypeIdData only for actual datatypes")
     }
@@ -228,6 +483,13 @@ impl<S> TypeTable<S> {
             Type::Fn(_) | Type::Unknow(_) => None,
         }
     }
+
+    pub fn report_all_types<'s, C: ?Sized>(&'s self, context: &'s C) -> impl Display + 's
+    where
+        Identifier: DisplayWithContext<C>,
+    {
+        ReportAllTypes(self, context)
+    }
 }
 
 impl TypeTable<ConstExpressionSolver> {
@@ -239,3 +501,95 @@ impl TypeTable<ConstExpressionSolver> {
 
 mod type_table_generation;
 pub use type_table_generation::{SizeError, TypeDeclareError};
+
+#[derive(Clone, Copy)]
+pub struct ReportAllTypes<'s, S, C: ?Sized>(&'s TypeTable<S>, &'s C);
+impl<'s, S, C: ?Sized> Display for ReportAllTypes<'s, S, C>
+where
+    Identifier: DisplayWithContext<C>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ReportAllTypes(table, context) = *self;
+
+        for (n, TypeEntry { typ, name, size }) in table.types.iter().enumerate() {
+            // id
+            write!(f, "{n}")?;
+
+            // human name
+            if let Some(name) = name {
+                write!(f, "\t{}", name.with_context(context))?;
+            } else {
+                write!(f, "\t_")?;
+            }
+
+            // aliases
+            let mut aliases = table
+                .names
+                .iter()
+                .filter_map(|(alias, TypeId(id))| (*id == n).then_some(alias))
+                .peekable();
+            if aliases.peek().is_some() {
+                write!(f, "(")?;
+                for item in Iterator::intersperse(aliases.map(Some), None) {
+                    match item {
+                        Some(alias) => write!(f, "{}", alias.with_context(context)),
+                        None => write!(f, ", "),
+                    }?
+                }
+                write!(f, ")")?;
+            }
+
+            writeln!(f)?;
+            {
+                let mut f = indented(f);
+
+                // type
+                write!(f, "type = ")?;
+                writeln!(
+                    indented(&mut f),
+                    "{}",
+                    typ.with_context(&TypeDisplayContext {
+                        table,
+                        ident_context: context,
+                        depth: 5,
+                        expand_composites: true
+                    })
+                )?;
+
+                // size
+                if let Some(size) = size {
+                    write!(f, "size = {size}")?;
+                } else {
+                    write!(f, "size = <unsized>")?;
+                }
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
+pub struct TypeDisplayContext<'t, S, IC: ?Sized> {
+    /// The type table for id resolution
+    pub table: &'t TypeTable<S>,
+    /// The context for displaying identifiers
+    pub ident_context: &'t IC,
+    /// Depth for recursing types
+    pub depth: usize,
+    /// If composites should be expanded
+    pub expand_composites: bool,
+}
+
+impl<'t, S, IC: ?Sized> TypeDisplayContext<'t, S, IC> {
+    /// Context with a reduced depth
+    fn pushed(&self) -> Option<Self> {
+        match self.depth {
+            0 => None,
+            _ => Some(Self {
+                depth: self.depth - 1,
+                expand_composites: false,
+                ..*self
+            }),
+        }
+    }
+}

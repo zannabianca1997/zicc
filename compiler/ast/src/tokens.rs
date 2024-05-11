@@ -243,6 +243,11 @@ macro_rules! keywords_and_puncts {
                     }
                 }
                 display_with_any_context!{[<Punct $punct_ident>]}
+                impl [<Punct $punct_ident>] {
+                    pub fn new()->Self {
+                        Self(Pos::missing())
+                    }
+                }
                 impl PartialEq for [<Punct $punct_ident>] {
                     fn eq(&self, _: &Self) -> bool {
                         true

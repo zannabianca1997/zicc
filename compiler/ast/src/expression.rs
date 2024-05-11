@@ -20,7 +20,7 @@ pub trait SizeExpressionSolver<CallbackError> {
     fn solve<'d>(
         &self,
         expr: &'d Expression,
-        callback: impl FnMut(&'d TypeDefData) -> Result<vm::VMUInt, CallbackError>,
+        callback: &mut impl FnMut(&'d TypeDefData) -> Result<vm::VMUInt, CallbackError>,
     ) -> Result<vm::VMInt, Self::Error>;
 }
 
@@ -52,7 +52,7 @@ pub mod const_expr {
         fn solve<'d>(
             &self,
             expr: &'d Expression,
-            mut callback: impl FnMut(
+            callback: &mut impl FnMut(
                 &'d crate::typedef::TypeDefData,
             ) -> Result<vm::VMUInt, CallbackError>,
         ) -> Result<vm::VMInt, Self::Error> {
@@ -68,7 +68,7 @@ pub mod const_expr {
                 | Expression::Add(box BinExpr { lhs, rhs, .. })
                 | Expression::Sub(box BinExpr { lhs, rhs, .. })
                 | Expression::Mul(box BinExpr { lhs, rhs, .. }) => {
-                    let lhs = self.solve(lhs, &mut callback)?;
+                    let lhs = self.solve(lhs, callback)?;
                     let rhs = self.solve(rhs, callback)?;
                     match expr {
                         Expression::Eq(_) => Some((lhs == rhs).into()),

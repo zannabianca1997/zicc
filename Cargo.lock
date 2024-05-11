@@ -1134,8 +1134,10 @@ name = "types"
 version = "0.1.0"
 dependencies = [
  "ast",
+ "display_context",
  "either",
  "elsa",
+ "indenter",
  "itertools 0.12.1",
  "slotmap",
  "thiserror",
