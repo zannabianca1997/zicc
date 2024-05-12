@@ -95,14 +95,6 @@ enum MaybeCalculating<'t, T> {
     Unexamined(&'t RefCell<T>),
     Calculating(RefMut<'t, T>),
 }
-impl<T> MaybeCalculating<'_, T> {
-    fn start(self) -> Option<Self> {
-        Some(MaybeCalculating::Calculating(match self {
-            MaybeCalculating::Unexamined(t) => t.try_borrow_mut().ok()?,
-            MaybeCalculating::Calculating(t) => t,
-        }))
-    }
-}
 
 #[derive(Debug, Error)]
 pub enum SizeError<ConstExprError> {

@@ -5,10 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use ast::{
     expression::SizeExpressionSolver,
     tokens::Identifier,
-    typedef::{
-        TypeDefArray, TypeDefFn, TypeDefInt, TypeDefPointer, TypeDefStruct, TypeDefUnion,
-        TypeDefUnknow,
-    },
+    typedef::{TypeDefArray, TypeDefFn, TypeDefPointer, TypeDefStruct, TypeDefUnion},
     File,
 };
 use either::Either;
@@ -59,12 +56,12 @@ enum TypeEntry<
     },
 }
 
-pub struct MappingFunctions<F_RT, F_FO, F_CS, F_AL, F_AS> {
-    f_rt: F_RT,
-    f_fo: F_FO,
-    f_cs: F_CS,
-    f_al: F_AL,
-    f_as: F_AS,
+pub struct MappingFunctions<FunRt, FunFo, FunCs, FunAl, FunAs> {
+    f_rt: FunRt,
+    f_fo: FunFo,
+    f_cs: FunCs,
+    f_al: FunAl,
+    f_as: FunAs,
 }
 
 impl<'d, RT, FO, CS, AL, AS> TypeEntry<'d, RT, FO, CS, AL, AS> {
@@ -284,7 +281,7 @@ impl<RT> FieldOffsets<RT> {
     }
     fn for_all_references(&self, fun: &mut impl FnMut(&RT)) {
         match self {
-            FieldOffsets::Value(v) => (),
+            FieldOffsets::Value(_) => (),
             FieldOffsets::SizeOf(ty) => fun(ty),
             FieldOffsets::MaxOr0(set) => {
                 for child in set {

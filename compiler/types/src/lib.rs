@@ -504,8 +504,6 @@ impl TypeTable<ConstExpressionSolver> {
     }
 }
 
-mod old_type_table_generation;
-
 mod type_table_generation;
 pub use type_table_generation::SizeError;
 pub type TypeDeclareError = type_table_generation::TypeDeclareError<
