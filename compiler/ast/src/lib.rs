@@ -76,7 +76,7 @@ pub mod ast_node {
             ItemExtern ItemStatic
 
             ItemFn Signature
-            Statement StatementBlock StatementExpr StatementFor StatementIf StatementLet StatementLoop StatementWhile
+            Statement StatementBlock StatementExpr StatementIf StatementLet StatementLoop StatementWhile StatementReturn
 
             ItemType
             TypeDef TypeDefFn TypeDefUnknow
@@ -624,8 +624,36 @@ peg::parser! {
   pub grammar parser() for [Token] {
     // EXPRESSIONS
 
-    rule expression() -> expression::Expression
-      = [Token::Literal(n)] {expression::Expression::Literal(Box::new(n))}
+    rule expression() -> expression::Expression = precedence!{
+        lhs:@ [Token::PunctEq(op)] rhs:(@) { expression::Expression::Set(Box::new(expression::BinExpr { lhs, op, rhs })) }
+        --
+        lhs:(@) [Token::PunctEqEq(op)] rhs:@ { expression::Expression::Eq(Box::new(expression::BinExpr { lhs, op, rhs })) }
+        lhs:(@) [Token::PunctNoEq(op)] rhs:@ { expression::Expression::NoEq(Box::new(expression::BinExpr { lhs, op, rhs })) }
+        --
+        lhs:(@) [Token::PunctGe(op)] rhs:@ { expression::Expression::Ge(Box::new(expression::BinExpr { lhs, op, rhs })) }
+        lhs:(@) [Token::PunctGt(op)] rhs:@ { expression::Expression::Gt(Box::new(expression::BinExpr { lhs, op, rhs })) }
+        lhs:(@) [Token::PunctLe(op)] rhs:@ { expression::Expression::Le(Box::new(expression::BinExpr { lhs, op, rhs })) }
+        lhs:(@) [Token::PunctLt(op)] rhs:@ { expression::Expression::Lt(Box::new(expression::BinExpr { lhs, op, rhs })) }
+        --
+        lhs:(@) [Token::PunctPlus(op)] rhs:@ { expression::Expression::Add(Box::new(expression::BinExpr { lhs, op, rhs })) }
+        lhs:(@) [Token::PunctMinus(op)] rhs:@ { expression::Expression::Sub(Box::new(expression::BinExpr { lhs, op, rhs })) }
+        --
+        lhs:(@) [Token::PunctStar(op)] rhs:@ { expression::Expression::Mul(Box::new(expression::BinExpr { lhs, op, rhs })) }
+        --
+        [Token::PunctMinus(op)] rhs:(@) {expression::Expression::Neg(Box::new(expression::UnExpr { op, rhs }))}
+        [Token::PunctAmpersand(op)] rhs:(@) {expression::Expression::TakeRef(Box::new(expression::UnExpr { op: Left(op), rhs }))}
+        [Token::PunctAt(op)] rhs:(@) {expression::Expression::TakeRef(Box::new(expression::UnExpr { op: Right(op), rhs }))}
+        [Token::PunctStar(op)] rhs:(@) {expression::Expression::Deref(Box::new(expression::UnExpr { op, rhs }))}
+        --
+        [Token::Literal(n)]       { expression::Expression::Literal(Box::new(n)) }
+        [Token::Identifier(name)] { expression::Expression::Name(Box::new(name)) }
+        [Token::PunctParenOpen(open_par)] inner: expression() [Token::PunctParenClose(close_par)] { expression::Expression::Parenthesized(Box::new(expression::Parenthesized{ open_par, inner, close_par }))}
+        [Token::KeywordSizeOf(size_of_kw)] [Token::PunctParenOpen(open_par)] ty: typedefdata() [Token::PunctParenClose(close_par)] { expression::Expression::SizeOf(Box::new(expression::ExpressionSizeOf { size_of_kw, open_par, ty, close_par }))}
+        fun: @ [Token::PunctParenOpen(open_par)] inputs: punctuated(<expression()>, <[Token::PunctComma(comma)] {comma}>) [Token::PunctParenClose(close_par)] { expression::Expression::Call(Box::new(expression::ExpressionCall { fun, open_par, inputs, close_par }))}
+        lhs: @ [Token::PunctBracketOpen(braket_open)] index: expression() [Token::PunctBracketClose(braket_close)] { expression::Expression::IndexAccess(Box::new(expression::IndexAccess { lhs, braket_open, index, braket_close }))}
+        lhs: @ [Token::PunctDot(dot)] [Token::Identifier(member)] { expression::Expression::MemberAccess(Box::new(expression::MemberAccess { lhs, dot, member })) }
+      }
+    //  =
 
     // PUNCTUATED STUFF
     rule punctuated<E,P>(element: rule<E>, punctuator: rule<P>) -> punctuated::Punctuated<E,P>
@@ -715,6 +743,86 @@ peg::parser! {
         ) pointee: typedef()
         { typedef::TypeDefPointer { kind, pointee: Box::new(pointee) }}
 
+    // FUNCTION SIGNATURE
+
+    rule signature() -> Signature
+      = [Token::KeywordFn(fn_kw)]
+        [Token::Identifier(ident)]
+        [Token::PunctParenOpen(paren_open)]
+        inputs: punctuated(<
+            [Token::Identifier(ident)]
+            [Token::PunctColon(colon)]
+            ty: typedefdata()
+            {(ident, colon, ty)}
+        >, <[Token::PunctComma(comma)] {comma}>)
+        [Token::PunctParenClose(paren_close)]
+        output: (
+            [Token::PunctRightArrow(arrow)]
+            ty: typedefdata()
+            { (arrow, ty) }
+        )?
+        { Signature { fn_kw, ident, paren_open, inputs, paren_close, output }}
+
+
+    // STATEMENTS
+
+    rule statement() -> statements::Statement
+      = stm: statementblock()  { statements::Statement::Block(stm)  }
+      / stm: statementlet()    { statements::Statement::Let(stm)    }
+      / stm: statementexpr()   { statements::Statement::Expr(stm)   }
+      / stm: statementloop()   { statements::Statement::Loop(stm)   }
+      / stm: statementif()     { statements::Statement::If(stm)     }
+      / stm: statementwhile()  { statements::Statement::While(stm)  }
+      / stm: statementreturn() { statements::Statement::Return(stm) }
+
+    rule statementblock() -> statements::StatementBlock
+      = [Token::PunctBraceOpen(brace_open)]
+        statements: punctuated(<statement()>, <[Token::PunctSemi(semi)] {semi}>)
+        [Token::PunctBraceClose(brace_close)]
+        {statements::StatementBlock{ brace_open, statements, brace_close }}
+
+    rule statementlet() -> statements::StatementLet
+      = [Token::KeywordLet(let_kw)]
+        [Token::Identifier(ident)]
+        [Token::PunctColon(colon)]
+        ty: typedefdata()
+        initializer: (
+            [Token::PunctEq(eq)]
+            expr: expression()
+            { (eq, expr) }
+        )?
+        { statements::StatementLet { let_kw, ident, colon, ty, initializer }}
+
+    rule statementexpr() -> statements::StatementExpr
+      = expr: expression()
+        { statements::StatementExpr { expr }}
+
+    rule statementloop() -> statements::StatementLoop
+      = [Token::KeywordLoop(loop_kw)]
+        body: statementblock()
+        { statements::StatementLoop { loop_kw, body }}
+
+    rule statementif() -> statements::StatementIf
+      = [Token::KeywordIf(if_kw)]
+        condition: expression()
+        body: statementblock()
+        else_branch: (
+            [Token::KeywordElse(else_kw)]
+            else_body: statementblock()
+            {(else_kw, else_body)}
+        )?
+        { statements::StatementIf{ if_kw, condition, body, else_branch }}
+
+    rule statementwhile() -> statements::StatementWhile
+      = [Token::KeywordWhile(while_kw)]
+        condition: expression()
+        body: statementblock()
+        { statements::StatementWhile{ while_kw, condition, body }}
+
+    rule statementreturn() -> statements::StatementReturn
+      = [Token::KeywordReturn(return_kw)]
+        value: ( expression() )?
+        { statements::StatementReturn{ return_kw, value }}
 
     // ITEMS
 
@@ -753,12 +861,16 @@ peg::parser! {
           ItemType { type_kw, ident, eq, ty, semi }
       }
 
+    rule itemfn() -> ItemFn
+      = sig: signature() body: statementblock() { ItemFn { sig, body }}
+
     rule item() -> Item
       = item: itemstatic() { Item::Static(item)}
       / item: itemextern() { Item::Extern(item)}
       / item: itemtype()   { Item::Type(item) }
       / def: typedefstruct() { Item::Struct(def) }
       / def: typedefunion() { Item::Union(def) }
+      / item: itemfn() { Item::Fn(item) }
 
     // FILE
 

@@ -333,6 +333,7 @@ keywords_and_puncts! {
         Let    "let";
         Else   "else";
         SizeOf "size_of";
+        Return "return";
     }
     punctuators {
         Colon   ":";

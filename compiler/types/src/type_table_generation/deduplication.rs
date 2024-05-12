@@ -1,13 +1,12 @@
 //! Deduplicate the discovered types
 
 use std::{
-    collections::{BTreeMap, BTreeSet}, mem, ops::Range
+    collections::{BTreeMap, BTreeSet}, ops::Range
 };
 
 use ast::tokens::Identifier;
 use elsa::FrozenVec;
 use itertools::Itertools;
-use vm::VMUInt;
 
 use crate::{Type, TypeArray, TypeComposite, TypeData, TypeEntry, TypeFn, TypeId, TypeIdData, TypeInt, TypePointer, TypeUnknow, INT_ID, UNIT_ID, UNKNOW_ID};
 

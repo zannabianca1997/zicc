@@ -1,13 +1,10 @@
-struct Expression {
-    kind: int,
-    val: union {
-        sum: [&Expression; 2],
-        sub: [&Expression; 2],
-        mul: [&Expression; 2],
-        neg: &Expression,
-        val: int,
-        fun: &fn() -> int,
+
+fn fibo(n:int) -> int {
+    if n < 2 {
+        return 1;
+    } else {
+        let a: int = fibo(n - 1);
+        let b: int = fibo(n - 2);
+        return a + b
     }
 }
-
-type Evaluer = fn(&Expression) -> int;

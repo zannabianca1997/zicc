@@ -284,7 +284,7 @@ impl DisplayWithContext<DefaultStringInterner> for MemberAccess {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExpressionCall {
-    pub fun: Identifier,
+    pub fun: Expression,
     pub open_par: PunctParenOpen,
     pub inputs: Punctuated<Expression, PunctComma>,
     pub close_par: PunctParenClose,
@@ -396,7 +396,7 @@ impl DisplayWithContext<DefaultStringInterner> for ExpressionSizeOf {
 pub struct IndexAccess {
     pub lhs: Expression,
     pub braket_open: PunctBracketOpen,
-    pub index: Identifier,
+    pub index: Expression,
     pub braket_close: PunctBracketClose,
 }
 impl AstNode for IndexAccess {

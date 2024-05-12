@@ -18,8 +18,8 @@ pub enum Statement {
     Expr(StatementExpr),
     Loop(StatementLoop),
     If(StatementIf),
-    For(StatementFor),
     While(StatementWhile),
+    Return(StatementReturn),
 }
 
 impl AstNode for Statement {
@@ -32,8 +32,8 @@ impl AstNode for Statement {
             Statement::Expr(stm) => stm.visited_by(&mut child_visitor),
             Statement::Loop(stm) => stm.visited_by(&mut child_visitor),
             Statement::If(stm) => stm.visited_by(&mut child_visitor),
-            Statement::For(stm) => stm.visited_by(&mut child_visitor),
             Statement::While(stm) => stm.visited_by(&mut child_visitor),
+            Statement::Return(stm) => stm.visited_by(&mut child_visitor),
         };
         visitor.exit(self, child_visitor)
     }
@@ -45,8 +45,8 @@ impl AstNode for Statement {
             Statement::Expr(stm) => stm.visited_by_mut(&mut child_visitor),
             Statement::Loop(stm) => stm.visited_by_mut(&mut child_visitor),
             Statement::If(stm) => stm.visited_by_mut(&mut child_visitor),
-            Statement::For(stm) => stm.visited_by_mut(&mut child_visitor),
             Statement::While(stm) => stm.visited_by_mut(&mut child_visitor),
+            Statement::Return(stm) => stm.visited_by_mut(&mut child_visitor),
         };
         visitor.exit_mut(self, child_visitor)
     }
@@ -64,8 +64,8 @@ impl DisplayWithContext<DefaultStringInterner> for Statement {
             Statement::Expr(stm) => DisplayWithContext::fmt(stm, f, context),
             Statement::Loop(stm) => DisplayWithContext::fmt(stm, f, context),
             Statement::If(stm) => DisplayWithContext::fmt(stm, f, context),
-            Statement::For(stm) => DisplayWithContext::fmt(stm, f, context),
             Statement::While(stm) => DisplayWithContext::fmt(stm, f, context),
+            Statement::Return(stm) => DisplayWithContext::fmt(stm, f, context),
         }
     }
 }
@@ -308,40 +308,27 @@ impl DisplayWithContext<DefaultStringInterner> for StatementIf {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StatementFor {}
-
-impl AstNode for StatementFor {
-    extractors! {StatementFor}
-    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
-        todo!()
-    }
-
-    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
-        todo!()
-    }
+pub struct StatementWhile {
+    pub while_kw: KeywordWhile,
+    pub condition: Expression,
+    pub body: StatementBlock,
 }
-
-impl DisplayWithContext<DefaultStringInterner> for StatementFor {
-    fn fmt(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-        context: &DefaultStringInterner,
-    ) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StatementWhile {}
 
 impl AstNode for StatementWhile {
     extractors! {StatementWhile}
     fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
-        todo!()
+        let mut child_visitor = visitor.enter(self);
+        self.while_kw.visited_by(&mut child_visitor);
+        self.condition.visited_by(&mut child_visitor);
+        self.body.visited_by(&mut child_visitor);
+        visitor.exit(self, child_visitor)
     }
-
     fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
-        todo!()
+        let mut child_visitor = visitor.enter_mut(self);
+        self.while_kw.visited_by_mut(&mut child_visitor);
+        self.condition.visited_by_mut(&mut child_visitor);
+        self.body.visited_by_mut(&mut child_visitor);
+        visitor.exit_mut(self, child_visitor)
     }
 }
 
@@ -351,6 +338,52 @@ impl DisplayWithContext<DefaultStringInterner> for StatementWhile {
         f: &mut std::fmt::Formatter<'_>,
         context: &DefaultStringInterner,
     ) -> std::fmt::Result {
-        todo!()
+        DisplayWithContext::fmt(&self.while_kw, f, context)?;
+        f.write_str(" ")?;
+        DisplayWithContext::fmt(&self.condition, f, context)?;
+        f.write_str(" ")?;
+        DisplayWithContext::fmt(&self.body, f, context)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StatementReturn {
+    pub return_kw: KeywordReturn,
+    pub value: Option<Expression>,
+}
+
+impl AstNode for StatementReturn {
+    extractors! {StatementReturn}
+    fn visited_by<'s, Visitor: AstVisitor<'s>>(&'s self, visitor: &mut Visitor) -> Visitor::Result {
+        let mut child_visitor = visitor.enter(self);
+        self.return_kw.visited_by(&mut child_visitor);
+        if let Some(value) = &self.value {
+            value.visited_by(&mut child_visitor);
+        }
+        visitor.exit(self, child_visitor)
+    }
+    fn visited_by_mut<Visitor: AstVisitorMut>(&mut self, visitor: &mut Visitor) -> Visitor::Result {
+        let mut child_visitor = visitor.enter_mut(self);
+        self.return_kw.visited_by_mut(&mut child_visitor);
+        if let Some(value) = &mut self.value {
+            value.visited_by_mut(&mut child_visitor);
+        }
+        visitor.exit_mut(self, child_visitor)
+    }
+}
+
+impl DisplayWithContext<DefaultStringInterner> for StatementReturn {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        context: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        DisplayWithContext::fmt(&self.return_kw, f, context)?;
+        if let Some(value) = &self.value {
+            f.write_str(" ")?;
+            DisplayWithContext::fmt(value, f, context)?;
+        }
+        Ok(())
     }
 }
