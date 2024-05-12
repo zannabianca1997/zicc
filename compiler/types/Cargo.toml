@@ -5,12 +5,13 @@ edition = "2021"
 
 
 [dependencies]
-ast = { version = "0.1.0", path = "../ast" }
-display_context = { version = "0.1.0", path = "../display_context" }
+ast = { path = "../ast" }
+display_context = { path = "../display_context" }
 either = "1.11.0"
-elsa = "1.10.0"
+elsa = { version = "1.10.0" }
 indenter = "0.3.3"
 itertools = "0.12.1"
 slotmap = "1.0.7"
+stable_deref_trait = "1.2.0"
 thiserror = "1.0.60"
-vm = { version = "0.1.0", path = "../../vm" }
+vm = { path = "../../vm" }

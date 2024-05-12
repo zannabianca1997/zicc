@@ -1,5 +1,6 @@
 //! Parse a `.zicc` source file and reemit it, with additional info
 #![feature(error_reporter)]
+#![feature(never_type)]
 
 use std::{
     cell::RefCell,

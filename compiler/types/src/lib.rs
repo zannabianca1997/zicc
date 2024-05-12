@@ -1,5 +1,8 @@
 #![feature(box_patterns)]
 #![feature(iter_intersperse)]
+#![feature(btree_extract_if)]
+#![feature(if_let_guard)]
+#![feature(never_type)]
 
 use std::{
     collections::BTreeMap,
@@ -10,7 +13,7 @@ use display_context::{display_with_any_context, DisplayWithContext};
 use elsa::FrozenVec;
 
 use ast::{
-    expression::const_expr::ConstExpressionSolver,
+    expression::{const_expr::ConstExpressionSolver, SizeExpressionSolver},
     tokens::{Identifier, KeywordInt, PunctAmpersand, PunctAt, PunctUnderscore},
     typedef::PointerKindDef,
     File,
@@ -227,7 +230,9 @@ where
         context: &TypeDisplayContext<'_, S, IC>,
     ) -> std::fmt::Result {
         // is a plain union?
-        if !self.fields.is_empty() && self.fields.values().all(|(offset, _)| *offset == 0) {
+        if self.fields.is_empty() {
+            write!(f, "struct {{}}")
+        } else if self.fields.values().all(|(offset, _)| *offset == 0) {
             write!(f, "union")?;
             if let Some(name) = self.name {
                 write!(f, " {}", name.with_context(context.ident_context))?;
@@ -267,8 +272,8 @@ where
             // are all fields disjoint?
             if fields
                 .iter()
-                .map(|(_, r, _)| r)
-                .flat_map(|r1| fields.iter().map(move |(_, r2, _)| (r1, r2)))
+                .enumerate()
+                .flat_map(|(pos, (_, r1, _))| fields[..pos].iter().map(move |(_, r2, _)| (r1, r2)))
                 .all(|(r1, r2)| r1.start >= r2.end || r2.start >= r1.end)
             {
                 // sort the fields by order of apparition
@@ -279,8 +284,8 @@ where
                     write!(f, " {}", name.with_context(context.ident_context))?;
                 }
                 {
+                    writeln!(f, " {{")?;
                     let mut f = indented(f);
-                    writeln!(f, "{{")?;
                     let mut pos = 0;
                     for (name, range, ty) in fields {
                         if pos < range.start {
@@ -494,13 +499,18 @@ impl<S> TypeTable<S> {
 
 impl TypeTable<ConstExpressionSolver> {
     /// Build a typetable from a AST
-    pub fn build(ast: &File) -> Result<Self, type_table_generation::TypeDeclareError> {
+    pub fn build(ast: &File) -> Result<Self, TypeDeclareError> {
         type_table_generation::generate(ast, ConstExpressionSolver)
     }
 }
 
+mod old_type_table_generation;
+
 mod type_table_generation;
-pub use type_table_generation::{SizeError, TypeDeclareError};
+pub use type_table_generation::SizeError;
+pub type TypeDeclareError = type_table_generation::TypeDeclareError<
+    <ConstExpressionSolver as SizeExpressionSolver<!>>::Error,
+>;
 
 #[derive(Clone, Copy)]
 pub struct ReportAllTypes<'s, S, C: ?Sized>(&'s TypeTable<S>, &'s C);
@@ -529,7 +539,7 @@ where
                 .filter_map(|(alias, TypeId(id))| (*id == n).then_some(alias))
                 .peekable();
             if aliases.peek().is_some() {
-                write!(f, "(")?;
+                write!(f, "\t(")?;
                 for item in Iterator::intersperse(aliases.map(Some), None) {
                     match item {
                         Some(alias) => write!(f, "{}", alias.with_context(context)),
@@ -546,7 +556,7 @@ where
                 // type
                 write!(f, "type = ")?;
                 writeln!(
-                    indented(&mut f),
+                    f,
                     "{}",
                     typ.with_context(&TypeDisplayContext {
                         table,

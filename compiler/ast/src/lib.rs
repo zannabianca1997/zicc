@@ -11,6 +11,7 @@ use errors::{Accumulator, Multiple, RootAccumulator};
 use logos::Logos;
 use string_interner::DefaultStringInterner;
 use thiserror::Error;
+use typedef::{TypeDefStruct, TypeDefUnion};
 
 use self::tokens::*;
 
@@ -194,6 +195,10 @@ pub enum Item {
     Extern(ItemExtern),
     /// Declaration of a type alias
     Type(ItemType),
+    /// Declaration of a named struct
+    Struct(TypeDefStruct),
+    /// Declaration of a named union
+    Union(TypeDefUnion),
     /// Declaration of a function
     Fn(ItemFn),
 }
@@ -207,6 +212,8 @@ impl AstNode for Item {
             Item::Extern(child) => child.visited_by(&mut child_visitor),
             Item::Type(child) => child.visited_by(&mut child_visitor),
             Item::Fn(child) => child.visited_by(&mut child_visitor),
+            Item::Struct(child) => child.visited_by(&mut child_visitor),
+            Item::Union(child) => child.visited_by(&mut child_visitor),
         };
         visitor.exit(self, child_visitor)
     }
@@ -218,6 +225,8 @@ impl AstNode for Item {
             Item::Extern(child) => child.visited_by_mut(&mut child_visitor),
             Item::Type(child) => child.visited_by_mut(&mut child_visitor),
             Item::Fn(child) => child.visited_by_mut(&mut child_visitor),
+            Item::Struct(child) => child.visited_by_mut(&mut child_visitor),
+            Item::Union(child) => child.visited_by_mut(&mut child_visitor),
         };
         visitor.exit_mut(self, child_visitor)
     }
@@ -234,6 +243,8 @@ impl DisplayWithContext<DefaultStringInterner> for Item {
             Item::Extern(item) => DisplayWithContext::fmt(item, f, context),
             Item::Type(item) => DisplayWithContext::fmt(item, f, context),
             Item::Fn(item) => DisplayWithContext::fmt(item, f, context),
+            Item::Struct(item) => DisplayWithContext::fmt(item, f, context),
+            Item::Union(item) => DisplayWithContext::fmt(item, f, context),
         }
     }
 }
@@ -745,7 +756,9 @@ peg::parser! {
     rule item() -> Item
       = item: itemstatic() { Item::Static(item)}
       / item: itemextern() { Item::Extern(item)}
-      / item: itemtype()   { Item::Type(item)}
+      / item: itemtype()   { Item::Type(item) }
+      / def: typedefstruct() { Item::Struct(def) }
+      / def: typedefunion() { Item::Union(def) }
 
     // FILE
 

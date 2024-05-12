@@ -1140,6 +1140,7 @@ dependencies = [
  "indenter",
  "itertools 0.12.1",
  "slotmap",
+ "stable_deref_trait",
  "thiserror",
  "vm",
 ]

@@ -24,6 +24,30 @@ pub trait SizeExpressionSolver<CallbackError> {
     ) -> Result<vm::VMInt, Self::Error>;
 }
 
+impl<E, T: SizeExpressionSolver<E>> SizeExpressionSolver<E> for &T {
+    type Error = T::Error;
+
+    fn solve<'d>(
+        &self,
+        expr: &'d Expression,
+        callback: &mut impl FnMut(&'d TypeDefData) -> Result<vm::VMUInt, E>,
+    ) -> Result<vm::VMInt, Self::Error> {
+        (**self).solve(expr, callback)
+    }
+}
+
+impl<E, T: SizeExpressionSolver<E>> SizeExpressionSolver<E> for &mut T {
+    type Error = T::Error;
+
+    fn solve<'d>(
+        &self,
+        expr: &'d Expression,
+        callback: &mut impl FnMut(&'d TypeDefData) -> Result<vm::VMUInt, E>,
+    ) -> Result<vm::VMInt, Self::Error> {
+        (**self).solve(expr, callback)
+    }
+}
+
 pub mod const_expr {
     use thiserror::Error;
     use vm::VMInt;
