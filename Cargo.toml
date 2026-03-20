@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["compiler/types"]
+members = ["compiler/types", "limits"]
 
 [workspace.package]
 edition = "2024"
+
+[workspace.dependencies]
+zicc-limits = { path = "limits" }

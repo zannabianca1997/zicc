@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "zicc-compiler-types"
 version = "0.1.0"
+dependencies = [
+ "zicc-limits",
+]
+
+[[package]]
+name = "zicc-limits"
+version = "0.1.0"
