@@ -5,3 +5,5 @@ edition.workspace = true
 
 [dependencies]
 zicc-limits.workspace = true
+
+derive_more.workspace = true

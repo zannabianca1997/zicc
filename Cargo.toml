@@ -7,3 +7,5 @@ edition = "2024"
 
 [workspace.dependencies]
 zicc-limits = { path = "limits" }
+
+derive_more = { version = "2.1.1", features = ["full"] }
