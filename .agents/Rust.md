@@ -11,6 +11,7 @@
 - Keep code in the lib, main should be reserved for cli code.
 - `use` instructions, unless bound to a specific feature flag, must be at the
   top of the file, ordered in three blocks - std/core, external, workspace deps
+- Prefer `<module_name>.rs` to `<module_name>/mod.rs`
 
 # Packaging 
 
@@ -24,3 +25,10 @@
   purpose. This is usually imported into `lib.rs` as `#![doc =
   include_str!("../README.md")]`
 - Workspace members are imported by path and never specify a version.
+
+# Tests
+
+- Tests are placed inside a `tests` module, either in a separated file or inline
+  if they are few enough.
+- Tests are called with the convention `<subject>_should_<expectation>`
+- Tests have a short doc comment explaining what is being tested
