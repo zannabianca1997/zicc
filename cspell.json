@@ -3,6 +3,7 @@
     "zicc",
     "intcode",
     "ints",
-    "Neumann"
+    "Neumann",
+    "interner"
   ]
 }

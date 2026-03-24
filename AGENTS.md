@@ -10,6 +10,6 @@ The repo is a workspace.
 
 Under [.agents] are more specific guides:
 
-- Rust guidelines: [.agents/Rust.md]
-- IntCode wiki page: [.agents/IntCode.md]
-- Readmes guidelines: [.agents/Readmes.md]
+- Rust guidelines: @.agents/Rust.md
+- IntCode wiki page: @.agents/IntCode.md
+- Readmes guidelines: @.agents/Readmes.md
