@@ -5,4 +5,5 @@ edition.workspace = true
 
 [dependencies]
 lazy-regex = "3.6.0"
+paste = "1.0.15"
 string-interner.workspace = true

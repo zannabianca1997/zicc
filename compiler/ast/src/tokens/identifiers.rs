@@ -5,12 +5,18 @@ use string_interner::{DefaultSymbol, StringInterner};
 
 type Symbol = DefaultSymbol;
 
-static RE: &Lazy<Regex> = regex!(r#"^(?:[\w&&[^\d_]]\w*|_+[\w&&[^_]]\w*)$"#);
+/// Regular expression to match identifiers
+pub static RE: &Lazy<Regex> = regex!(r#"^(?:[\w&&[^\d_]]\w*|_+[\w&&[^_]]\w*)$"#);
 
+/// An identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identifier(Symbol);
 
 impl Identifier {
+    /// Create a new identifier
+    ///
+    /// This will validate the given string against the regex [`RE`], and return
+    /// [`Some`] only if a match is found
     pub fn new<B, H>(value: &str, interner: &mut StringInterner<B, H>) -> Option<Self>
     where
         B: string_interner::backend::Backend<Symbol = Symbol>,
