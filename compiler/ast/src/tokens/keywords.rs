@@ -106,5 +106,6 @@ keywords! {
     Let("let"),
 
     // datatype
+    Type("type"),
     Int("int"),
 }

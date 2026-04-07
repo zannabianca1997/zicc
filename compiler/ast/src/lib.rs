@@ -1,9 +1,16 @@
 #![doc = include_str!("../README.md")]
 
-pub mod tokens;
+use crate::type_def::ItemTypeDef;
 
-struct File {
-    items: Vec<Item>,
+pub mod tokens;
+pub mod type_def;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct File {
+    pub items: Vec<Item>,
 }
 
-enum Item {}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Item {
+    TypeDef(ItemTypeDef),
+}
