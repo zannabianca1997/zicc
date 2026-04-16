@@ -1,7 +1,6 @@
 [package]
-name = "zicc-compiler-ast"
+name = "zicc-compiler-parser"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-zicc-compiler-lexer.workspace = true

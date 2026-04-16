@@ -1,12 +1,12 @@
-//! # Punctuators
+//! # Keywords
 //!
-//! Punctuators definitions
+//! Keywords definitions
 
 use std::fmt::Display;
 
 use paste::paste;
 
-macro_rules! punctuators {
+macro_rules! keywords {
     (
         [$d:tt]
         $(
@@ -14,45 +14,45 @@ macro_rules! punctuators {
         ),* $(,)?
     ) => {
         paste! {
-            /// A punctuator
+            /// A keyword
             #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-            pub enum Punctuator {
+            pub enum Keyword {
                 $(
-                    #[doc="The `" $value "` punctuator"]
+                    #[doc="The `" $value "` keyword"]
                     $name($name)
                 ),*
             }
 
-            impl Punctuator {
+            impl Keyword {
                 $(
-                   #[doc="The `" $value "` punctuator"]
-                   pub const fn [< $name:snake:lower >] () -> Self { Self::$name($name) }
+                   #[doc="The `" $value "` keyword"]
+                   pub const fn [< k_ $name:snake:lower >] () -> Self { Self::$name($name) }
                 )*
 
-                /// The punctuator as a string
+                /// The keyword as a string
                 pub const fn as_str(&self) -> &'static str {
                     match self {
                         $(Self::$name(_) => $value),*
                     }
                 }
 
-                /// Try to parse the string as a punctuator
+                /// Try to parse the string as a keyword
                 pub fn from_str(value: &str) -> Option<Self> {
                     match value {
-                        $($value => Some( Self :: [< $name:snake:lower >] () ), )*
+                        $($value => Some( Self :: [< k_ $name:snake:lower >] () ), )*
                         _ => None
                     }
                 }
             }
 
-            impl Display for Punctuator {
+            impl Display for Keyword {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     write!(f, "{}", self.as_str())
                 }
             }
 
             $(
-                #[doc="The `" $value "` punctuator"]
+                #[doc="The `" $value "` keyword"]
                 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
                 pub struct $name;
 
@@ -69,66 +69,55 @@ macro_rules! punctuators {
                     }
                 }
 
-                impl From<$name> for Punctuator {
+                impl From<$name> for Keyword {
                     fn from(value: $name) -> Self {
                         Self::$name(value)
                     }
                 }
             )*
 
-            macro_rules! logos_punctuators {
+            macro_rules! logos_keywords {
                 (
                     $d ( #[$d ($d enum_attrs:tt)*] )* $d visibility: vis enum $d enum_name : ident { $d ($d enum_variants:tt)* }
                 ) => {
                     $d ( #[$d ($d enum_attrs)*] )* $d visibility enum $d enum_name {
                         $d ($d enum_variants)*
                         $(
-                            #[token($value, |_| crate::tokens::punctuators::Punctuator::[< $name:snake:lower >] ())]
+                            #[token($value, |_| crate::keywords::Keyword::[< k_ $name:snake:lower >] ())]
                         )*
-                        Punctuator(crate::tokens::punctuators::Punctuator),
+                        Keyword(crate::keywords::Keyword),
                     }
                 };
             }
-            pub(super) use logos_punctuators;
+            pub(super) use logos_keywords;
+
+            #[cfg(test)]
+            mod tests {
+                use super::*;
+
+                $(
+                    #[test]
+                    fn [< keyword_ $name:snake:lower _should_parse >] () {
+                        assert_eq!(Keyword::from_str($value), Some( Keyword:: [< k_ $name:snake:lower >] () ))
+                    }
+                )*
+            }
         }
     };
 }
 
-punctuators! {
-    // need to build the internal `logos_punctuators` macro declaration
+keywords! {
+    // need to build the internal `logos_keywords` macro declaration
     [$]
 
-    // Misc
-    Semicolon(";"),
-    Colon(":"),
-    Comma(","),
-    Eq("="),
-    Underscore("_"),
-    Ampersand("&"),
-    At("@"),
-    Dot("."),
+    // functions
+    Fn("fn"),
+    Return("return"),
 
-    // Math
-    Plus("+"),
-    Minus("-"),
-    Star("*"),
+    // variables
+    Let("let"),
 
-    // Booleans
-    EqEq("=="),
-    Neq("!="),
-    Lt("<"),
-    Le("<="),
-    Gt(">"),
-    Ge(">="),
-    And("&&"),
-    Or("||"),
-    Not("!"),
-
-    // Parentheses
-    ParenthesesOpen("("),
-    ParenthesesClose(")"),
-    BracketOpen("["),
-    BracketClose("]"),
-    BraceOpen("{"),
-    BraceClose("}"),
+    // datatype
+    Type("type"),
+    Int("int"),
 }

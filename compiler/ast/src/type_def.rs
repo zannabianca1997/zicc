@@ -1,4 +1,4 @@
-use crate::tokens::{
+use zicc_compiler_lexer::{
     identifiers::Identifier,
     int_literal::IntLiteral,
     keywords::{Int, Type},

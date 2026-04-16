@@ -393,6 +393,13 @@ checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 name = "zicc-compiler-ast"
 version = "0.1.0"
 dependencies = [
+ "zicc-compiler-lexer",
+]
+
+[[package]]
+name = "zicc-compiler-lexer"
+version = "0.1.0"
+dependencies = [
  "lazy-regex",
  "logos",
  "macro_rules_attribute",
@@ -401,6 +408,10 @@ dependencies = [
  "snafu",
  "string-interner",
 ]
+
+[[package]]
+name = "zicc-compiler-parser"
+version = "0.1.0"
 
 [[package]]
 name = "zicc-compiler-types"

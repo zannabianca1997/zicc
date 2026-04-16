@@ -1,13 +1,22 @@
 [workspace]
 resolver = "3"
-members = ["compiler/ast", "compiler/types", "limits"]
+members = [
+  "compiler/ast",
+  "compiler/lexer",
+  "compiler/parser",
+  "compiler/types",
+  "limits"
+]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-string-interner = "0.19.0"
 zicc-limits = { path = "limits" }
 
+zicc-compiler-lexer = { path = "compiler/lexer" }
+
 derive_more = { version = "2.1.1", features = ["full"] }
+serde = "1.0.228"
+string-interner = "0.19.0"

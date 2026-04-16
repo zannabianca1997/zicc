@@ -2,7 +2,6 @@
 
 use crate::type_def::ItemTypeDef;
 
-pub mod tokens;
 pub mod type_def;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
