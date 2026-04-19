@@ -2,7 +2,7 @@ use zicc_compiler_lexer::{
     identifiers::Identifier,
     int_literal::IntLiteral,
     keywords::{Int, Type},
-    punctuators::{Ampersand, At, BraceClose, BracketOpen, Eq, Semicolon, Underscore},
+    punctuators::{Ampersand, At, BracketClose, BracketOpen, Eq, Semicolon, Underscore},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -39,7 +39,7 @@ pub struct ArrayTypeDef {
     pub element: TypeDef,
     pub p_semicolon: Semicolon,
     pub length: IntLiteral,
-    pub p_bracket_close: BraceClose,
+    pub p_bracket_close: BracketClose,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

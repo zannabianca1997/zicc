@@ -4,6 +4,7 @@
     "intcode",
     "ints",
     "Neumann",
-    "interner"
+    "interner",
+    "chumsky"
   ]
 }

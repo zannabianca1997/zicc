@@ -3,6 +3,8 @@ use std::str::FromStr;
 use lazy_regex::{Lazy, Regex, regex};
 use num::{BigInt, bigint::ParseBigIntError};
 
+use crate::Token;
+
 /// Regular expression to match integer literals
 pub static RE: &Lazy<Regex> = regex!(r#"^(?:-|\+)?\d+$"#);
 
@@ -25,6 +27,17 @@ impl FromStr for IntLiteral {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
+    }
+}
+
+impl TryFrom<Token> for IntLiteral {
+    type Error = Token;
+    fn try_from(value: Token) -> Result<Self, Token> {
+        if let Token::IntLiteral(value) = value {
+            Ok(value)
+        } else {
+            Err(value)
+        }
     }
 }
 

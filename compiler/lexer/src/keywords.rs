@@ -6,6 +6,8 @@ use std::fmt::Display;
 
 use paste::paste;
 
+use crate::Token;
+
 macro_rules! keywords {
     (
         [$d:tt]
@@ -45,6 +47,18 @@ macro_rules! keywords {
                 }
             }
 
+            impl TryFrom<Token> for Keyword {
+                type Error = Token;
+
+                fn try_from(value: Token) -> Result<Self, Token> {
+                    if let Token::Keyword(value) = value {
+                        Ok(value)
+                    } else {
+                        Err(value)
+                    }
+                }
+            }
+
             impl Display for Keyword {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     write!(f, "{}", self.as_str())
@@ -72,6 +86,18 @@ macro_rules! keywords {
                 impl From<$name> for Keyword {
                     fn from(value: $name) -> Self {
                         Self::$name(value)
+                    }
+                }
+
+                impl TryFrom<Keyword> for $name {
+                    type Error = Keyword;
+
+                    fn try_from(value: Keyword) -> Result<Self, Keyword> {
+                        if let Keyword::$name(value) = value {
+                            Ok(value)
+                        } else {
+                            Err(value)
+                        }
                     }
                 }
             )*

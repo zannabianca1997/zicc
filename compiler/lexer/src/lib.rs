@@ -1,5 +1,5 @@
 use keywords::logos_keywords;
-use logos::Logos;
+use logos::{Logos, SpannedIter};
 use macro_rules_attribute::apply;
 use punctuators::logos_punctuators;
 use string_interner::DefaultStringInterner;
@@ -17,6 +17,7 @@ pub mod punctuators;
 #[apply(logos_keywords)] // Add a `Keyword` variant
 #[derive(Logos, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[logos(extras=LexerExtras<'s>)]
+#[logos(error=InvalidToken)]
 #[logos(skip r"(?:/\*(?:.|\n)*?\*/|//[^\n]*|\s)+")]
 pub enum Token {
     #[regex(r#"[\w&&[^\d_]]\w*|_+[\w&&[^_]]\w*"#, |lex| Identifier::new(lex.slice(), &mut lex.extras.interner).unwrap())]
@@ -27,6 +28,13 @@ pub enum Token {
 
 pub struct LexerExtras<'i> {
     pub interner: &'i mut DefaultStringInterner,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct InvalidToken;
+
+pub fn lex<'s>(source: &'s str, interner: &'s mut DefaultStringInterner) -> SpannedIter<'s, Token> {
+    Token::lexer_with_extras(source, LexerExtras { interner }).spanned()
 }
 
 #[cfg(test)]

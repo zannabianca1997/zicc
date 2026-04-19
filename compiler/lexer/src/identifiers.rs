@@ -3,6 +3,8 @@ use std::hash::BuildHasher;
 use lazy_regex::{Lazy, Regex, regex};
 use string_interner::{DefaultSymbol, StringInterner};
 
+use crate::Token;
+
 type Symbol = DefaultSymbol;
 
 /// Regular expression to match identifiers
@@ -26,6 +28,17 @@ impl Identifier {
             return None;
         }
         Some(Self(interner.get_or_intern(value)))
+    }
+}
+
+impl TryFrom<Token> for Identifier {
+    type Error = Token;
+    fn try_from(value: Token) -> Result<Self, Token> {
+        if let Token::Identifier(value) = value {
+            Ok(value)
+        } else {
+            Err(value)
+        }
     }
 }
 

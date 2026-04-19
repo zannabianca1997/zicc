@@ -6,6 +6,8 @@ use std::fmt::Display;
 
 use paste::paste;
 
+use crate::Token;
+
 macro_rules! punctuators {
     (
         [$d:tt]
@@ -45,6 +47,18 @@ macro_rules! punctuators {
                 }
             }
 
+            impl TryFrom<Token> for Punctuator {
+                type Error = Token;
+
+                fn try_from(value: Token) -> Result<Self, Token> {
+                    if let Token::Punctuator(value) = value {
+                        Ok(value)
+                    } else {
+                        Err(value)
+                    }
+                }
+            }
+
             impl Display for Punctuator {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     write!(f, "{}", self.as_str())
@@ -72,6 +86,18 @@ macro_rules! punctuators {
                 impl From<$name> for Punctuator {
                     fn from(value: $name) -> Self {
                         Self::$name(value)
+                    }
+                }
+
+                impl TryFrom<Punctuator> for $name {
+                    type Error = Punctuator;
+
+                    fn try_from(value: Punctuator) -> Result<Self, Punctuator> {
+                        if let Punctuator::$name(value) = value {
+                            Ok(value)
+                        } else {
+                            Err(value)
+                        }
                     }
                 }
             )*

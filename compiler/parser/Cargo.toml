@@ -4,3 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+zicc-compiler-ast.workspace = true
+zicc-compiler-lexer.workspace = true
+
+chumsky = "1.0.0-alpha.8"
+string-interner.workspace = true
