@@ -4,6 +4,8 @@ use std::{io, ops::Range};
 
 use lazy_regex::bytes_regex_captures;
 
+pub type Error = toml::de::Error;
+
 /// A parsed source file consisting of an optional TOML frontmatter block and the remaining content.
 ///
 /// Byte offsets are retained so that spans reported by the TOML parser or by content parsers can
@@ -25,7 +27,7 @@ impl<'s, F> FrontMatter<'s, Option<F>> {
     ///
     /// Returns `frontmatter: None` (and `content` equal to the full source) when no frontmatter
     /// fence is found.  Any leading blank lines before the opening `+++` are silently skipped.
-    pub fn parse_optional(source: &'s [u8]) -> Result<Self, toml::de::Error>
+    pub fn parse_optional(source: &'s [u8]) -> Result<Self, Error>
     where
         F: serde::Deserialize<'s>,
     {
@@ -88,11 +90,11 @@ impl<'a, F> FrontMatter<'a, F> {
     }
 }
 
-/// Serialize `front` as TOML wrapped in `+++` fences, then write `content`.
+/// Serialize `front` as TOML wrapped in `+++` fences.
 ///
 /// Panics if `front` cannot be serialized to TOML (this should never happen for well-formed
 /// frontmatter types).
-pub fn write<F>(front: &F, content: impl AsRef<[u8]>, mut dest: impl io::Write) -> io::Result<()>
+pub fn write<F>(front: &F, mut dest: impl io::Write) -> io::Result<()>
 where
     F: serde::Serialize,
 {
@@ -104,23 +106,18 @@ where
     dest.write_all(b"+++\n")?;
     dest.write_all(front.as_bytes())?;
     dest.write_all(b"+++\n")?;
-    dest.write_all(content.as_ref())?;
 
     Ok(())
 }
 
-/// Like [`write`], but writes only `content` when `front` is `None` (no fences emitted).
-pub fn write_optional<F>(
-    front: Option<&F>,
-    content: impl AsRef<[u8]>,
-    mut dest: impl io::Write,
-) -> io::Result<()>
+/// Like [`write`], but writes only when `front` is not `None` (no fences emitted).
+pub fn write_optional<F>(front: Option<&F>, dest: impl io::Write) -> io::Result<()>
 where
     F: serde::Serialize,
 {
     if let Some(front) = front {
-        write(front, content, dest)
+        write(front, dest)
     } else {
-        dest.write_all(content.as_ref())
+        Ok(())
     }
 }

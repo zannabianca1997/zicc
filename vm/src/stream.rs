@@ -2,14 +2,25 @@
 
 use std::io;
 
-use derive_more::{Display, FromStr};
+use derive_more::{Display, FromStr, IsVariant};
 use num::BigInt;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 
 /// Format of an I/O stream
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, FromStr, Display,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Default,
+    Serialize,
+    Deserialize,
+    FromStr,
+    Display,
+    IsVariant,
 )]
 pub enum Format {
     /// Comma separated integers

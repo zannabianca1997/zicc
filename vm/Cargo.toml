@@ -4,8 +4,12 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+zicc-frontmatter.workspace = true
+
 clap.workspace = true
 derive_more.workspace = true
+lazy-regex.workspace = true
 num.workspace = true
 serde.workspace = true
 snafu.workspace = true
+itertools = "0.14.0"
