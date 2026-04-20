@@ -1,0 +1,9 @@
+[package]
+name = "zicc-frontmatter"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lazy-regex = "3.6.0"
+serde.workspace = true
+toml = "1.1.2"

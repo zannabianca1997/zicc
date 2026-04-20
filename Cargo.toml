@@ -17,8 +17,7 @@ edition = "2024"
 [workspace.dependencies]
 zicc-compiler-ast = { path = "compiler/ast" }
 zicc-compiler-lexer = { path = "compiler/lexer" }
-zicc-compiler-parser = { path = "compiler/parser" }
-zicc-intcode = { path = "utils/intcode" }
+zicc-frontmatter = { path = "utils/frontmatter" }
 zicc-limits = { path = "utils/limits" }
 
 derive_more = { version = "2.1.1", features = ["full"] }

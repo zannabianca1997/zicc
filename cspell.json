@@ -5,9 +5,7 @@
     "ints",
     "Neumann",
     "interner",
-    "chumsky"
-  ],
-  "userWords": [
-    " {}"
+    "chumsky",
+    "frontmatter"
   ]
 }
