@@ -18,7 +18,7 @@ pub mod punctuators;
 #[derive(Logos, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[logos(extras=LexerExtras<'s>)]
 #[logos(error=InvalidToken)]
-#[logos(skip r"(?:/\*(?:.|\n)*?\*/|//[^\n]*|\s)+")]
+#[logos(skip r"(?:/\*([^*]|\*+[^*/])*\*+/|//[^\n]*|\s)+")]
 pub enum Token {
     #[regex(r#"[\w&&[^\d_]]\w*|_+[\w&&[^_]]\w*"#, |lex| Identifier::new(lex.slice(), &mut lex.extras.interner).unwrap())]
     Identifier(Identifier),
