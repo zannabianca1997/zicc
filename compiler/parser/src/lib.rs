@@ -1,5 +1,7 @@
 //! Parser for the `zicc` ast
 
+use std::cell::RefCell;
+
 use chumsky::{
     IterParser as _, ParseResult, Parser,
     error::Rich,
@@ -33,7 +35,7 @@ fn item<'s, I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = Simple
 
 pub fn parse<'s>(
     source: &'s str,
-    interner: &'s mut DefaultStringInterner,
+    interner: &'s RefCell<DefaultStringInterner>,
 ) -> ParseResult<File, ParserError<'s>> {
     // Create the lex stream
     let tokens = lex(source, interner);

@@ -9,3 +9,7 @@ zicc-compiler-lexer.workspace = true
 
 chumsky = "1.0.0-alpha.8"
 string-interner.workspace = true
+
+[dev-dependencies]
+ariadne = "0.6.0"
+clap.workspace = true

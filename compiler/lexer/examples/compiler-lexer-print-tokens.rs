@@ -2,6 +2,7 @@ use ariadne::{Color, ColorGenerator, Label, Report, ReportKind, Source};
 use clap::Parser;
 use std::{
     borrow::Cow,
+    cell::RefCell,
     collections::HashMap,
     fs,
     io::{self, Read, stdin},
@@ -27,8 +28,8 @@ fn main() -> io::Result<()> {
         buf
     };
 
-    let mut interner = StringInterner::new();
-    let tokens: Vec<_> = lex(&text, &mut interner).collect();
+    let interner = RefCell::new(StringInterner::new());
+    let tokens: Vec<_> = lex(&text, &interner).collect();
 
     let source = file
         .as_deref()

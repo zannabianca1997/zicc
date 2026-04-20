@@ -1,9 +1,9 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use lazy_regex::{Lazy, Regex, regex};
 use num::{BigInt, bigint::ParseBigIntError};
 
-use crate::Token;
+use crate::{Token, display::Displayable};
 
 /// Regular expression to match integer literals
 pub static RE: &Lazy<Regex> = regex!(r#"^(?:-|\+)?\d+$"#);
@@ -21,6 +21,14 @@ impl IntLiteral {
         value.parse().map(Self)
     }
 }
+
+impl Display for IntLiteral {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Displayable for IntLiteral {}
 
 impl FromStr for IntLiteral {
     type Err = ParseBigIntError;

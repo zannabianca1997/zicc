@@ -2,6 +2,7 @@
 //!
 //! Keywords definitions
 
+use crate::display::Displayable;
 use std::fmt::Display;
 
 use paste::paste;
@@ -64,6 +65,7 @@ macro_rules! keywords {
                     write!(f, "{}", self.as_str())
                 }
             }
+            impl Displayable for Keyword {}
 
             $(
                 #[doc="The `" $value "` keyword"]
@@ -82,6 +84,7 @@ macro_rules! keywords {
                         write!(f, "{}", $value)
                     }
                 }
+                impl Displayable for $name {}
 
                 impl From<$name> for Keyword {
                     fn from(value: $name) -> Self {

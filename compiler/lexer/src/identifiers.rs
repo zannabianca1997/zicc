@@ -3,7 +3,7 @@ use std::hash::BuildHasher;
 use lazy_regex::{Lazy, Regex, regex};
 use string_interner::{DefaultSymbol, StringInterner};
 
-use crate::Token;
+use crate::{Token, display::Displayable};
 
 type Symbol = DefaultSymbol;
 
@@ -12,7 +12,7 @@ pub static RE: &Lazy<Regex> = regex!(r#"^(?:[\w&&[^\d_]]\w*|_+[\w&&[^_]]\w*)$"#)
 
 /// An identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Identifier(Symbol);
+pub struct Identifier(pub(crate) Symbol);
 
 impl Identifier {
     /// Create a new identifier
@@ -30,6 +30,7 @@ impl Identifier {
         Some(Self(interner.get_or_intern(value)))
     }
 }
+impl Displayable for Identifier {}
 
 impl TryFrom<Token> for Identifier {
     type Error = Token;

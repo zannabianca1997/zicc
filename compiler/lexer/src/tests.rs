@@ -1,5 +1,7 @@
 //! Full lexer tests
 
+use std::cell::RefCell;
+
 use logos::Logos;
 use paste::paste;
 use string_interner::StringInterner;
@@ -11,11 +13,11 @@ use crate::{
 };
 
 fn test_body(source: &'static str, checkers: &'static [fn(&Token)]) {
-    let mut interner = StringInterner::new();
+    let interner = RefCell::new(StringInterner::new());
     let lexer = Token::lexer_with_extras(
         source,
         LexerExtras {
-            interner: &mut interner,
+            interner: &interner,
         },
     )
     .collect::<Result<Vec<_>, _>>()
@@ -192,11 +194,11 @@ lex_tests! {
 /// The same identifier string should intern to the same symbol across tokens
 #[test]
 fn same_identifier_should_share_symbol() {
-    let mut interner = StringInterner::new();
+    let interner = RefCell::new(StringInterner::new());
     let tokens = Token::lexer_with_extras(
         "foo foo bar",
         LexerExtras {
-            interner: &mut interner,
+            interner: &interner,
         },
     )
     .collect::<Result<Vec<_>, _>>()
@@ -217,11 +219,11 @@ fn same_identifier_should_share_symbol() {
 /// IntLiteral tokens should carry the correct BigInt value
 #[test]
 fn int_literal_should_carry_correct_value() {
-    let mut interner = StringInterner::new();
+    let interner = RefCell::new(StringInterner::new());
     let tokens = Token::lexer_with_extras(
         "123 0 99999999999999999999",
         LexerExtras {
-            interner: &mut interner,
+            interner: &interner,
         },
     )
     .collect::<Result<Vec<_>, _>>()
@@ -243,11 +245,11 @@ fn int_literal_should_carry_correct_value() {
 /// An unknown character should produce a lex error
 #[test]
 fn unknown_character_should_error() {
-    let mut interner = StringInterner::new();
+    let interner = RefCell::new(StringInterner::new());
     let result = Token::lexer_with_extras(
         "#",
         LexerExtras {
-            interner: &mut interner,
+            interner: &interner,
         },
     )
     .collect::<Result<Vec<_>, _>>();
@@ -257,11 +259,11 @@ fn unknown_character_should_error() {
 /// An unterminated block comment should produce a lex error
 #[test]
 fn unterminated_block_comment_should_error() {
-    let mut interner = StringInterner::new();
+    let interner = RefCell::new(StringInterner::new());
     let result = Token::lexer_with_extras(
         "/* not closed",
         LexerExtras {
-            interner: &mut interner,
+            interner: &interner,
         },
     )
     .collect::<Result<Vec<_>, _>>();

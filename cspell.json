@@ -6,5 +6,8 @@
     "Neumann",
     "interner",
     "chumsky"
+  ],
+  "userWords": [
+    " {}"
   ]
 }

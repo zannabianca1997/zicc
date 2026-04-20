@@ -770,6 +770,7 @@ dependencies = [
  "ariadne",
  "assert_matches",
  "clap",
+ "derive_more",
  "lazy-regex",
  "logos",
  "macro_rules_attribute",
@@ -783,7 +784,9 @@ dependencies = [
 name = "zicc-compiler-parser"
 version = "0.1.0"
 dependencies = [
+ "ariadne",
  "chumsky",
+ "clap",
  "string-interner",
  "zicc-compiler-ast",
  "zicc-compiler-lexer",

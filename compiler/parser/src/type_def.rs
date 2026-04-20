@@ -48,7 +48,9 @@ pub(crate) fn named_type_def<
     's,
     I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>,
 >() -> impl Parser<'s, I, NamedTypeDef, ParserExtra<'s>> + Clone {
-    identifier().map(|name| NamedTypeDef { name })
+    identifier()
+        .map(|name| NamedTypeDef { name })
+        .labelled("named type")
 }
 
 pub(crate) fn int_type_def<
@@ -75,6 +77,7 @@ fn array_type_def<'s, I: ValueInput<'s, Token = Result<Token, InvalidToken>, Spa
                 p_bracket_close,
             },
         )
+        .labelled("array type")
 }
 pub(crate) fn unknown_type_def<
     's,
@@ -91,6 +94,7 @@ fn pointer_type_def<
     pointer_kind_def()
         .then(type_def)
         .map(|(kind, pointed)| PointerTypeDef { kind, pointed })
+        .labelled("pointer type")
 }
 
 fn pointer_kind_def<
