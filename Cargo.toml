@@ -6,8 +6,8 @@ members = [
   "compiler/lexer",
   "compiler/parser",
   "compiler/types",
-  "intcode",
-  "limits"
+  "utils/*",
+  "vm"
 ]
 
 [workspace.package]
@@ -18,8 +18,8 @@ edition = "2024"
 zicc-compiler-ast = { path = "compiler/ast" }
 zicc-compiler-lexer = { path = "compiler/lexer" }
 zicc-compiler-parser = { path = "compiler/parser" }
-zicc-intcode = { path = "intcode" }
-zicc-limits = { path = "limits" }
+zicc-intcode = { path = "utils/intcode" }
+zicc-limits = { path = "utils/limits" }
 
 derive_more = { version = "2.1.1", features = ["full"] }
 serde = "1.0.228"
