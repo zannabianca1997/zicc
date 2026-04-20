@@ -5,3 +5,7 @@ edition.workspace = true
 
 [dependencies]
 clap.workspace = true
+derive_more.workspace = true
+num.workspace = true
+serde.workspace = true
+snafu.workspace = true

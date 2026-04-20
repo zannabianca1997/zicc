@@ -8,7 +8,7 @@ derive_more.workspace = true
 lazy-regex = "3.6.0"
 logos = "0.16.1"
 macro_rules_attribute = "0.2.2"
-num = { version = "0.4.3", features = ["num-bigint"] }
+num.workspace = true
 paste = "1.0.15"
 snafu = "0.9.0"
 string-interner.workspace = true
