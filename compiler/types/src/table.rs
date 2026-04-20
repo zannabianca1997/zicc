@@ -124,6 +124,8 @@ impl<Name> TypeTable<Name> {
     ///
     /// After this function is called [`Self::named`] can be used to retrieve
     /// the type defined.
+    ///
+    /// If the name is already defined, return the name and the definition
     pub fn define(&self, name: Name, id: TypeId) -> Result<(), (Name, TypeId)>
     where
         Name: Hash + Eq,
@@ -172,10 +174,13 @@ impl<Name> TypeTable<Name> {
     }
 }
 
+pub struct UndefinedName<Name>(pub Name);
+
 /// Begin of the type table
 ///
 /// Contain the placeholder to make the [`TypeId`]s one-based (for niche
-/// optimizations) and the primitive types
+/// optimizations) and the primitive types to ensure they are as fast as
+/// possible
 fn table_prelude() -> Vec<TypeEntry> {
     vec![
         TypeEntry::placeholder(),
