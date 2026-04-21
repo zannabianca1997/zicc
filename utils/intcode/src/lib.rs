@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
 
-use arrayvec::ArrayVec;
+use num_derive::{FromPrimitive, ToPrimitive};
+use num_traits::FromPrimitive;
+use snafu::{OptionExt, Snafu};
 
 /// An IntCode instruction
 ///
@@ -8,182 +10,144 @@ use arrayvec::ArrayVec;
 /// `WriteParam` instead params that are only written to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Instruction<ReadParam, WriteParam> {
-    Add(ReadParam, ReadParam, WriteParam),
-    Mul(ReadParam, ReadParam, WriteParam),
-    In(WriteParam),
-    Out(ReadParam),
-    Jnz(ReadParam, ReadParam),
-    Jz(ReadParam, ReadParam),
-    Slt(ReadParam, ReadParam, WriteParam),
-    Seq(ReadParam, ReadParam, WriteParam),
-    Incb(ReadParam),
-    Halt,
+    Add(
+        (ReadParamMode, ReadParam),
+        (ReadParamMode, ReadParam),
+        (WriteParamMode, WriteParam),
+    ),
+    Mul(
+        (ReadParamMode, ReadParam),
+        (ReadParamMode, ReadParam),
+        (WriteParamMode, WriteParam),
+    ),
+    Inp((WriteParamMode, WriteParam)),
+    Out((ReadParamMode, ReadParam)),
+    Jnz((ReadParamMode, ReadParam), (ReadParamMode, ReadParam)),
+    Jez((ReadParamMode, ReadParam), (ReadParamMode, ReadParam)),
+    Slt(
+        (ReadParamMode, ReadParam),
+        (ReadParamMode, ReadParam),
+        (WriteParamMode, WriteParam),
+    ),
+    Seq(
+        (ReadParamMode, ReadParam),
+        (ReadParamMode, ReadParam),
+        (WriteParamMode, WriteParam),
+    ),
+    Inb((ReadParamMode, ReadParam)),
+    Hlt,
 }
 
 /// An IntCode opcode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum OpCode {
-    ADD = 1,
-    MUL = 2,
-    IN = 3,
-    OUT = 4,
-    JNZ = 5,
-    JZ = 6,
-    SLT = 7,
-    SEQ = 8,
-    INCB = 9,
-    HALT = 99,
+    ADD = 01,
+    MUL = 02,
+    INP = 03,
+    OUT = 04,
+    JNZ = 05,
+    JEZ = 06,
+    SLT = 07,
+    SEQ = 08,
+    INB = 09,
+    HLT = 99,
 }
+
 impl OpCode {
-    fn params_len(&self) -> usize {
+    pub fn param_count(&self) -> usize {
+        use OpCode::*;
+
         match self {
-            OpCode::ADD | OpCode::MUL | OpCode::SLT | OpCode::SEQ => 3,
-            OpCode::JNZ | OpCode::JZ => 2,
-            OpCode::IN | OpCode::OUT | OpCode::INCB => 1,
-            OpCode::HALT => 0,
+            ADD | MUL | SLT | SEQ => 3,
+            JNZ | JEZ => 2,
+            INP | OUT | INB => 1,
+            HLT => 0,
         }
+    }
+
+    pub fn to_u8(&self) -> u8 {
+        *self as u8
+    }
+
+    pub fn from_u8(code: u8) -> Result<Self, InvalidOpCode> {
+        FromPrimitive::from_u8(code).context(InvalidOpCodeSnafu { code })
     }
 }
 
 impl<R, W> Instruction<R, W> {
     /// Get the opcode for this instruction
     pub fn opcode(&self) -> OpCode {
+        use Instruction::*;
+        use OpCode::*;
+
         match self {
-            Instruction::Add(_, _, _) => OpCode::ADD,
-            Instruction::Mul(_, _, _) => OpCode::MUL,
-            Instruction::In(_) => OpCode::IN,
-            Instruction::Out(_) => OpCode::OUT,
-            Instruction::Jnz(_, _) => OpCode::JNZ,
-            Instruction::Jz(_, _) => OpCode::JZ,
-            Instruction::Slt(_, _, _) => OpCode::SLT,
-            Instruction::Seq(_, _, _) => OpCode::SEQ,
-            Instruction::Incb(_) => OpCode::INCB,
-            Instruction::Halt => OpCode::HALT,
+            Add(_, _, _) => ADD,
+            Mul(_, _, _) => MUL,
+            Inp(_) => INP,
+            Out(_) => OUT,
+            Jnz(_, _) => JNZ,
+            Jez(_, _) => JEZ,
+            Slt(_, _, _) => SLT,
+            Seq(_, _, _) => SEQ,
+            Inb(_) => INB,
+            Hlt => HLT,
         }
     }
+}
 
-    /// Parse the parameter of an instruction from a stream
+impl Instruction<(), ()> {
+    /// Decode an instruction code
     ///
-    /// The stream will be advanced to the end of the instruction. If an error
-    /// happens, it will be advanced of one if the error is in the opcode, or to
-    /// the end if the error is in the params.
-    pub fn parse<P, EO, EW, ER>(
-        params: &mut impl Iterator<Item = P>,
-        parse_opcode: impl FnOnce(P) -> Result<OpCode, EO>,
-        mut parse_read: impl FnMut(P) -> Result<R, ER>,
-        mut parse_write: impl FnMut(P) -> Result<W, EW>,
-    ) -> Result<Self, ParseInstructionError<EO, ER, EW>> {
-        let opcode = params
-            .next()
-            .ok_or(ParseInstructionError::NotEnoughParams)
-            .and_then(|p| {
-                parse_opcode(p)
-                    .map_err(|source| ParseInstructionError::<EO, ER, EW>::InvalidOpCode { source })
-            })?;
-        let mut parse_write = |i: &mut arrayvec::IntoIter<_, 3>| {
-            i.next()
-                .ok_or(ParseInstructionError::NotEnoughParams)
-                .and_then(|p| {
-                    parse_write(p).map_err(|source| {
-                        ParseInstructionError::<EO, ER, EW>::InvalidWriteParam { source }
-                    })
-                })
-        };
-        let mut parse_read = |i: &mut arrayvec::IntoIter<_, 3>| {
-            i.next()
-                .ok_or(ParseInstructionError::NotEnoughParams)
-                .and_then(|p| {
-                    parse_read(p).map_err(|source| {
-                        ParseInstructionError::<EO, ER, EW>::InvalidReadParam { source }
-                    })
-                })
-        };
+    /// Decode an instruction code into its parts: opcode and params modes.
+    pub fn decode(code: u16) -> Result<Self, InvalidCode> {
+        use Instruction::*;
+        use OpCode::*;
 
-        // Greedily take all the params, so the iterator is left always in a coherent position
-        let mut params = params
-            .take(opcode.params_len())
-            .collect::<ArrayVec<_, 3>>()
-            .into_iter();
+        let opcode = OpCode::from_u8((code % 100) as _)?;
+
+        if code >= 100 * 10u16.pow(opcode.param_count() as _) {
+            return Err(InvalidCode::AdditionalDigits { code });
+        }
+
+        let a = ((code / 100) % 10) as u8;
+        let b = ((code / 1000) % 10) as u8;
+        let c = ((code / 10000) % 10) as u8;
 
         Ok(match opcode {
-            OpCode::ADD => {
-                let a = parse_read(&mut params)?;
-                let b = parse_read(&mut params)?;
-                let c = parse_write(&mut params)?;
-                Instruction::Add(a, b, c)
-            }
-            OpCode::MUL => {
-                let a = parse_read(&mut params)?;
-                let b = parse_read(&mut params)?;
-                let c = parse_write(&mut params)?;
-                Instruction::Mul(a, b, c)
-            }
-            OpCode::IN => {
-                let a = parse_write(&mut params)?;
-                Instruction::In(a)
-            }
-            OpCode::OUT => {
-                let a = parse_read(&mut params)?;
-                Instruction::Out(a)
-            }
-            OpCode::JNZ => {
-                let a = parse_read(&mut params)?;
-                let b = parse_read(&mut params)?;
-                Instruction::Jnz(a, b)
-            }
-            OpCode::JZ => {
-                let a = parse_read(&mut params)?;
-                let b = parse_read(&mut params)?;
-                Instruction::Jz(a, b)
-            }
-            OpCode::SLT => {
-                let a = parse_read(&mut params)?;
-                let b = parse_read(&mut params)?;
-                let c = parse_write(&mut params)?;
-                Instruction::Slt(a, b, c)
-            }
-            OpCode::SEQ => {
-                let a = parse_read(&mut params)?;
-                let b = parse_read(&mut params)?;
-                let c = parse_write(&mut params)?;
-                Instruction::Seq(a, b, c)
-            }
-            OpCode::INCB => {
-                let a = parse_read(&mut params)?;
-                Instruction::Incb(a)
-            }
-            OpCode::HALT => Instruction::Halt,
+            ADD => Add(
+                (ReadParamMode::from_u8(a)?, ()),
+                (ReadParamMode::from_u8(b)?, ()),
+                (ReadParamMode::from_u8(c)?.try_into()?, ()),
+            ),
+            MUL => Mul(
+                (ReadParamMode::from_u8(a)?, ()),
+                (ReadParamMode::from_u8(b)?, ()),
+                (ReadParamMode::from_u8(c)?.try_into()?, ()),
+            ),
+            INP => Inp((ReadParamMode::from_u8(a)?.try_into()?, ())),
+            OUT => Out((ReadParamMode::from_u8(a)?, ())),
+            JNZ => Jnz(
+                (ReadParamMode::from_u8(a)?, ()),
+                (ReadParamMode::from_u8(b)?, ()),
+            ),
+            JEZ => Jez(
+                (ReadParamMode::from_u8(a)?, ()),
+                (ReadParamMode::from_u8(b)?, ()),
+            ),
+            SLT => Slt(
+                (ReadParamMode::from_u8(a)?, ()),
+                (ReadParamMode::from_u8(b)?, ()),
+                (ReadParamMode::from_u8(c)?.try_into()?, ()),
+            ),
+            SEQ => Seq(
+                (ReadParamMode::from_u8(a)?, ()),
+                (ReadParamMode::from_u8(b)?, ()),
+                (ReadParamMode::from_u8(c)?.try_into()?, ()),
+            ),
+            INB => Inb((ReadParamMode::from_u8(a)?, ())),
+            HLT => Hlt,
         })
-    }
-
-    /// Serialize this instruction
-    pub fn serialize<P>(
-        self,
-        serialize_opcode: impl FnOnce(OpCode) -> P,
-        mut serialize_read: impl FnMut(R) -> P,
-        mut serialize_write: impl FnMut(W) -> P,
-    ) -> ArrayVec<P, 4> {
-        let mut out = ArrayVec::new();
-        out.push(serialize_opcode(self.opcode()));
-        match self {
-            Instruction::Add(a, b, c)
-            | Instruction::Mul(a, b, c)
-            | Instruction::Slt(a, b, c)
-            | Instruction::Seq(a, b, c) => {
-                out.push(serialize_read(a));
-                out.push(serialize_read(b));
-                out.push(serialize_write(c));
-            }
-            Instruction::Jnz(a, b) | Instruction::Jz(a, b) => {
-                out.push(serialize_read(a));
-                out.push(serialize_read(b));
-            }
-            Instruction::In(a) => out.push(serialize_write(a)),
-            Instruction::Out(a) | Instruction::Incb(a) => out.push(serialize_read(a)),
-            Instruction::Halt => {}
-        }
-        out
     }
 }
 
@@ -199,10 +163,89 @@ impl<R, W> From<&Instruction<R, W>> for OpCode {
     }
 }
 
-#[derive(Debug)]
-pub enum ParseInstructionError<EO, ER, EW> {
-    NotEnoughParams,
-    InvalidOpCode { source: EO },
-    InvalidReadParam { source: ER },
-    InvalidWriteParam { source: EW },
+/// Mode of a param you can write to
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, FromPrimitive, ToPrimitive,
+)]
+#[repr(u8)]
+pub enum ReadParamMode {
+    #[default]
+    Absolute = 0,
+    Immediate = 1,
+    Relative = 2,
+}
+
+impl From<WriteParamMode> for ReadParamMode {
+    fn from(value: WriteParamMode) -> Self {
+        match value {
+            WriteParamMode::Absolute => Self::Absolute,
+            WriteParamMode::Relative => Self::Relative,
+        }
+    }
+}
+
+/// Mode of a param you can read from
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, FromPrimitive, ToPrimitive,
+)]
+#[repr(u8)]
+pub enum WriteParamMode {
+    #[default]
+    Absolute = 0,
+    Relative = 2,
+}
+
+impl TryFrom<ReadParamMode> for WriteParamMode {
+    type Error = ImmediateModeOnWriteParam;
+
+    fn try_from(value: ReadParamMode) -> Result<Self, Self::Error> {
+        match value {
+            ReadParamMode::Absolute => Ok(Self::Absolute),
+            ReadParamMode::Immediate => Err(ImmediateModeOnWriteParam),
+            ReadParamMode::Relative => Ok(Self::Relative),
+        }
+    }
+}
+
+impl ReadParamMode {
+    pub fn to_u8(self) -> u8 {
+        self as u8
+    }
+
+    pub fn from_u8(code: u8) -> Result<Self, InvalidParamModeCode> {
+        FromPrimitive::from_u8(code).context(InvalidParamModeCodeSnafu { code })
+    }
+}
+
+impl WriteParamMode {
+    pub fn to_u8(self) -> u8 {
+        self as u8
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Snafu)]
+#[snafu(display("Immediate mode `#` is invalid on writable params"))]
+pub struct ImmediateModeOnWriteParam;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Snafu)]
+#[snafu(display("{code} is not a valid opcode"))]
+pub struct InvalidOpCode {
+    code: u8,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Snafu)]
+#[snafu(display("{code} is not a valid param mode code"))]
+pub struct InvalidParamModeCode {
+    code: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Snafu)]
+pub enum InvalidCode {
+    #[snafu(display("{code} has additional digits over the needed params"))]
+    AdditionalDigits { code: u16 },
+    #[snafu(transparent)]
+    InvalidOpcode { source: InvalidOpCode },
+    #[snafu(transparent)]
+    InvalidParamModeCode { source: InvalidParamModeCode },
+    #[snafu(transparent)]
+    ImmediateModeOnWriteParam { source: ImmediateModeOnWriteParam },
 }

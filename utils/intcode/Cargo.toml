@@ -5,3 +5,6 @@ edition.workspace = true
 
 [dependencies]
 arrayvec = "0.7.6"
+num-derive = "0.4.2"
+num-traits = "0.2.19"
+snafu.workspace = true

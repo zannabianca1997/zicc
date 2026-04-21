@@ -96,15 +96,12 @@ directive ::= 'DATA' { expr [','] } ;
 
 instr ::= op { param [','] } ;
 
-op    ::= 'ADD' (* 01 *) | 'MUL' (* 02 *) | 'IN'  (* 03 *) | 'OUT'  (* 04 *) | 'JNZ'   (* 05 *)
-       | 'JZ' (* 06 *) | 'SLT' (* 07 *) | 'SEQ' (* 08 *) | 'INCB' (* 09 *) | 'HALT' (* 99 *) ;
+op    ::= 'ADD' (* 01 *) | 'MUL' (* 02 *) | 'INP' (* 03 *) | 'OUT' (* 04 *) | 'JNZ' (* 05 *)
+      |   'JEZ' (* 06 *) | 'SLT' (* 07 *) | 'SEQ' (* 08 *) | 'INB' (* 09 *) | 'HLT' (* 99 *) ;
 
 param ::= [ '#' (* mode 1 *) | '@' (* mode 2 *) ] expr ;
 
-expr  ::= expr '+' expr | expr '-' expr
-       | expr '*' expr | expr '/' expr
-       | '+' expr | '-' expr
-       | '(' expr ')' | identifier | number ; (* with the usual precedence resolution *)
+expr  ::= number | identifier '+' number ;
 ```
 
 Many extensions are possible. One interesting idea is to add labels to
