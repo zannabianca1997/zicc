@@ -1,0 +1,6 @@
+[package]
+name = "zicc-assembler-ast"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

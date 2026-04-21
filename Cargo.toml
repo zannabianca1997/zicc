@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+  "assembler/ast", "assembler/lexer",
   "compiler",
   "compiler/ast",
   "compiler/lexer",
