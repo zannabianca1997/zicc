@@ -1,0 +1,50 @@
+use chumsky::{
+    Parser,
+    error::Rich,
+    input::MapExtra,
+    prelude::{just, one_of},
+    text::{ascii::ident, int},
+};
+use zicc_assembler_ast::identifier::{CompilerIdentifier, Identifier, Provenance};
+
+use crate::ParserExtra;
+
+/// A single identifier
+pub(crate) fn identifier<'s>() -> impl Parser<'s, &'s str, Identifier, ParserExtra<'s>> {
+    ident::<_, ParserExtra>()
+        .and_is(just("_").repeated().not())
+        .map_with(|i, e| {
+            CompilerIdentifier::new(i, e.state().interner)
+                .expect("the parser should match only valid identifiers")
+        })
+        .labelled("compiler identifier")
+        .then(just("@").ignore_then(provenance()).or_not())
+        .map(|(name, provenance)| Identifier::Named { name, provenance })
+        .labelled("named identifier")
+        .or(just("$")
+            .ignore_then(
+                int(10)
+                    .try_map(|s: &str, span| s.parse().map_err(|e| Rich::custom(span, e)))
+                    .labelled("integer label"),
+            )
+            .map(|code| Identifier::Unnamed { code })
+            .labelled("unnamed identifier"))
+}
+
+/// Identifier provenance
+pub(crate) fn provenance<'s>() -> impl Parser<'s, &'s str, Provenance, ParserExtra<'s>> {
+    one_of('a'..'z')
+        .or(one_of('A'..'Z'))
+        .or(one_of('0'..'9'))
+        .or(one_of("-_"))
+        .repeated()
+        .at_least(1)
+        .labelled("base64 string")
+        .separated_by(just("@"))
+        .to_slice()
+        .map_with(|s, extra: &mut MapExtra<&str, ParserExtra>| {
+            Provenance::new(s, &mut extra.state().interner)
+                .expect("the parser should match only valid provenances")
+        })
+        .labelled("provenance")
+}

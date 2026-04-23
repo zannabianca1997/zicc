@@ -7,5 +7,5 @@ edition.workspace = true
 zicc-compiler-lexer.workspace = true
 zicc-intcode.workspace = true
 
-nonmax = "0.5.5"
+lazy-regex.workspace = true
 string-interner.workspace = true
