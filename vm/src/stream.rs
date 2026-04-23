@@ -2,10 +2,11 @@
 
 use std::io;
 
-use derive_more::{Display, FromStr, IsVariant};
-use zicc_limits::Value;
+use clap::ValueEnum;
+use derive_more::{Display, IsVariant};
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
+use zicc_limits::Value;
 
 /// Format of an I/O stream
 #[derive(
@@ -18,7 +19,7 @@ use snafu::Snafu;
     Default,
     Serialize,
     Deserialize,
-    FromStr,
+    ValueEnum,
     Display,
     IsVariant,
 )]

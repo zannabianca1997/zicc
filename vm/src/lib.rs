@@ -10,6 +10,7 @@ use crate::{
     stream::{Reader, Writer},
 };
 
+pub mod cli;
 pub mod mem;
 pub mod program;
 pub mod stream;

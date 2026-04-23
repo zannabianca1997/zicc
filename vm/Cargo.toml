@@ -2,6 +2,7 @@
 name = "zicc-vm"
 version.workspace = true
 edition.workspace = true
+description = "Intcode virtual machine"
 
 [dependencies]
 zicc-frontmatter.workspace = true
@@ -9,6 +10,7 @@ zicc-intcode.workspace = true
 zicc-limits.workspace = true
 
 clap.workspace = true
+clap-stdin.workspace = true
 derive_more.workspace = true
 itertools.workspace = true
 lazy-regex.workspace = true
