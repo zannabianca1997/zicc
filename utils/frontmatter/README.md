@@ -38,6 +38,15 @@ println!("{}", std::str::from_utf8(parsed.content).unwrap());
 Writing a file with frontmatter:
 
 ```rust
+use serde::Serialize;
+
+#[derive(Serialize)]
+struct Meta {
+    title: String,
+    draft: bool,
+}
+
+let meta = Meta { title: "My file".into(), draft: false };
 let mut out = Vec::new();
-zicc_frontmatter::write(&meta, b"Actual content.\n", &mut out).unwrap();
+zicc_frontmatter::write(&meta, &mut out).unwrap();
 ```
