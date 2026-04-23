@@ -1,11 +1,11 @@
 use std::io;
 
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use zicc_limits::Value;
 
 use crate::{
-    mem::Memory,
+    mem::{IndexError, JumpedOutOfMemError, Memory, ReadInstructionError},
     program::Program,
     stream::{Reader, Writer},
 };
@@ -89,8 +89,89 @@ impl Vm {
         }
     }
 
+    /// Advance the vm monotonically
     pub fn step(&mut self) -> Result<State, RuntimeError> {
-        todo!()
+        let instruction = self
+            .memory
+            .read_instruction()
+            .context(ReadInstructionSnafu)?;
+        match instruction {
+            zicc_intcode::Instruction::Add(a, b, c) => {
+                let a = self.memory.read(a).context(ReadMemorySnafu)?;
+                let b = self.memory.read(b).context(ReadMemorySnafu)?;
+
+                let res = a + b;
+
+                self.memory.write(c, res).context(WriteMemorySnafu)?;
+                self.memory.advance_over(&instruction);
+            }
+            zicc_intcode::Instruction::Mul(a, b, c) => {
+                let a = self.memory.read(a).context(ReadMemorySnafu)?;
+                let b = self.memory.read(b).context(ReadMemorySnafu)?;
+
+                let res = a * b;
+
+                self.memory.write(c, res).context(WriteMemorySnafu)?;
+                self.memory.advance_over(&instruction);
+            }
+            zicc_intcode::Instruction::Inp(a) => {
+                let Some(value) = self.input.take() else {
+                    return Ok(State::StopState(StopState::NeedInput));
+                };
+                self.memory.write(a, value).context(WriteMemorySnafu)?;
+                self.memory.advance_over(&instruction);
+            }
+            zicc_intcode::Instruction::Out(a) => {
+                let a = self.memory.read(a).context(ReadMemorySnafu)?.clone();
+                self.memory.advance_over(&instruction);
+                return Ok(State::StopState(StopState::Output(a)));
+            }
+            zicc_intcode::Instruction::Jnz(a, b) => {
+                let a = self.memory.read(a).context(ReadMemorySnafu)?;
+
+                if a != &Value::ZERO {
+                    let b = self.memory.read(b).context(ReadMemorySnafu)?.clone();
+                    self.memory.jump(&b).context(JumpedOutOfMemSnafu)?;
+                } else {
+                    self.memory.advance_over(&instruction);
+                }
+            }
+            zicc_intcode::Instruction::Jez(a, b) => {
+                let a = self.memory.read(a).context(ReadMemorySnafu)?;
+
+                if a == &Value::ZERO {
+                    let b = self.memory.read(b).context(ReadMemorySnafu)?.clone();
+                    self.memory.jump(&b).context(JumpedOutOfMemSnafu)?;
+                } else {
+                    self.memory.advance_over(&instruction);
+                }
+            }
+            zicc_intcode::Instruction::Slt(a, b, c) => {
+                let a = self.memory.read(a).context(ReadMemorySnafu)?;
+                let b = self.memory.read(b).context(ReadMemorySnafu)?;
+
+                let res = if a < b { Value::from(1) } else { Value::ZERO };
+
+                self.memory.write(c, res).context(WriteMemorySnafu)?;
+                self.memory.advance_over(&instruction);
+            }
+            zicc_intcode::Instruction::Seq(a, b, c) => {
+                let a = self.memory.read(a).context(ReadMemorySnafu)?;
+                let b = self.memory.read(b).context(ReadMemorySnafu)?;
+
+                let res = if a == b { Value::from(1) } else { Value::ZERO };
+
+                self.memory.write(c, res).context(WriteMemorySnafu)?;
+                self.memory.advance_over(&instruction);
+            }
+            zicc_intcode::Instruction::Inb(a) => {
+                let a = self.memory.read(a).context(ReadMemorySnafu)?.clone();
+                self.memory.increase_relative_base(&a);
+                self.memory.advance_over(&instruction);
+            }
+            zicc_intcode::Instruction::Hlt => return Ok(State::StopState(StopState::Halted)),
+        };
+        Ok(State::Running)
     }
 }
 
@@ -115,7 +196,12 @@ pub enum StopState {
 }
 
 #[derive(Debug, Snafu)]
-pub enum RuntimeError {}
+pub enum RuntimeError {
+    ReadInstruction { source: ReadInstructionError },
+    ReadMemory { source: IndexError },
+    WriteMemory { source: IndexError },
+    JumpedOutOfMem { source: JumpedOutOfMemError },
+}
 
 #[derive(Debug, Snafu)]
 pub enum DriveError {

@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use zicc_intcode::{Instruction, InvalidCodeError, ReadParamMode, WriteParamMode};
-use zicc_limits::{CastValueToIntError, PointerOffset, Value};
+use zicc_limits::{CastValueToIntError, Value};
 
 use crate::program::Program;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Memory {
     ip: usize,
-    rb: PointerOffset,
+    rb: Value,
     content: Vec<Value>,
 }
 
@@ -22,7 +22,7 @@ impl Memory {
         Self {
             content: vec![],
             ip: 0,
-            rb: 0,
+            rb: Value::ZERO,
         }
     }
 
@@ -30,7 +30,7 @@ impl Memory {
     pub fn clear(&mut self) {
         self.content.clear();
         self.ip = 0;
-        self.rb = 0;
+        self.rb = Value::ZERO;
     }
 
     /// Load a program into memory
@@ -42,14 +42,17 @@ impl Memory {
             .resize(program.len(), DEFAULT_OVER_MEMORY.clone());
         self.content.clone_from_slice(&program.content);
         self.ip = 0;
-        self.rb = 0;
+        self.rb = Value::ZERO;
     }
 
     /// Read an instruction at the current instruction pointer
-    pub fn read_instruction(&self) -> Result<Instruction<&Value>, ReadInstructionError> {
+    pub fn read_instruction(&self) -> Result<Instruction<usize>, ReadInstructionError> {
         use Instruction::*;
 
-        let [opcode, a, b, c] = [0, 1, 2, 3].map(|i| self.get(self.ip + i));
+        let opcode = self.get(self.ip);
+
+        let [a, b, c] = [self.ip + 1, self.ip + 2, self.ip + 3];
+
         Ok(match Instruction::decode(opcode)? {
             Add((ma, ()), (mb, ()), (mc, ())) => Add((ma, a), (mb, b), (mc, c)),
             Mul((ma, ()), (mb, ()), (mc, ())) => Mul((ma, a), (mb, b), (mc, c)),
@@ -65,8 +68,8 @@ impl Memory {
     }
 
     /// Advance over an instruction
-    pub fn advance_over<P>(&mut self, instr: &Instruction<P>) {
-        self.ip += 1 + instr.opcode().param_count()
+    pub fn advance_over<P>(&mut self, instruction: &Instruction<P>) {
+        self.ip += 1 + instruction.opcode().param_count()
     }
 
     /// Jump to a given point
@@ -83,10 +86,11 @@ impl Memory {
     /// The lifetime constraints are because if the mode is immediate, the
     /// reference to the position is returned.
     pub fn read<'v>(
-        &'v self,
-        mode: ReadParamMode,
-        pos_or_value: &'v Value,
-    ) -> Result<&'v Value, IndexError> {
+        &self,
+        (mode, pos_or_value): (ReadParamMode, usize),
+    ) -> Result<&Value, IndexError> {
+        let pos_or_value = self.get(pos_or_value);
+
         let index = match mode {
             ReadParamMode::Absolute => self.value_to_index(pos_or_value, false),
             ReadParamMode::Immediate => return Ok(pos_or_value),
@@ -109,10 +113,11 @@ impl Memory {
     /// memory location will allocate enormous quantity of memory.
     pub fn write(
         &mut self,
-        mode: WriteParamMode,
-        pos: &Value,
+        (mode, pos): (WriteParamMode, usize),
         value: Value,
     ) -> Result<(), IndexError> {
+        let pos = self.get(pos);
+
         let index = match mode {
             WriteParamMode::Absolute => self.value_to_index(pos, false),
             WriteParamMode::Relative => self.value_to_index(pos, true),
@@ -139,12 +144,16 @@ impl Memory {
     }
 
     fn value_to_index(&self, pos: &Value, relative: bool) -> Result<usize, IndexError> {
-        let offset = if relative { self.rb } else { 0 };
+        let offset = if relative { &self.rb } else { &Value::ZERO };
         let resulting = pos + offset;
         usize::try_from(resulting).with_context(|_| OutOfMemSnafu {
             pos: pos.clone(),
-            relative: relative.then_some(self.rb),
+            relative: relative.then_some(self.rb.clone()),
         })
+    }
+
+    pub fn increase_relative_base(&mut self, a: &Value) {
+        self.rb += a
     }
 }
 
@@ -158,7 +167,7 @@ impl Default for Memory {
 pub enum IndexError {
     OutOfMem {
         pos: Value,
-        relative: Option<PointerOffset>,
+        relative: Option<Value>,
         source: <usize as TryFrom<Value>>::Error,
     },
 }
