@@ -4,8 +4,6 @@ use chumsky::{
     IterParser, Parser,
     error::Rich,
     extra::{self, SimpleState},
-    inspector::Inspector,
-    prelude::todo,
     text::inline_whitespace,
 };
 use string_interner::DefaultStringInterner;
@@ -16,10 +14,10 @@ use crate::{
 };
 
 pub type ParserError<'s> = Rich<'s, char>;
-pub type ParserExtra<'s, 'i> = extra::Full<ParserError<'s>, SimpleState<ParseState<'i>>, ()>;
+type ParserExtra<'s> = extra::Full<ParserError<'s>, SimpleState<ParseState<'s>>, ()>;
 
-struct ParseState<'i> {
-    interner: &'i mut DefaultStringInterner,
+struct ParseState<'s> {
+    interner: &'s mut DefaultStringInterner,
 }
 
 mod misc {
@@ -32,7 +30,7 @@ mod misc {
     use crate::ParserExtra;
 
     /// Separator between two lines
-    pub(crate) fn line_separator<'s, 'i>() -> impl Parser<'s, &'s str, (), ParserExtra<'s, 'i>> {
+    pub(crate) fn line_separator<'s>() -> impl Parser<'s, &'s str, (), ParserExtra<'s>> {
         // End of line comment: `;` followed by any char that is not a newline
         just(";")
             .then(any().and_is(newline().not()).repeated())
@@ -47,8 +45,7 @@ mod identifier {
 
     use crate::ParserExtra;
 
-    pub(crate) fn identifier<'s, 'i, T>()
-    -> impl Parser<'s, &'s str, Identifier, ParserExtra<'s, 'i>> {
+    pub(crate) fn identifier<'s, T>() -> impl Parser<'s, &'s str, Identifier, ParserExtra<'s>> {
         todo()
     }
 }
@@ -58,9 +55,9 @@ mod labelled {
 
     use crate::ParserExtra;
 
-    pub(crate) fn labelled<'s, 'i, T>(
-        parser: impl Parser<'s, &'s str, T, ParserExtra<'s, 'i>>,
-    ) -> impl Parser<'s, &'s str, Labelled<T>, ParserExtra<'s, 'i>> {
+    pub(crate) fn labelled<'s, T>(
+        parser: impl Parser<'s, &'s str, T, ParserExtra<'s>>,
+    ) -> impl Parser<'s, &'s str, Labelled<T>, ParserExtra<'s>> {
         todo()
     }
 }
@@ -71,8 +68,7 @@ mod instruction {
     use crate::ParserExtra;
 
     /// A single instruction
-    pub(crate) fn instruction<'s, 'i>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s, 'i>>
-    {
+    pub(crate) fn instruction<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
         todo()
     }
 }
@@ -83,13 +79,13 @@ mod directive {
     use crate::ParserExtra;
 
     /// A single directive
-    pub(crate) fn directive<'s, 'i>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s, 'i>> {
+    pub(crate) fn directive<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
         todo()
     }
 }
 
 /// Parse a IntCode Assembly file
-fn file<'s, 'i>() -> impl Parser<'s, &'s str, File, ParserExtra<'s, 'i>> {
+fn file<'s>() -> impl Parser<'s, &'s str, File, ParserExtra<'s>> {
     line()
         .separated_by(line_separator())
         .allow_trailing()
@@ -117,7 +113,7 @@ fn file<'s, 'i>() -> impl Parser<'s, &'s str, File, ParserExtra<'s, 'i>> {
 }
 
 /// Parse a IntCode Assembly line
-fn line<'s, 'i>() -> impl Parser<'s, &'s str, Labelled<Option<Line>>, ParserExtra<'s, 'i>> {
+fn line<'s>() -> impl Parser<'s, &'s str, Labelled<Option<Line>>, ParserExtra<'s>> {
     labelled(
         instruction()
             .map(Line::Instruction)
