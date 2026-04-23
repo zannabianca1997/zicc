@@ -216,7 +216,7 @@ fn same_identifier_should_share_symbol() {
     assert_ne!(foo1, bar);
 }
 
-/// IntLiteral tokens should carry the correct BigInt value
+/// IntLiteral tokens should carry the correct Value
 #[test]
 fn int_literal_should_carry_correct_value() {
     let interner = RefCell::new(StringInterner::new());

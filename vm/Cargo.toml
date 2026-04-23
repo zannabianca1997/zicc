@@ -5,11 +5,12 @@ edition.workspace = true
 
 [dependencies]
 zicc-frontmatter.workspace = true
+zicc-intcode.workspace = true
+zicc-limits.workspace = true
 
 clap.workspace = true
 derive_more.workspace = true
+itertools = "0.14.0"
 lazy-regex.workspace = true
-num.workspace = true
 serde.workspace = true
 snafu.workspace = true
-itertools = "0.14.0"

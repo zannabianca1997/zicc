@@ -395,6 +395,7 @@ checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
 dependencies = [
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -404,6 +405,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -446,6 +448,7 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -878,10 +881,10 @@ dependencies = [
  "lazy-regex",
  "logos",
  "macro_rules_attribute",
- "num",
  "paste",
  "snafu",
  "string-interner",
+ "zicc-limits",
 ]
 
 [[package]]
@@ -926,6 +929,9 @@ dependencies = [
 [[package]]
 name = "zicc-limits"
 version = "0.1.0"
+dependencies = [
+ "num",
+]
 
 [[package]]
 name = "zicc-vm"
@@ -935,8 +941,9 @@ dependencies = [
  "derive_more",
  "itertools",
  "lazy-regex",
- "num",
  "serde",
  "snafu",
  "zicc-frontmatter",
+ "zicc-intcode",
+ "zicc-limits",
 ]

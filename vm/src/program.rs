@@ -3,7 +3,7 @@ use std::{borrow::Cow, io, str::Utf8Error};
 use derive_more::IsVariant;
 use itertools::Itertools;
 use lazy_regex::regex_captures_iter;
-use num::BigInt;
+use zicc_limits::Value;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use zicc_frontmatter::FrontMatter;
@@ -12,7 +12,7 @@ use crate::stream::Format as StreamFormat;
 
 pub struct Program {
     pub info: ProgramInfo,
-    pub content: Vec<BigInt>,
+    pub content: Vec<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]

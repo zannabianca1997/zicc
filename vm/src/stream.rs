@@ -3,7 +3,7 @@
 use std::io;
 
 use derive_more::{Display, FromStr, IsVariant};
-use num::BigInt;
+use zicc_limits::Value;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 
@@ -64,7 +64,7 @@ where
     /// Returns `Error::InvalidByte` when `format` is `Bytes` and the value does
     /// not fit in a `u8`, or when `format` is `Unicode` and the value is not a
     /// valid Unicode scalar.
-    pub fn write(&mut self, value: BigInt) -> Result<()> {
+    pub fn write(&mut self, value: Value) -> Result<()> {
         match self.format {
             Format::Ints => {
                 if self.written_before {
@@ -118,7 +118,7 @@ where
     R: io::Read,
 {
     /// Read the next value from the stream. Returns `Ok(None)` on clean EOF.
-    pub fn read(&mut self) -> Result<Option<BigInt>> {
+    pub fn read(&mut self) -> Result<Option<Value>> {
         match self.format {
             Format::Ints => self.read_int(),
             Format::Bytes => self.read_byte(),
@@ -139,7 +139,7 @@ where
     }
 
     /// Parse the next signed decimal integer, skipping non-numeric noise between values.
-    fn read_int(&mut self) -> Result<Option<BigInt>> {
+    fn read_int(&mut self) -> Result<Option<Value>> {
         let mut accum: Vec<u8> = Vec::new();
         let mut has_digit = false;
 
@@ -167,19 +167,19 @@ where
 
         if has_digit {
             let s = std::str::from_utf8(&accum).expect("ASCII sign and digits are valid utf-8");
-            Ok(Some(s.parse().expect("sign + digits parses as BigInt")))
+            Ok(Some(s.parse().expect("sign + digits parses as Value")))
         } else {
             Ok(None)
         }
     }
 
     /// Read a single raw byte and return its numeric value.
-    fn read_byte(&mut self) -> Result<Option<BigInt>> {
-        Ok(self.take_byte()?.map(BigInt::from))
+    fn read_byte(&mut self) -> Result<Option<Value>> {
+        Ok(self.take_byte()?.map(Value::from))
     }
 
     /// Decode one UTF-8 scalar value and return its codepoint.
-    fn read_char(&mut self) -> Result<Option<BigInt>> {
+    fn read_char(&mut self) -> Result<Option<Value>> {
         let Some(first) = self.take_byte()? else {
             return Ok(None);
         };
@@ -201,13 +201,13 @@ where
         })?;
         let s = std::str::from_utf8(&buf[..len]).map_err(|_| Error::InvalidUtf8)?;
         let ch = s.chars().next().expect("non-empty valid utf-8 has a char");
-        Ok(Some(BigInt::from(ch as u32)))
+        Ok(Some(Value::from(ch as u32)))
     }
 }
 
 /// Iterate over decoded values, ending cleanly on EOF.
 impl<R: io::Read> Iterator for Reader<R> {
-    type Item = Result<BigInt>;
+    type Item = Result<Value>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.read().transpose()
@@ -222,7 +222,7 @@ pub enum Error {
     Io { source: io::Error },
     /// The value cannot be represented in the current stream format.
     #[snafu(display("{original} is not a valid byte"))]
-    InvalidByte { original: BigInt },
+    InvalidByte { original: Value },
     /// The byte sequence is not valid UTF-8.
     #[snafu(display("invalid utf-8 sequence in stream"))]
     InvalidUtf8,
@@ -233,21 +233,21 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod tests {
-    use num::BigInt;
+    use zicc_limits::Value;
 
     use super::{Format, Reader, Writer};
 
-    fn collect_ints(input: &[u8]) -> Vec<BigInt> {
+    fn collect_ints(input: &[u8]) -> Vec<Value> {
         Reader::new(Format::Ints, input)
             .map(|r| r.unwrap())
             .collect()
     }
 
-    fn nums(xs: &[i64]) -> Vec<BigInt> {
-        xs.iter().copied().map(BigInt::from).collect()
+    fn nums(xs: &[i64]) -> Vec<Value> {
+        xs.iter().copied().map(Value::from).collect()
     }
 
-    fn write_all(format: Format, values: &[BigInt]) -> Result<Vec<u8>, super::Error> {
+    fn write_all(format: Format, values: &[Value]) -> Result<Vec<u8>, super::Error> {
         let mut buf = Vec::new();
         let mut w = Writer::new(format, &mut buf);
         for v in values {
@@ -317,7 +317,7 @@ mod tests {
     #[test]
     fn reader_should_read_unicode_codepoints() {
         let input = "a£€🦀".as_bytes();
-        let got: Vec<BigInt> = Reader::new(Format::Unicode, input)
+        let got: Vec<Value> = Reader::new(Format::Unicode, input)
             .map(|r| r.unwrap())
             .collect();
         assert_eq!(got, nums(&[0x61, 0xA3, 0x20AC, 0x1F980]));
@@ -337,10 +337,10 @@ mod tests {
         assert!(matches!(r.read(), Err(super::Error::InvalidUtf8)));
     }
 
-    /// Reader works as an iterator over Result<BigInt>
+    /// Reader works as an iterator over Result<Value>
     #[test]
     fn reader_should_iterate() {
-        let values: Vec<BigInt> = Reader::new(Format::Ints, b"10 20 30".as_ref())
+        let values: Vec<Value> = Reader::new(Format::Ints, b"10 20 30".as_ref())
             .map(|r| r.unwrap())
             .collect();
         assert_eq!(values, nums(&[10, 20, 30]));
@@ -415,7 +415,7 @@ mod tests {
     fn writer_then_reader_should_roundtrip_ints() {
         let original = nums(&[1, -2, 3]);
         let bytes = write_all(Format::Ints, &original).unwrap();
-        let recovered: Vec<BigInt> = Reader::new(Format::Ints, bytes.as_slice())
+        let recovered: Vec<Value> = Reader::new(Format::Ints, bytes.as_slice())
             .map(|r| r.unwrap())
             .collect();
         assert_eq!(recovered, original);

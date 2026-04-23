@@ -2,3 +2,6 @@
 name = "zicc-limits"
 version.workspace = true
 edition.workspace = true
+
+[dependencies]
+num.workspace = true

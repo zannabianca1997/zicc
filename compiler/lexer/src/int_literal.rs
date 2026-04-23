@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
 use lazy_regex::{Lazy, Regex, regex};
-use num::{BigInt, bigint::ParseBigIntError};
+use zicc_limits::{ParseValueError, Value};
 
 use crate::{Token, display::Displayable};
 
@@ -10,14 +10,14 @@ pub static RE: &Lazy<Regex> = regex!(r#"^(?:-|\+)?\d+$"#);
 
 /// An integer literal
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct IntLiteral(BigInt);
+pub struct IntLiteral(Value);
 
 impl IntLiteral {
     /// Parse an integer literal
     ///
     /// This will validate the given string against the regex [`RE`], and return
     /// [`Ok`] only if a match is found
-    pub fn parse(value: &str) -> Result<Self, ParseBigIntError> {
+    pub fn parse(value: &str) -> Result<Self, ParseValueError> {
         value.parse().map(Self)
     }
 }
@@ -31,7 +31,7 @@ impl Display for IntLiteral {
 impl Displayable for IntLiteral {}
 
 impl FromStr for IntLiteral {
-    type Err = ParseBigIntError;
+    type Err = ParseValueError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
