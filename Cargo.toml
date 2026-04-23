@@ -1,3 +1,9 @@
+[package]
+name = "zicc"
+version.workspace = true
+edition.workspace = true
+description = "Zanna's IntCode Compiler"
+
 [workspace]
 resolver = "3"
 members = [
@@ -23,9 +29,11 @@ zicc-compiler-lexer = { path = "compiler/lexer" }
 zicc-frontmatter = { path = "utils/frontmatter" }
 zicc-intcode = { path = "utils/intcode" }
 zicc-limits = { path = "utils/limits" }
+zicc-vm = { path = "vm" }
 
 chumsky = "1.0.0-alpha.8"
 clap = { version = "4.6.1", features = ["derive"] }
+clap-stdin = "0.8.1"
 derive_more = { version = "2.1.1", features = ["full"] }
 itertools = "0.14.0"
 lazy-regex = "3.6.0"
@@ -33,3 +41,9 @@ num = { version = "0.4.3", features = ["num-bigint", "serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 snafu = "0.9.0"
 string-interner = "0.19.0"
+
+[dependencies]
+zicc-vm.workspace = true
+
+clap.workspace = true
+snafu.workspace = true
