@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
-use zicc_intcode::{ReadParamMode, WriteParamMode};
-use zicc_limits::{Pointer, PointerOffset, Value};
+use zicc_intcode::{Instruction, InvalidCodeError, ReadParamMode, WriteParamMode};
+use zicc_limits::{CastValueToIntError, Pointer, PointerOffset, Value};
+
+use crate::program::Program;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Mem {
-    ip: Pointer,
+    ip: usize,
     rb: PointerOffset,
     content: Vec<Value>,
 }
@@ -15,12 +17,63 @@ pub struct Mem {
 static DEFAULT_OVER_MEMORY: Value = Value::ZERO;
 
 impl Mem {
+    /// Create a new memory, with nothing inside
     pub fn new() -> Self {
         Self {
             content: vec![],
             ip: 0,
             rb: 0,
         }
+    }
+
+    /// Empty the memory, keeping the allocations
+    pub fn clear(&mut self) {
+        self.content.clear();
+        self.ip = 0;
+        self.rb = 0;
+    }
+
+    /// Load a program into memory
+    ///
+    /// This will also set the register to the start of the program, and clear
+    /// the rest of the memory
+    pub fn load(&mut self, program: &Program) {
+        self.content
+            .resize(program.len(), DEFAULT_OVER_MEMORY.clone());
+        self.content.clone_from_slice(&program.content);
+        self.ip = 0;
+        self.rb = 0;
+    }
+
+    /// Read an instruction at the current instruction pointer
+    pub fn read_instruction(&self) -> Result<Instruction<&Value>, ReadInstructionError> {
+        use Instruction::*;
+
+        let [opcode, a, b, c] = [0, 1, 2, 3].map(|i| self.get(self.ip + i));
+        Ok(match Instruction::decode(opcode)? {
+            Add((ma, ()), (mb, ()), (mc, ())) => Add((ma, a), (mb, b), (mc, c)),
+            Mul((ma, ()), (mb, ()), (mc, ())) => Mul((ma, a), (mb, b), (mc, c)),
+            Inp((ma, ())) => Inp((ma, a)),
+            Out((ma, ())) => Out((ma, a)),
+            Jnz((ma, ()), (mb, ())) => Jnz((ma, a), (mb, b)),
+            Jez((ma, ()), (mb, ())) => Jez((ma, a), (mb, b)),
+            Slt((ma, ()), (mb, ()), (mc, ())) => Slt((ma, a), (mb, b), (mc, c)),
+            Seq((ma, ()), (mb, ()), (mc, ())) => Seq((ma, a), (mb, b), (mc, c)),
+            Inb((ma, ())) => Inb((ma, a)),
+            Hlt => Hlt,
+        })
+    }
+
+    /// Advance over an instruction
+    pub fn advance_over<P>(&mut self, instr: &Instruction<P>) {
+        self.ip += 1 + instr.opcode().param_count()
+    }
+
+    /// Jump to a given point
+    pub fn jump(&mut self, pos: &Value) -> Result<(), JumpedOutOfMemError> {
+        self.ip =
+            usize::try_from(pos).with_context(|_| JumpedOutOfMemSnafu { pos: pos.clone() })?;
+        Ok(())
     }
 
     /// Read a value from a position
@@ -40,7 +93,11 @@ impl Mem {
             ReadParamMode::Relative => self.value_to_index(pos_or_value, true),
         }?;
 
-        Ok(self.content.get(index).unwrap_or(&DEFAULT_OVER_MEMORY))
+        Ok(self.get(index))
+    }
+
+    fn get(&self, index: usize) -> &Value {
+        self.content.get(index).unwrap_or(&DEFAULT_OVER_MEMORY)
     }
 
     /// Write a value to a position
@@ -64,8 +121,8 @@ impl Mem {
         // If value is not the default, extend memory to need and write it.
         // Else, write if in memory and trim if needed
         if value != DEFAULT_OVER_MEMORY {
-            while index >= self.content.len() {
-                self.content.push(DEFAULT_OVER_MEMORY.clone());
+            if index >= self.content.len() {
+                self.content.resize(index + 1, DEFAULT_OVER_MEMORY.clone());
             }
 
             self.content[index] = value;
@@ -104,4 +161,16 @@ pub enum IndexError {
         relative: Option<PointerOffset>,
         source: <usize as TryFrom<Value>>::Error,
     },
+}
+
+#[derive(Debug, Snafu, Clone)]
+pub enum ReadInstructionError {
+    #[snafu(transparent)]
+    InvalidCode { source: InvalidCodeError },
+}
+
+#[derive(Debug, Snafu, Clone)]
+pub struct JumpedOutOfMemError {
+    pos: Value,
+    source: CastValueToIntError,
 }

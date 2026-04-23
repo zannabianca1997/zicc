@@ -14,3 +14,6 @@ pub type Value = num::BigInt;
 
 /// Error returned when parsing a [`Value`] from a string
 pub type ParseValueError = num::bigint::ParseBigIntError;
+
+/// Error returned when casting a _reference_ to a [`Value`] to an int scalar
+pub type CastValueToIntError = num::bigint::TryFromBigIntError<()>;

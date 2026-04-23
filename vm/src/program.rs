@@ -3,19 +3,20 @@ use std::{borrow::Cow, io, str::Utf8Error};
 use derive_more::IsVariant;
 use itertools::Itertools;
 use lazy_regex::regex_captures_iter;
-use zicc_limits::Value;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use zicc_frontmatter::FrontMatter;
+use zicc_limits::Value;
 
 use crate::stream::Format as StreamFormat;
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Program {
     pub info: ProgramInfo,
     pub content: Vec<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
 pub struct ProgramInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -32,7 +33,7 @@ pub struct ProgramInfo {
 }
 
 /// Storage format of the program
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, IsVariant, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, IsVariant, PartialEq, Eq, Hash)]
 pub enum Format {
     /// IntCode default comma separated list
     ///
@@ -43,7 +44,7 @@ pub enum Format {
 }
 
 /// Additional compression to apply
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, IsVariant, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, IsVariant, PartialEq, Eq, Hash)]
 pub enum Compression {
     /// No compression
     #[default]
@@ -95,6 +96,16 @@ impl Program {
                 write!(dest, "{}", self.content.iter().format(", "))
             }
         }
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.content.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

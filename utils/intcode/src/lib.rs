@@ -3,38 +3,39 @@
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::FromPrimitive;
 use snafu::{OptionExt, Snafu};
+use zicc_limits::Value;
 
 /// An IntCode instruction
 ///
 /// `ReadParam` is used for params that are only read by the instruction,
 /// `WriteParam` instead params that are only written to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Instruction<ReadParam, WriteParam> {
+pub enum Instruction<Param> {
     Add(
-        (ReadParamMode, ReadParam),
-        (ReadParamMode, ReadParam),
-        (WriteParamMode, WriteParam),
+        (ReadParamMode, Param),
+        (ReadParamMode, Param),
+        (WriteParamMode, Param),
     ),
     Mul(
-        (ReadParamMode, ReadParam),
-        (ReadParamMode, ReadParam),
-        (WriteParamMode, WriteParam),
+        (ReadParamMode, Param),
+        (ReadParamMode, Param),
+        (WriteParamMode, Param),
     ),
-    Inp((WriteParamMode, WriteParam)),
-    Out((ReadParamMode, ReadParam)),
-    Jnz((ReadParamMode, ReadParam), (ReadParamMode, ReadParam)),
-    Jez((ReadParamMode, ReadParam), (ReadParamMode, ReadParam)),
+    Inp((WriteParamMode, Param)),
+    Out((ReadParamMode, Param)),
+    Jnz((ReadParamMode, Param), (ReadParamMode, Param)),
+    Jez((ReadParamMode, Param), (ReadParamMode, Param)),
     Slt(
-        (ReadParamMode, ReadParam),
-        (ReadParamMode, ReadParam),
-        (WriteParamMode, WriteParam),
+        (ReadParamMode, Param),
+        (ReadParamMode, Param),
+        (WriteParamMode, Param),
     ),
     Seq(
-        (ReadParamMode, ReadParam),
-        (ReadParamMode, ReadParam),
-        (WriteParamMode, WriteParam),
+        (ReadParamMode, Param),
+        (ReadParamMode, Param),
+        (WriteParamMode, Param),
     ),
-    Inb((ReadParamMode, ReadParam)),
+    Inb((ReadParamMode, Param)),
     Hlt,
 }
 
@@ -70,14 +71,14 @@ impl OpCode {
         *self as u8
     }
 
-    pub fn from_u8(code: u8) -> Result<Self, InvalidOpCode> {
+    pub fn from_u8(code: u8) -> Result<Self, InvalidOpCodeError> {
         FromPrimitive::from_u8(code).context(InvalidOpCodeSnafu { code })
     }
 }
 
-impl<R, W> Instruction<R, W> {
-    /// Encode the instruction back to a u16 code (inverse of [`Self::decode`])
-    pub fn code(&self) -> u16 {
+impl<P> Instruction<P> {
+    /// Encode the instruction back to an instruction code (inverse of [`Self::decode`])
+    pub fn code(&self) -> Value {
         use Instruction::*;
 
         let op = self.opcode().to_u8() as u16;
@@ -96,6 +97,7 @@ impl<R, W> Instruction<R, W> {
             Out((a, _)) | Inb((a, _)) => op + a.to_u8() as u16 * 100,
             Hlt => op,
         }
+        .into()
     }
 
     /// Get the opcode for this instruction
@@ -118,18 +120,22 @@ impl<R, W> Instruction<R, W> {
     }
 }
 
-impl Instruction<(), ()> {
+impl Instruction<()> {
     /// Decode an instruction code
     ///
     /// Decode an instruction code into its parts: opcode and params modes.
-    pub fn decode(code: u16) -> Result<Self, InvalidCode> {
+    pub fn decode(code: &Value) -> Result<Self, InvalidCodeError> {
         use Instruction::*;
         use OpCode::*;
+
+        let code = u32::try_from(code)
+            .ok()
+            .with_context(|| AdditionalDigitsSnafu { code: code.clone() })?;
 
         let opcode = OpCode::from_u8((code % 100) as _)?;
 
         if (code as u32) >= 100 * 10u32.pow(opcode.param_count() as _) {
-            return Err(InvalidCode::AdditionalDigits { code });
+            return Err(InvalidCodeError::AdditionalDigits { code: code.into() });
         }
 
         let a = ((code / 100) % 10) as u8;
@@ -173,14 +179,14 @@ impl Instruction<(), ()> {
     }
 }
 
-impl<R, W> From<Instruction<R, W>> for OpCode {
-    fn from(value: Instruction<R, W>) -> Self {
+impl<P> From<Instruction<P>> for OpCode {
+    fn from(value: Instruction<P>) -> Self {
         value.opcode()
     }
 }
 
-impl<R, W> From<&Instruction<R, W>> for OpCode {
-    fn from(value: &Instruction<R, W>) -> Self {
+impl<P> From<&Instruction<P>> for OpCode {
+    fn from(value: &Instruction<P>) -> Self {
         value.opcode()
     }
 }
@@ -218,12 +224,12 @@ pub enum WriteParamMode {
 }
 
 impl TryFrom<ReadParamMode> for WriteParamMode {
-    type Error = ImmediateModeOnWriteParam;
+    type Error = ImmediateModeOnWriteParamError;
 
     fn try_from(value: ReadParamMode) -> Result<Self, Self::Error> {
         match value {
             ReadParamMode::Absolute => Ok(Self::Absolute),
-            ReadParamMode::Immediate => Err(ImmediateModeOnWriteParam),
+            ReadParamMode::Immediate => Err(ImmediateModeOnWriteParamError),
             ReadParamMode::Relative => Ok(Self::Relative),
         }
     }
@@ -234,7 +240,7 @@ impl ReadParamMode {
         self as u8
     }
 
-    pub fn from_u8(code: u8) -> Result<Self, InvalidParamModeCode> {
+    pub fn from_u8(code: u8) -> Result<Self, InvalidParamModeCodeError> {
         FromPrimitive::from_u8(code).context(InvalidParamModeCodeSnafu { code })
     }
 }
@@ -247,29 +253,31 @@ impl WriteParamMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Snafu)]
 #[snafu(display("Immediate mode `#` is invalid on writable params"))]
-pub struct ImmediateModeOnWriteParam;
+pub struct ImmediateModeOnWriteParamError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Snafu)]
 #[snafu(display("{code} is not a valid opcode"))]
-pub struct InvalidOpCode {
+pub struct InvalidOpCodeError {
     code: u8,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Snafu)]
 #[snafu(display("{code} is not a valid param mode code"))]
-pub struct InvalidParamModeCode {
+pub struct InvalidParamModeCodeError {
     code: u8,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Snafu)]
-pub enum InvalidCode {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Snafu)]
+pub enum InvalidCodeError {
     #[snafu(display("{code} has additional digits over the needed params"))]
-    AdditionalDigits { code: u16 },
+    AdditionalDigits { code: Value },
     #[snafu(transparent)]
-    InvalidOpcode { source: InvalidOpCode },
+    InvalidOpcode { source: InvalidOpCodeError },
     #[snafu(transparent)]
-    InvalidParamModeCode { source: InvalidParamModeCode },
+    InvalidParamModeCode { source: InvalidParamModeCodeError },
     #[snafu(transparent)]
-    ImmediateModeOnWriteParam { source: ImmediateModeOnWriteParam },
+    ImmediateModeOnWriteParam {
+        source: ImmediateModeOnWriteParamError,
+    },
 }
 
 #[cfg(test)]
@@ -343,7 +351,10 @@ mod tests {
     /// Immediate mode is rejected as a write mode
     #[test]
     fn write_param_mode_should_reject_immediate() {
-        assert_eq!(W::try_from(R::Immediate), Err(ImmediateModeOnWriteParam));
+        assert_eq!(
+            W::try_from(R::Immediate),
+            Err(ImmediateModeOnWriteParamError)
+        );
     }
 
     // --- decode happy paths ---
@@ -351,14 +362,14 @@ mod tests {
     /// 99 → Hlt
     #[test]
     fn decode_should_parse_hlt() {
-        assert_eq!(Instruction::decode(99), Ok(Hlt));
+        assert_eq!(Instruction::decode(&99.into()), Ok(Hlt));
     }
 
     /// 1 → Add with all Absolute modes
     #[test]
     fn decode_should_parse_add_with_all_absolute_modes() {
         assert_eq!(
-            Instruction::decode(1),
+            Instruction::decode(&1.into()),
             Ok(Add((R::Absolute, ()), (R::Absolute, ()), (W::Absolute, ())))
         );
     }
@@ -367,8 +378,12 @@ mod tests {
     #[test]
     fn decode_should_parse_add_with_immediate_first_param() {
         assert_eq!(
-            Instruction::decode(101),
-            Ok(Add((R::Immediate, ()), (R::Absolute, ()), (W::Absolute, ())))
+            Instruction::decode(&101.into()),
+            Ok(Add(
+                (R::Immediate, ()),
+                (R::Absolute, ()),
+                (W::Absolute, ())
+            ))
         );
     }
 
@@ -376,7 +391,7 @@ mod tests {
     #[test]
     fn decode_should_parse_add_with_relative_write_param() {
         assert_eq!(
-            Instruction::decode(20001),
+            Instruction::decode(&20001.into()),
             Ok(Add((R::Absolute, ()), (R::Absolute, ()), (W::Relative, ())))
         );
     }
@@ -385,7 +400,7 @@ mod tests {
     #[test]
     fn decode_should_parse_mul() {
         assert_eq!(
-            Instruction::decode(2),
+            Instruction::decode(&2.into()),
             Ok(Mul((R::Absolute, ()), (R::Absolute, ()), (W::Absolute, ())))
         );
     }
@@ -393,32 +408,35 @@ mod tests {
     /// 3 → Inp Absolute
     #[test]
     fn decode_should_parse_inp_absolute() {
-        assert_eq!(Instruction::decode(3), Ok(Inp((W::Absolute, ()))));
+        assert_eq!(Instruction::decode(&3.into()), Ok(Inp((W::Absolute, ()))));
     }
 
     /// 203 → Inp Relative
     #[test]
     fn decode_should_parse_inp_relative() {
-        assert_eq!(Instruction::decode(203), Ok(Inp((W::Relative, ()))));
+        assert_eq!(Instruction::decode(&203.into()), Ok(Inp((W::Relative, ()))));
     }
 
     /// 4 → Out Absolute
     #[test]
     fn decode_should_parse_out_absolute() {
-        assert_eq!(Instruction::decode(4), Ok(Out((R::Absolute, ()))));
+        assert_eq!(Instruction::decode(&4.into()), Ok(Out((R::Absolute, ()))));
     }
 
     /// 104 → Out Immediate
     #[test]
     fn decode_should_parse_out_immediate() {
-        assert_eq!(Instruction::decode(104), Ok(Out((R::Immediate, ()))));
+        assert_eq!(
+            Instruction::decode(&104.into()),
+            Ok(Out((R::Immediate, ())))
+        );
     }
 
     /// 5 → Jnz with Absolute modes
     #[test]
     fn decode_should_parse_jnz() {
         assert_eq!(
-            Instruction::decode(5),
+            Instruction::decode(&5.into()),
             Ok(Jnz((R::Absolute, ()), (R::Absolute, ())))
         );
     }
@@ -427,7 +445,7 @@ mod tests {
     #[test]
     fn decode_should_parse_jez() {
         assert_eq!(
-            Instruction::decode(6),
+            Instruction::decode(&6.into()),
             Ok(Jez((R::Absolute, ()), (R::Absolute, ())))
         );
     }
@@ -436,7 +454,7 @@ mod tests {
     #[test]
     fn decode_should_parse_slt() {
         assert_eq!(
-            Instruction::decode(7),
+            Instruction::decode(&7.into()),
             Ok(Slt((R::Absolute, ()), (R::Absolute, ()), (W::Absolute, ())))
         );
     }
@@ -445,7 +463,7 @@ mod tests {
     #[test]
     fn decode_should_parse_seq() {
         assert_eq!(
-            Instruction::decode(8),
+            Instruction::decode(&8.into()),
             Ok(Seq((R::Absolute, ()), (R::Absolute, ()), (W::Absolute, ())))
         );
     }
@@ -453,7 +471,7 @@ mod tests {
     /// 9 → Inb Absolute
     #[test]
     fn decode_should_parse_inb() {
-        assert_eq!(Instruction::decode(9), Ok(Inb((R::Absolute, ()))));
+        assert_eq!(Instruction::decode(&9.into()), Ok(Inb((R::Absolute, ()))));
     }
 
     // --- decode error paths ---
@@ -462,12 +480,12 @@ mod tests {
     #[test]
     fn decode_should_reject_invalid_opcode() {
         assert!(matches!(
-            Instruction::decode(0),
-            Err(InvalidCode::InvalidOpcode { .. })
+            Instruction::decode(&0.into()),
+            Err(InvalidCodeError::InvalidOpcode { .. })
         ));
         assert!(matches!(
-            Instruction::decode(10),
-            Err(InvalidCode::InvalidOpcode { .. })
+            Instruction::decode(&10.into()),
+            Err(InvalidCodeError::InvalidOpcode { .. })
         ));
     }
 
@@ -475,8 +493,8 @@ mod tests {
     #[test]
     fn decode_should_reject_invalid_param_mode() {
         assert!(matches!(
-            Instruction::decode(301),
-            Err(InvalidCode::InvalidParamModeCode { .. })
+            Instruction::decode(&301.into()),
+            Err(InvalidCodeError::InvalidParamModeCode { .. })
         ));
     }
 
@@ -485,8 +503,8 @@ mod tests {
     fn decode_should_reject_immediate_mode_on_write_param() {
         // Add: c=1 → 10001
         assert!(matches!(
-            Instruction::decode(10001),
-            Err(InvalidCode::ImmediateModeOnWriteParam { .. })
+            Instruction::decode(&10001.into()),
+            Err(InvalidCodeError::ImmediateModeOnWriteParam { .. })
         ));
     }
 
@@ -494,8 +512,8 @@ mod tests {
     #[test]
     fn decode_should_reject_additional_digits_on_hlt() {
         assert!(matches!(
-            Instruction::decode(199),
-            Err(InvalidCode::AdditionalDigits { .. })
+            Instruction::decode(&199.into()),
+            Err(InvalidCodeError::AdditionalDigits { .. })
         ));
     }
 
@@ -504,8 +522,8 @@ mod tests {
     fn decode_should_reject_additional_digits_on_one_param_instruction() {
         // Out (1 param): b digit set → 1004
         assert!(matches!(
-            Instruction::decode(1004),
-            Err(InvalidCode::AdditionalDigits { .. })
+            Instruction::decode(&1004.into()),
+            Err(InvalidCodeError::AdditionalDigits { .. })
         ));
     }
 
@@ -514,15 +532,15 @@ mod tests {
     /// Hlt encodes to 99
     #[test]
     fn hlt_should_encode_to_99() {
-        assert_eq!(Hlt::<(), ()>.code(), 99);
+        assert_eq!(Hlt::<()>.code(), 99.into());
     }
 
     /// Add with all Absolute modes encodes to 1
     #[test]
     fn add_with_absolute_modes_should_encode_to_1() {
         assert_eq!(
-            Add::<(), ()>((R::Absolute, ()), (R::Absolute, ()), (W::Absolute, ())).code(),
-            1
+            Add::<()>((R::Absolute, ()), (R::Absolute, ()), (W::Absolute, ())).code(),
+            1.into()
         );
     }
 
@@ -530,8 +548,8 @@ mod tests {
     #[test]
     fn add_with_immediate_first_param_should_encode_to_101() {
         assert_eq!(
-            Add::<(), ()>((R::Immediate, ()), (R::Absolute, ()), (W::Absolute, ())).code(),
-            101
+            Add::<()>((R::Immediate, ()), (R::Absolute, ()), (W::Absolute, ())).code(),
+            101.into()
         );
     }
 
@@ -539,21 +557,21 @@ mod tests {
     #[test]
     fn add_with_relative_write_param_should_encode_to_20001() {
         assert_eq!(
-            Add::<(), ()>((R::Absolute, ()), (R::Absolute, ()), (W::Relative, ())).code(),
-            20001
+            Add::<()>((R::Absolute, ()), (R::Absolute, ()), (W::Relative, ())).code(),
+            20001.into()
         );
     }
 
     /// Inp with Relative mode encodes to 203
     #[test]
     fn inp_with_relative_mode_should_encode_to_203() {
-        assert_eq!(Inp::<(), ()>((W::Relative, ())).code(), 203);
+        assert_eq!(Inp::<()>((W::Relative, ())).code(), 203.into());
     }
 
     /// Out with Immediate mode encodes to 104
     #[test]
     fn out_with_immediate_mode_should_encode_to_104() {
-        assert_eq!(Out::<(), ()>((R::Immediate, ())).code(), 104);
+        assert_eq!(Out::<()>((R::Immediate, ())).code(), 104.into());
     }
 
     // --- roundtrip ---
@@ -561,23 +579,35 @@ mod tests {
     /// decode then code is identity for a representative set of valid codes
     #[test]
     fn decode_then_code_should_be_identity() {
-        let codes = [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 99, // default modes
-            101, 1001, 20001, // Add variants
-            203, 104, 1005, // misc mode variants
+        let codes: &[Value] = &[
+            1.into(),
+            2.into(),
+            3.into(),
+            4.into(),
+            5.into(),
+            6.into(),
+            7.into(),
+            8.into(),
+            9.into(),
+            99.into(), // default modes
+            101.into(),
+            1001.into(),
+            20001.into(), // Add variants
+            203.into(),
+            104.into(),
+            1005.into(), // misc mode variants
         ];
         for code in codes {
-            let instr = Instruction::decode(code).unwrap_or_else(|e| {
-                panic!("decode({code}) failed: {e}")
-            });
-            assert_eq!(instr.code(), code, "roundtrip failed for code {code}");
+            let instr =
+                Instruction::decode(code).unwrap_or_else(|e| panic!("decode({code}) failed: {e}"));
+            assert_eq!(&instr.code(), code, "roundtrip failed for code {code}");
         }
     }
 
     /// code then decode is identity for all constructed Instruction<(),()> values
     #[test]
     fn code_then_decode_should_be_identity() {
-        let instructions: &[Instruction<(), ()>] = &[
+        let instructions: &[Instruction<()>] = &[
             Hlt,
             Add((R::Absolute, ()), (R::Absolute, ()), (W::Absolute, ())),
             Add((R::Immediate, ()), (R::Relative, ()), (W::Relative, ())),
@@ -595,8 +625,8 @@ mod tests {
         ];
         for instr in instructions {
             let code = instr.code();
-            let decoded = Instruction::decode(code)
-                .unwrap_or_else(|e| panic!("decode({code}) failed: {e}"));
+            let decoded =
+                Instruction::decode(&code).unwrap_or_else(|e| panic!("decode({code}) failed: {e}"));
             assert_eq!(&decoded, instr, "roundtrip failed for {instr:?}");
         }
     }

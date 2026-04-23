@@ -924,6 +924,7 @@ dependencies = [
  "num-derive",
  "num-traits",
  "snafu",
+ "zicc-limits",
 ]
 
 [[package]]
