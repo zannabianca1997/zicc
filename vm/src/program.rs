@@ -6,6 +6,7 @@ use lazy_regex::regex_captures_iter;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use zicc_frontmatter::FrontMatter;
+use zicc_intcode::OpCode;
 use zicc_limits::Value;
 
 use crate::stream::Format as StreamFormat;
@@ -106,6 +107,16 @@ impl Program {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+impl Default for Program {
+    fn default() -> Self {
+        // Simple program that halts immediately
+        Self {
+            info: Default::default(),
+            content: vec![OpCode::HLT.to_u8().into()],
+        }
     }
 }
 

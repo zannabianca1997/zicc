@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use zicc_intcode::{Instruction, InvalidCodeError, ReadParamMode, WriteParamMode};
-use zicc_limits::{CastValueToIntError, Pointer, PointerOffset, Value};
+use zicc_limits::{CastValueToIntError, PointerOffset, Value};
 
 use crate::program::Program;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Mem {
+pub struct Memory {
     ip: usize,
     rb: PointerOffset,
     content: Vec<Value>,
@@ -16,7 +16,7 @@ pub struct Mem {
 /// over the current memory lenght
 static DEFAULT_OVER_MEMORY: Value = Value::ZERO;
 
-impl Mem {
+impl Memory {
     /// Create a new memory, with nothing inside
     pub fn new() -> Self {
         Self {
@@ -148,7 +148,7 @@ impl Mem {
     }
 }
 
-impl Default for Mem {
+impl Default for Memory {
     fn default() -> Self {
         Self::new()
     }
