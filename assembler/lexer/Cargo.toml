@@ -1,6 +1,0 @@
-[package]
-name = "zicc-assembler-lexer"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]

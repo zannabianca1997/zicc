@@ -1,0 +1,11 @@
+[package]
+name = "zicc-assembler-parser"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+zicc-assembler-ast.workspace = true
+
+chumsky.workspace = true
+itertools.workspace = true
+string-interner.workspace = true

@@ -1,7 +1,8 @@
 [workspace]
 resolver = "3"
 members = [
-  "assembler/ast", "assembler/lexer",
+  "assembler/ast",
+  "assembler/parser",
   "compiler",
   "compiler/ast",
   "compiler/lexer",
@@ -16,13 +17,17 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+zicc-assembler-ast = { path = "assembler/ast" }
 zicc-compiler-ast = { path = "compiler/ast" }
 zicc-compiler-lexer = { path = "compiler/lexer" }
 zicc-frontmatter = { path = "utils/frontmatter" }
+zicc-intcode = { path = "utils/intcode" }
 zicc-limits = { path = "utils/limits" }
 
+chumsky = "1.0.0-alpha.8"
 clap = { version = "4.6.1", features = ["derive"] }
 derive_more = { version = "2.1.1", features = ["full"] }
+itertools = "0.14.0"
 lazy-regex = "3.6.0"
 num = { version = "0.4.3", features = ["num-bigint", "serde"] }
 serde = { version = "1.0.228", features = ["derive"] }

@@ -7,7 +7,7 @@ edition.workspace = true
 zicc-compiler-ast.workspace = true
 zicc-compiler-lexer.workspace = true
 
-chumsky = "1.0.0-alpha.8"
+chumsky.workspace = true
 string-interner.workspace = true
 
 [dev-dependencies]
