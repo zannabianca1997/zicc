@@ -4,12 +4,10 @@ use std::{fs, io, path::PathBuf};
 use clap::Parser;
 use clap_stdin::{FileOrStdin, FileOrStdout, StdinError};
 use snafu::{ResultExt, Snafu};
+use zicc_vm_program::Program;
+use zicc_vm_stream::{Format, Reader, Writer};
 
-use crate::{
-    DriveError, Vm,
-    program::Program,
-    stream::{Format, Reader, Writer},
-};
+use crate::{DriveError, Vm};
 
 /// Intcode virtual machine
 ///
@@ -47,7 +45,7 @@ pub struct Cli {
 #[derive(Debug, Snafu)]
 pub enum Error {
     ReadProgram { source: io::Error },
-    ParseProgram { source: crate::program::ParseError },
+    ParseProgram { source: zicc_vm_program::ParseError },
     Input { source: StdinError },
     Output { source: io::Error },
 

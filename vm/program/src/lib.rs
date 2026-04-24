@@ -8,8 +8,7 @@ use snafu::{ResultExt, Snafu};
 use zicc_frontmatter::FrontMatter;
 use zicc_intcode::OpCode;
 use zicc_limits::Value;
-
-use crate::stream::Format as StreamFormat;
+use zicc_vm_stream::Format as StreamFormat;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Program {

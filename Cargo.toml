@@ -15,7 +15,9 @@ members = [
   "compiler/parser",
   "compiler/types",
   "utils/*",
-  "vm"
+  "vm",
+  "vm/program",
+  "vm/stream"
 ]
 
 [workspace.package]
@@ -30,6 +32,8 @@ zicc-frontmatter = { path = "utils/frontmatter" }
 zicc-intcode = { path = "utils/intcode" }
 zicc-limits = { path = "utils/limits" }
 zicc-vm = { path = "vm" }
+zicc-vm-program = { path = "vm/program" }
+zicc-vm-stream = { path = "vm/stream" }
 
 chumsky = "1.0.0-alpha.8"
 clap = { version = "4.6.1", features = ["derive"] }

@@ -4,16 +4,13 @@ use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use zicc_limits::Value;
 
-use crate::{
-    mem::{IndexError, JumpedOutOfMemError, Memory, ReadInstructionError},
-    program::Program,
-    stream::{Reader, Writer},
-};
+use zicc_vm_program::Program;
+use zicc_vm_stream::{Reader, Writer};
+
+use crate::mem::{IndexError, JumpedOutOfMemError, Memory, ReadInstructionError};
 
 pub mod cli;
 pub mod mem;
-pub mod program;
-pub mod stream;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Vm {
@@ -207,7 +204,7 @@ pub enum RuntimeError {
 #[derive(Debug, Snafu)]
 pub enum DriveError {
     #[snafu(transparent)]
-    Stream { source: stream::Error },
+    Stream { source: zicc_vm_stream::Error },
     #[snafu(transparent)]
     Runtime { source: RuntimeError },
     #[snafu(display("Program requested more input that available"))]

@@ -3,7 +3,7 @@ use snafu::{ResultExt, Snafu};
 use zicc_intcode::{Instruction, InvalidCodeError, ReadParamMode, WriteParamMode};
 use zicc_limits::{CastValueToIntError, Value};
 
-use crate::program::Program;
+use zicc_vm_program::Program;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Memory {

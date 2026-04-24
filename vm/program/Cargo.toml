@@ -1,18 +1,14 @@
 [package]
-name = "zicc-vm"
-version.workspace = true
-edition.workspace = true
-description = "Intcode virtual machine"
+name = "zicc-vm-program"
+version = "0.1.0"
+edition = "2024"
 
 [dependencies]
 zicc-frontmatter.workspace = true
 zicc-intcode.workspace = true
 zicc-limits.workspace = true
-zicc-vm-program.workspace = true
 zicc-vm-stream.workspace = true
 
-clap.workspace = true
-clap-stdin.workspace = true
 derive_more.workspace = true
 itertools.workspace = true
 lazy-regex.workspace = true

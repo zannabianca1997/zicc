@@ -1,0 +1,11 @@
+[package]
+name = "zicc-vm-stream"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap.workspace = true
+derive_more.workspace = true
+serde.workspace = true
+snafu.workspace = true
+zicc-limits.workspace = true
