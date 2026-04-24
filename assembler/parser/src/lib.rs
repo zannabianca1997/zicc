@@ -1,7 +1,7 @@
 use std::mem;
 
 use chumsky::{
-    IterParser, Parser,
+    IterParser, ParseResult, Parser,
     error::Rich,
     extra::{self, SimpleState},
     text::inline_whitespace,
@@ -64,4 +64,11 @@ fn line<'s>() -> impl Parser<'s, &'s str, Labelled<Option<Line>>, ParserExtra<'s
     )
     .padded_by(inline_whitespace())
     .labelled("line")
+}
+
+pub fn parse<'s>(
+    source: &'s str,
+    interner: &'s mut DefaultStringInterner,
+) -> ParseResult<File, ParserError<'s>> {
+    file().parse_with_state(source, &mut SimpleState(ParseState { interner }))
 }
