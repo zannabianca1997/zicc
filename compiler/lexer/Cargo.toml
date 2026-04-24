@@ -4,16 +4,14 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-derive_more.workspace = true
-lazy-regex = "3.6.0"
+lazy-regex.workspace = true
 logos = "0.16.1"
 macro_rules_attribute = "0.2.2"
-zicc-limits.workspace = true
 paste = "1.0.15"
-snafu = "0.9.0"
 string-interner.workspace = true
+zicc-limits.workspace = true
 
 [dev-dependencies]
-ariadne = "0.6.0"
+ariadne.workspace = true
 assert_matches = "1.5.0"
 clap.workspace = true

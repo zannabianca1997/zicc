@@ -87,12 +87,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arrayvec"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
-
-[[package]]
 name = "assert_matches"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -904,7 +898,6 @@ name = "zicc-assembler-parser"
 version = "0.1.0"
 dependencies = [
  "chumsky",
- "itertools",
  "string-interner",
  "zicc-assembler-ast",
 ]
@@ -927,12 +920,10 @@ dependencies = [
  "ariadne",
  "assert_matches",
  "clap",
- "derive_more",
  "lazy-regex",
  "logos",
  "macro_rules_attribute",
  "paste",
- "snafu",
  "string-interner",
  "zicc-limits",
 ]
@@ -970,7 +961,6 @@ dependencies = [
 name = "zicc-intcode"
 version = "0.1.0"
 dependencies = [
- "arrayvec",
  "num-derive",
  "num-traits",
  "snafu",
@@ -990,12 +980,8 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "clap-stdin",
- "derive_more",
- "itertools",
- "lazy-regex",
  "serde",
  "snafu",
- "zicc-frontmatter",
  "zicc-intcode",
  "zicc-limits",
  "zicc-vm-program",

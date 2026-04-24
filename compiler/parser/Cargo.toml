@@ -11,5 +11,5 @@ chumsky.workspace = true
 string-interner.workspace = true
 
 [dev-dependencies]
-ariadne = "0.6.0"
+ariadne.workspace = true
 clap.workspace = true

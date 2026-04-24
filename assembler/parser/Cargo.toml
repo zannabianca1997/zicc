@@ -7,5 +7,4 @@ edition.workspace = true
 zicc-assembler-ast.workspace = true
 
 chumsky.workspace = true
-itertools.workspace = true
 string-interner.workspace = true

@@ -5,7 +5,6 @@ edition.workspace = true
 description = "Intcode virtual machine"
 
 [dependencies]
-zicc-frontmatter.workspace = true
 zicc-intcode.workspace = true
 zicc-limits.workspace = true
 zicc-vm-program.workspace = true
@@ -13,8 +12,5 @@ zicc-vm-stream.workspace = true
 
 clap.workspace = true
 clap-stdin.workspace = true
-derive_more.workspace = true
-itertools.workspace = true
-lazy-regex.workspace = true
 serde.workspace = true
 snafu.workspace = true
