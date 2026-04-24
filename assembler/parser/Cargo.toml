@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 zicc-assembler-ast.workspace = true
+zicc-intcode.workspace = true
 
 chumsky.workspace = true
 string-interner.workspace = true

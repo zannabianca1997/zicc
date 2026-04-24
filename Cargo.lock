@@ -900,6 +900,7 @@ dependencies = [
  "chumsky",
  "string-interner",
  "zicc-assembler-ast",
+ "zicc-intcode",
 ]
 
 [[package]]

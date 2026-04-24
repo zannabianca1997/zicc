@@ -1,4 +1,4 @@
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, ops::Neg, str::FromStr};
 
 use lazy_regex::{Lazy, Regex, regex};
 use zicc_limits::{ParseValueError, Value};
@@ -46,6 +46,14 @@ impl TryFrom<Token> for IntLiteral {
         } else {
             Err(value)
         }
+    }
+}
+
+impl Neg for IntLiteral {
+    type Output = IntLiteral;
+
+    fn neg(self) -> Self::Output {
+        Self(-self.0)
     }
 }
 

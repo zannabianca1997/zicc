@@ -83,34 +83,55 @@ The features were introduced incrementally over time.
 * Day 5, part 2 added opcodes 05 to 08.
 * Day 9, part 1 added opcode 09 and relative mode.
 
-### Proposed Assembly Syntax
-
-The most basic syntax that supports labels could look as follows (in EBNF).
+### Assembly Syntax
 
 ```
-input ::= { line '\n' } ;
+file      ::= { line line_sep } [ line ] ;
 
-line  ::= [ identifier ':' ] [ instr | directive ] ;
+line_sep  ::= [ ';' { non_newline } ] newline ;
 
-directive ::= 'DATA' { expr [','] } ;
+line      ::= { label ':' } [ instr | directive ] ;
 
-instr ::= op { param [','] } ;
+directive ::= 'DATA' labelled_expr { labelled_expr }
+            | 'ZEROS' uint ;
 
-op    ::= 'ADD' (* 01 *) | 'MUL' (* 02 *) | 'INP' (* 03 *) | 'OUT' (* 04 *) | 'JNZ' (* 05 *)
-      |   'JEZ' (* 06 *) | 'SLT' (* 07 *) | 'SEQ' (* 08 *) | 'INB' (* 09 *) | 'HLT' (* 99 *) ;
+instr     ::= 'ADD' rp rp wp   (* 01 *)
+            | 'MUL' rp rp wp   (* 02 *)
+            | 'INP' wp         (* 03 *)
+            | 'OUT' rp         (* 04 *)
+            | 'JNZ' rp rp      (* 05 *)
+            | 'JEZ' rp rp      (* 06 *)
+            | 'SLT' rp rp wp   (* 07 *)
+            | 'SEQ' rp rp wp   (* 08 *)
+            | 'INB' rp         (* 09 *)
+            | 'HLT' ;          (* 99 *)
 
-param ::= [ '#' (* mode 1 *) | '@' (* mode 2 *) ] expr ;
+rp        ::= [ '#' (* immediate *) | '@' (* relative *) ] labelled_expr ;
+wp        ::= [ '@' (* relative *) ] labelled_expr ;
 
-expr  ::= number | identifier '+' number ;
+labelled_expr ::= { label ':' } expr ;
+
+expr      ::= [ '+' | '-' ] uint
+            | label [ ( '+' | '-' ) uint ] ;
+
+label     ::= ident [ '@' provenance ]   (* named label *)
+            | '$' uint ;                  (* unnamed label *)
+
+provenance ::= b64_chunk { '@' b64_chunk } ;
+b64_chunk  ::= ( letter | digit | '_' | '-' ) { letter | digit | '_' | '-' } ;
+
+ident     ::= ( letter | '_' ) { letter | digit | '_' } ;
+uint      ::= digit { digit } ;
 ```
 
-Many extensions are possible. One interesting idea is to add labels to
-parameters. This would facilitate patching instructions (for example, to
-implement indirect addressing).
-
-```intcode
-param ::= ... | [ '#' | '@' ] '[' identifier ':' expr ']' ;
-```
+Notes:
+- `;` begins an end-of-line comment.
+- Parameters and directive values are separated by inline whitespace; no commas.
+- Immediate mode (`#`) is not allowed on write parameters.
+- Any `labelled_expr` may carry zero or more `label:` prefixes, so labels can
+  appear on individual parameters and `DATA` values, not just at line start.
+- Labels on empty or label-only lines are carried forward onto the next
+  non-empty line.
 
 `.ints` could be a good standard file extension for Intcode assembly.
 

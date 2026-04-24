@@ -1,4 +1,4 @@
-use zicc_compiler_lexer::int_literal::IntLiteral;
+pub use zicc_compiler_lexer::int_literal::IntLiteral;
 
 use crate::identifier::Identifier;
 
@@ -10,6 +10,6 @@ pub enum Expr {
     /// Labelled position plus offset: `a + 3`
     Offset {
         label: Identifier,
-        offset: IntLiteral,
+        offset: Option<IntLiteral>,
     },
 }
