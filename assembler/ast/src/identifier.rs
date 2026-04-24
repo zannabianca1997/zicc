@@ -25,6 +25,23 @@ pub enum Identifier {
         /// Optional provenance
         provenance: Option<Provenance>,
     },
+    /// Special identifiers
+    Special(SpecialIdentifier),
+}
+
+/// Special identifiers
+///
+/// Identifiers that point to special point of the file
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SpecialIdentifier {
+    /// `$start`: point to the start of the code, after the runtime trampoline
+    Start,
+    /// `$end`: point to the end of the code, and the start of the stack
+    End,
+    /// `$unit_start`: point to the start of the current compilation unit
+    UnitStart,
+    /// `$unit_end`: point to the end of the current compilation unit
+    UnitEnd,
 }
 
 /// Regular expression to match identifiers

@@ -5,12 +5,21 @@ use chumsky::{
     prelude::{just, one_of},
     text::{ascii::ident, int},
 };
-use zicc_assembler_ast::identifier::{CompilerIdentifier, Identifier, Provenance};
+use zicc_assembler_ast::identifier::{
+    CompilerIdentifier, Identifier, Provenance, SpecialIdentifier,
+};
 
 use crate::ParserExtra;
 
 /// A single identifier
 pub(crate) fn identifier<'s>() -> impl Parser<'s, &'s str, Identifier, ParserExtra<'s>> {
+    named_identifier()
+        .or(unnamed_identifier())
+        .or(special_identifier())
+        .labelled("identifier")
+}
+
+fn named_identifier<'s>() -> impl Parser<'s, &'s str, Identifier, ParserExtra<'s>> {
     ident::<_, ParserExtra>()
         .and_is(just("_").repeated().not())
         .map_with(|i, e| {
@@ -21,18 +30,31 @@ pub(crate) fn identifier<'s>() -> impl Parser<'s, &'s str, Identifier, ParserExt
         .then(just("@").ignore_then(provenance()).or_not())
         .map(|(name, provenance)| Identifier::Named { name, provenance })
         .labelled("named identifier")
-        .or(just("$")
-            .ignore_then(
-                int(10)
-                    .try_map(|s: &str, span| s.parse().map_err(|e| Rich::custom(span, e)))
-                    .labelled("integer label"),
-            )
-            .map(|code| Identifier::Unnamed { code })
-            .labelled("unnamed identifier"))
+}
+
+fn unnamed_identifier<'s>() -> impl Parser<'s, &'s str, Identifier, ParserExtra<'s>> {
+    just("$")
+        .ignore_then(
+            int(10)
+                .try_map(|s: &str, span| s.parse().map_err(|e| Rich::custom(span, e)))
+                .labelled("integer label"),
+        )
+        .map(|code| Identifier::Unnamed { code })
+        .labelled("unnamed identifier")
+}
+
+fn special_identifier<'s>() -> impl Parser<'s, &'s str, Identifier, ParserExtra<'s>> {
+    just("$start")
+        .to(SpecialIdentifier::Start)
+        .or(just("$end").to(SpecialIdentifier::End))
+        .or(just("$unit_start").to(SpecialIdentifier::UnitStart))
+        .or(just("$unit_end").to(SpecialIdentifier::UnitEnd))
+        .map(Identifier::Special)
+        .labelled("special identifier")
 }
 
 /// Identifier provenance
-pub(crate) fn provenance<'s>() -> impl Parser<'s, &'s str, Provenance, ParserExtra<'s>> {
+fn provenance<'s>() -> impl Parser<'s, &'s str, Provenance, ParserExtra<'s>> {
     one_of('a'..'z')
         .or(one_of('A'..'Z'))
         .or(one_of('0'..'9'))

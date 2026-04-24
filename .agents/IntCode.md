@@ -114,8 +114,12 @@ labelled_expr ::= { label ':' } expr ;
 expr      ::= [ '+' | '-' ] uint
             | label [ ( '+' | '-' ) uint ] ;
 
-label     ::= ident [ '@' provenance ]   (* named label *)
-            | '$' uint ;                  (* unnamed label *)
+label     ::= ident [ '@' provenance ]      (* named label *)
+            | '$' uint                      (* unnamed label *)
+            | '$start'                      (* start of code *)
+            | '$end'                        (* end of code / start of stack *)
+            | '$unit_start'                 (* start of current compilation unit *)
+            | '$unit_end' ;                 (* end of current compilation unit *)
 
 provenance ::= b64_chunk { '@' b64_chunk } ;
 b64_chunk  ::= ( letter | digit | '_' | '-' ) { letter | digit | '_' | '-' } ;
@@ -132,6 +136,9 @@ Notes:
   appear on individual parameters and `DATA` values, not just at line start.
 - Labels on empty or label-only lines are carried forward onto the next
   non-empty line.
+- Special identifiers (`$start`, `$end`, `$unit_start`, `$unit_end`) are
+  predefined, read-only symbols that cannot be redefined or used as label
+  targets.
 
 `.ints` could be a good standard file extension for Intcode assembly.
 
