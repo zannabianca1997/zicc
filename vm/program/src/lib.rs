@@ -14,7 +14,7 @@ use toml::Table;
 use zicc_frontmatter::FrontMatter;
 use zicc_intcode::OpCode;
 use zicc_limits::Value;
-use zicc_vm_stream::Format as StreamFormat;
+use zicc_vm_stream::std_io::Format as StreamFormat;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Program {

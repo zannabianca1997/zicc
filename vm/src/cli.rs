@@ -5,7 +5,7 @@ use clap::Parser;
 use clap_stdin::{FileOrStdin, FileOrStdout, StdinError};
 use snafu::{ResultExt, Snafu};
 use zicc_vm_program::Program;
-use zicc_vm_stream::{Format, Reader, Writer};
+use zicc_vm_stream::std_io::{Format, IoReader, IoWriter};
 
 use crate::{DriveError, Vm};
 
@@ -44,12 +44,22 @@ pub struct Cli {
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    ReadProgram { source: io::Error },
-    ParseProgram { source: zicc_vm_program::ParseError },
-    Input { source: StdinError },
-    Output { source: io::Error },
+    ReadProgram {
+        source: io::Error,
+    },
+    ParseProgram {
+        source: zicc_vm_program::ParseError,
+    },
+    Input {
+        source: StdinError,
+    },
+    Output {
+        source: io::Error,
+    },
 
-    Runtime { source: DriveError },
+    Runtime {
+        source: DriveError<zicc_vm_stream::std_io::Error, zicc_vm_stream::std_io::Error>,
+    },
 }
 
 pub fn main(
@@ -64,12 +74,12 @@ pub fn main(
     let program =
         Program::parse(&fs::read(program).context(ReadProgramSnafu)?).context(ParseProgramSnafu)?;
 
-    let input = Reader::new(
+    let input = IoReader::new(
         input_format.unwrap_or(program.info.input),
         input.into_reader().context(InputSnafu)?,
     );
 
-    let output = Writer::new(
+    let output = IoWriter::new(
         output_format.unwrap_or(program.info.output),
         output.into_writer().context(OutputSnafu)?,
     );

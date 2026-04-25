@@ -1,7 +1,6 @@
-use std::io;
-
+use derive_more::Display;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use zicc_limits::Value;
 
 use zicc_vm_program::Program;
@@ -69,18 +68,25 @@ impl Vm {
     /// Drive the vm until halted, using the given streams as input and output.
     pub fn drive<R, W>(
         &mut self,
-        mut input: Reader<R>,
-        mut output: Writer<W>,
-    ) -> Result<(), DriveError>
+        mut input: R,
+        mut output: W,
+    ) -> Result<(), DriveError<R::Error, W::Error>>
     where
-        R: io::Read,
-        W: io::Write,
+        R: Reader,
+        W: Writer,
     {
         loop {
             match self.run()? {
-                StopState::Output(value) => output.write(value)?,
+                StopState::Output(value) => output
+                    .write(value)
+                    .map_err(|source| DriveError::Writer { source })?,
                 StopState::NeedInput => {
-                    self.input(input.read()?.context(UnexpectedEofSnafu)?);
+                    self.input(
+                        input
+                            .read()
+                            .map_err(|source| DriveError::Reader { source })?
+                            .ok_or(DriveError::UnexpectedEof)?,
+                    );
                 }
                 StopState::Halted => return Ok(()),
             }
@@ -193,6 +199,7 @@ pub enum StopState {
     Halted,
 }
 
+/// Runtime error
 #[derive(Debug, Snafu)]
 pub enum RuntimeError {
     ReadInstruction { source: ReadInstructionError },
@@ -201,12 +208,36 @@ pub enum RuntimeError {
     JumpedOutOfMem { source: JumpedOutOfMemError },
 }
 
-#[derive(Debug, Snafu)]
-pub enum DriveError {
-    #[snafu(transparent)]
-    Stream { source: zicc_vm_stream::Error },
-    #[snafu(transparent)]
+/// Error while driving the virtual machine
+#[derive(Debug, Display)]
+pub enum DriveError<ReaderError, WriterError> {
+    #[display("Error in input")]
+    Reader { source: ReaderError },
+    #[display("Error in output")]
+    Writer { source: WriterError },
+    #[display("{source}")]
     Runtime { source: RuntimeError },
-    #[snafu(display("Program requested more input that available"))]
+    #[display("Unexpected end of input")]
     UnexpectedEof,
+}
+
+impl<R, W> From<RuntimeError> for DriveError<R, W> {
+    fn from(source: RuntimeError) -> Self {
+        DriveError::Runtime { source }
+    }
+}
+
+impl<R, W> std::error::Error for DriveError<R, W>
+where
+    R: std::error::Error + 'static,
+    W: std::error::Error + 'static,
+{
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DriveError::Reader { source } => Some(source),
+            DriveError::Writer { source } => Some(source),
+            DriveError::Runtime { source } => std::error::Error::source(source),
+            DriveError::UnexpectedEof => None,
+        }
+    }
 }
