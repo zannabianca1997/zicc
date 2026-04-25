@@ -15,3 +15,16 @@ clap-stdin.workspace = true
 derive_more.workspace = true
 serde.workspace = true
 snafu.workspace = true
+
+[dev-dependencies]
+either = { version = "1.15.0", features = ["serde"] }
+
+[build-dependencies]
+zicc-vm-program.workspace = true
+
+cargo-emit.workspace = true
+glob = "0.3.3"
+proc-macro2 = "1.0.106"
+quote = "1.0.45"
+serde.workspace = true
+slugify = "0.1.0"

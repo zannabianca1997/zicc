@@ -124,7 +124,7 @@ impl ProgramInfo {
     pub fn get_metadata<'de, T, K>(&self, key: &K) -> Result<T, toml::de::Error>
     where
         String: Borrow<K>,
-        K: Ord,
+        K: Ord + ?Sized,
         T: Deserialize<'de>,
     {
         self.metadata

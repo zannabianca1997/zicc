@@ -1024,6 +1024,7 @@ dependencies = [
  "clap",
  "clap-stdin",
  "derive_more",
+ "either",
  "glob",
  "proc-macro2",
  "quote",
