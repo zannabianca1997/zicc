@@ -14,3 +14,4 @@ itertools.workspace = true
 lazy-regex.workspace = true
 serde.workspace = true
 snafu.workspace = true
+toml = "1.1.2"

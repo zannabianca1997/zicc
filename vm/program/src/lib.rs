@@ -1,22 +1,28 @@
-use std::{borrow::Cow, io, str::Utf8Error};
+use std::{
+    borrow::{Borrow, Cow},
+    collections::BTreeMap,
+    io,
+    str::Utf8Error,
+};
 
 use derive_more::IsVariant;
 use itertools::Itertools;
 use lazy_regex::regex_captures_iter;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
+use toml::Table;
 use zicc_frontmatter::FrontMatter;
 use zicc_intcode::OpCode;
 use zicc_limits::Value;
 use zicc_vm_stream::Format as StreamFormat;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Program {
     pub info: ProgramInfo,
     pub content: Vec<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ProgramInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -30,6 +36,10 @@ pub struct ProgramInfo {
     pub format: Format,
     #[serde(default, skip_serializing_if = "Compression::is_none")]
     pub compression: Compression,
+
+    /// Free form metadata
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub metadata: BTreeMap<String, Table>,
 }
 
 /// Storage format of the program
@@ -106,6 +116,33 @@ impl Program {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+impl ProgramInfo {
+    /// Extract a given metadata table from the metadata section
+    pub fn get_metadata<'de, T, K>(&self, key: &K) -> Result<T, toml::de::Error>
+    where
+        String: Borrow<K>,
+        K: Ord,
+        T: Deserialize<'de>,
+    {
+        self.metadata
+            .get(key)
+            .cloned()
+            .unwrap_or_default()
+            .try_into()
+    }
+
+    /// Set a given metadata table
+    pub fn set_metadata<T, K>(&mut self, key: K, value: T) -> Result<(), toml::ser::Error>
+    where
+        K: ToString,
+        T: Serialize,
+    {
+        self.metadata
+            .insert(key.to_string(), Table::try_from(value)?);
+        Ok(())
     }
 }
 

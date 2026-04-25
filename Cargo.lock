@@ -998,6 +998,7 @@ dependencies = [
  "lazy-regex",
  "serde",
  "snafu",
+ "toml",
  "zicc-frontmatter",
  "zicc-intcode",
  "zicc-limits",
