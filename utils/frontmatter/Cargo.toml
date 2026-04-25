@@ -6,4 +6,4 @@ edition.workspace = true
 [dependencies]
 lazy-regex.workspace = true
 serde.workspace = true
-toml = "1.1.2"
+toml.workspace = true

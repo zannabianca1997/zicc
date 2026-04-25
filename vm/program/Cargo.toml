@@ -10,8 +10,8 @@ zicc-limits.workspace = true
 zicc-vm-stream.workspace = true
 
 derive_more.workspace = true
-itertools.workspace = true
+itertools = "0.14.0"
 lazy-regex.workspace = true
 serde.workspace = true
 snafu.workspace = true
-toml = "1.1.2"
+toml.workspace = true

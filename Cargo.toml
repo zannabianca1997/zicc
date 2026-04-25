@@ -39,21 +39,18 @@ zicc-vm-stream = { path = "vm/stream" }
 zicc-test-crawler = { path = "utils/test_crawler" }
 
 ariadne = "0.6.0"
-cargo-emit = "0.2.1"
-glob = "0.3.3"
-proc-macro2 = "1.0.106"
-quote = "1.0.45"
-slugify = "0.1.0"
+
 chumsky = "1.0.0-alpha.8"
 clap = { version = "4.6.1", features = ["derive"] }
-clap-stdin = "0.8.1"
+
 derive_more = { version = "2.1.1", features = ["full"] }
-itertools = "0.14.0"
+
 lazy-regex = "3.6.0"
-num = { version = "0.4.3", features = ["num-bigint", "serde"] }
+
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 snafu = "0.9.0"
 string-interner = "0.19.0"
+toml = "1.1.2"
 
 [dependencies]
 zicc-vm.workspace = true

@@ -5,7 +5,6 @@ edition.workspace = true
 
 [dependencies]
 derive_more.workspace = true
-either = { version = "1.15.0", features = ["serde"] }
-num.workspace = true
+num = { version = "0.4.3", features = ["num-bigint", "serde"] }
 serde.workspace = true
 snafu.workspace = true

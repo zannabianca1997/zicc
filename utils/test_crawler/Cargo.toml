@@ -7,9 +7,9 @@ description = "Test source crawling utilities for IntCode compiler toolchain tes
 [dependencies]
 zicc-vm-program.workspace = true
 
-cargo-emit.workspace = true
-glob.workspace = true
-proc-macro2.workspace = true
-quote.workspace = true
+cargo-emit = "0.2.1"
+glob = "0.3.3"
+proc-macro2 = "1.0.106"
+quote = "1.0.45"
 serde.workspace = true
-slugify.workspace = true
+slugify = "0.1.0"

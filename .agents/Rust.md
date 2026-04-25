@@ -26,6 +26,16 @@
   include_str!("../README.md")]`
 - Workspace members are imported by path and never specify a version.
 
+# Dependencies
+
+- All workspace member crates are declared in `[workspace.dependencies]` in the
+  root `Cargo.toml`.
+- External dependencies used by a **single** crate are declared directly in that
+  crate's `Cargo.toml` (no `workspace = true`).
+- External dependencies used by **multiple** crates are declared in
+  `[workspace.dependencies]` in the root `Cargo.toml`, and individual crates
+  reference them with `.workspace = true`.
+
 # Tests
 
 - Tests are placed inside a `tests` module, either in a separated file or inline
