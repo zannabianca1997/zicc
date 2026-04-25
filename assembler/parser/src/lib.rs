@@ -21,11 +21,11 @@ struct ParseState<'s> {
 }
 
 mod directive;
+mod expr;
 mod identifier;
 mod instruction;
 mod labelled;
 mod misc;
-mod expr;
 
 /// Parse a IntCode Assembly file
 fn file<'s>() -> impl Parser<'s, &'s str, File, ParserExtra<'s>> {
