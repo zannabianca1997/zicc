@@ -15,6 +15,7 @@ members = [
   "compiler/parser",
   "compiler/types",
   "utils/*",
+  "utils/test_crawler",
   "vm",
   "vm/program",
   "vm/stream"
@@ -35,9 +36,14 @@ zicc-value = { path = "utils/value" }
 zicc-vm = { path = "vm" }
 zicc-vm-program = { path = "vm/program" }
 zicc-vm-stream = { path = "vm/stream" }
+zicc-test-crawler = { path = "utils/test_crawler" }
 
 ariadne = "0.6.0"
 cargo-emit = "0.2.1"
+glob = "0.3.3"
+proc-macro2 = "1.0.106"
+quote = "1.0.45"
+slugify = "0.1.0"
 chumsky = "1.0.0-alpha.8"
 clap = { version = "4.6.1", features = ["derive"] }
 clap-stdin = "0.8.1"

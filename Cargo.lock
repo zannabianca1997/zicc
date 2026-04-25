@@ -1006,6 +1006,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zicc-test-crawler"
+version = "0.1.0"
+dependencies = [
+ "cargo-emit",
+ "glob",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "slugify",
+ "zicc-vm-program",
+]
+
+[[package]]
 name = "zicc-value"
 version = "0.1.0"
 dependencies = [
@@ -1020,19 +1033,15 @@ dependencies = [
 name = "zicc-vm"
 version = "0.1.0"
 dependencies = [
- "cargo-emit",
  "clap",
  "clap-stdin",
  "derive_more",
  "either",
- "glob",
- "proc-macro2",
- "quote",
  "serde",
- "slugify",
  "snafu",
  "zicc-intcode",
  "zicc-limits",
+ "zicc-test-crawler",
  "zicc-vm-program",
  "zicc-vm-stream",
 ]

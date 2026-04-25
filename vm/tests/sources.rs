@@ -65,5 +65,5 @@ fn unflatten_string_streams(s: Vec<Value>) -> Either<Vec<Value>, String> {
 }
 
 mod tests {
-    include! {env!("ZICC_VM_TEST_SOURCES")}
+    include! {env!("ZICC_INTS_TEST_SOURCES")}
 }
