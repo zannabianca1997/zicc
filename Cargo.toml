@@ -31,11 +31,13 @@ zicc-compiler-lexer = { path = "compiler/lexer" }
 zicc-frontmatter = { path = "utils/frontmatter" }
 zicc-intcode = { path = "utils/intcode" }
 zicc-limits = { path = "utils/limits" }
+zicc-value = { path = "utils/value" }
 zicc-vm = { path = "vm" }
 zicc-vm-program = { path = "vm/program" }
 zicc-vm-stream = { path = "vm/stream" }
 
 ariadne = "0.6.0"
+cargo-emit = "0.2.1"
 chumsky = "1.0.0-alpha.8"
 clap = { version = "4.6.1", features = ["derive"] }
 clap-stdin = "0.8.1"
@@ -43,7 +45,7 @@ derive_more = { version = "2.1.1", features = ["full"] }
 itertools = "0.14.0"
 lazy-regex = "3.6.0"
 num = { version = "0.4.3", features = ["num-bigint", "serde"] }
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive", "rc"] }
 snafu = "0.9.0"
 string-interner = "0.19.0"
 

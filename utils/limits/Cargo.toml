@@ -4,4 +4,4 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-num.workspace = true
+zicc-value.workspace = true

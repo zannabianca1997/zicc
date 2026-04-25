@@ -1,0 +1,11 @@
+[package]
+name = "zicc-value"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+derive_more.workspace = true
+either = { version = "1.15.0", features = ["serde"] }
+num.workspace = true
+serde.workspace = true
+snafu.workspace = true

@@ -9,11 +9,4 @@ pub type Pointer = u64;
 /// Difference between two pointers
 pub type PointerOffset = i64;
 
-/// The value stored in a single IntCode memory cell
-pub type Value = num::BigInt;
-
-/// Error returned when parsing a [`Value`] from a string
-pub type ParseValueError = num::bigint::ParseBigIntError;
-
-/// Error returned when casting a _reference_ to a [`Value`] to an int scalar
-pub type CastValueToIntError = num::bigint::TryFromBigIntError<()>;
+pub use zicc_value::{CastValueToIntError, ParseValueError, Value};
