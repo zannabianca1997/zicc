@@ -929,9 +929,12 @@ dependencies = [
 name = "zicc-assembler-parser"
 version = "0.1.0"
 dependencies = [
+ "ariadne",
  "chumsky",
+ "clap",
  "string-interner",
  "zicc-assembler-ast",
+ "zicc-display",
  "zicc-intcode",
 ]
 
