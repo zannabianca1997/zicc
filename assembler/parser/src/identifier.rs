@@ -21,10 +21,9 @@ pub(crate) fn identifier<'s>() -> impl Parser<'s, &'s str, Identifier, ParserExt
 
 fn named_identifier<'s>() -> impl Parser<'s, &'s str, Identifier, ParserExtra<'s>> {
     ident::<_, ParserExtra>()
-        .and_is(just("_").repeated().not())
-        .map_with(|i, e| {
+        .try_map_with(|i, e| {
             CompilerIdentifier::new(i, e.state().interner)
-                .expect("the parser should match only valid identifiers")
+                .ok_or(Rich::custom(e.span(), "Invalid identifier"))
         })
         .labelled("compiler identifier")
         .then(just("@").ignore_then(provenance()).or_not())
