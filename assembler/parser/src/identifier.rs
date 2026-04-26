@@ -57,7 +57,7 @@ fn provenance<'s>() -> impl Parser<'s, &'s str, Provenance, ParserExtra<'s>> {
     one_of('a'..'z')
         .or(one_of('A'..'Z'))
         .or(one_of('0'..'9'))
-        .or(one_of("-_"))
+        .or(one_of("._"))
         .repeated()
         .at_least(1)
         .labelled("base64 string")

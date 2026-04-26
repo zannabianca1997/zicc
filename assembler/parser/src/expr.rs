@@ -41,6 +41,9 @@ pub(crate) fn expr<'s>() -> impl Parser<'s, &'s str, Expr, ParserExtra<'s>> {
         .or(identifier()
             .then_ignore(inline_whitespace())
             .then(int_literal_with_sign().or_not())
-            .map(|(label, offset)| Expr::Offset { label, offset })
+            .map(|(label, offset)| Expr::Offset {
+                label,
+                offset: offset.unwrap_or_else(|| IntLiteral::ZERO),
+            })
             .labelled("label and offset"))
 }

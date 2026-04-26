@@ -1040,6 +1040,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "zicc-linker-program"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "itertools",
+ "serde",
+ "snafu",
+ "string-interner",
+ "toml",
+ "zicc-assembler-ast",
+ "zicc-display",
+ "zicc-frontmatter",
+ "zicc-value",
+]
+
+[[package]]
 name = "zicc-test-crawler"
 version = "0.1.0"
 dependencies = [

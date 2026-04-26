@@ -1,0 +1,17 @@
+[package]
+name = "zicc-linker-program"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+zicc-assembler-ast.workspace = true
+zicc-display.workspace = true
+zicc-frontmatter.workspace = true
+zicc-value.workspace = true
+
+derive_more.workspace = true
+itertools.workspace = true
+serde.workspace = true
+snafu.workspace = true
+string-interner.workspace = true
+toml.workspace = true

@@ -15,6 +15,7 @@ members = [
   "compiler/lexer",
   "compiler/parser",
   "compiler/types",
+  "linker/program",
   "utils/*",
   "vm",
   "vm/program",

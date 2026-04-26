@@ -13,7 +13,7 @@ pub enum Expr {
     /// Labelled position plus offset: `a + 3`
     Offset {
         label: Identifier,
-        offset: Option<IntLiteral>,
+        offset: IntLiteral,
     },
 }
 
@@ -27,7 +27,7 @@ impl DisplayWith for Expr {
             Expr::Constant { value } => value.fmt(f),
             Expr::Offset { label, offset } => {
                 label.fmt_with(f, interner)?;
-                if let Some(offset) = offset {
+                if !offset.is_zero() {
                     if !offset.is_negative() {
                         write!(f, "+")?;
                     }

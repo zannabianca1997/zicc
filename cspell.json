@@ -8,6 +8,8 @@
     "chumsky",
     "frontmatter",
     "Zanna's",
-    "s"
+    "s",
+    "serde",
+    "rsplit"
   ]
 }

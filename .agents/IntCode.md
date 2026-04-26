@@ -122,7 +122,7 @@ label     ::= ident [ '@' provenance ]      (* named label *)
             | '$unit_end' ;                 (* end of current compilation unit *)
 
 provenance ::= b64_chunk { '@' b64_chunk } ;
-b64_chunk  ::= ( letter | digit | '_' | '-' ) { letter | digit | '_' | '-' } ;
+b64_chunk  ::= ( letter | digit | '_' | '.' ) { letter | digit | '_' | '.' } ;
 
 ident     ::= ( letter | '_' ) { letter | digit | '_' } ;
 uint      ::= digit { digit } ;

@@ -24,6 +24,12 @@ impl IntLiteral {
     pub fn is_negative(&self) -> bool {
         self.0 < Value::ZERO
     }
+
+    pub fn is_zero(&self) -> bool {
+        self.0 == Value::ZERO
+    }
+
+    pub const ZERO: Self = Self(Value::ZERO);
 }
 
 impl Display for IntLiteral {

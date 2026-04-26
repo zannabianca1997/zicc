@@ -74,12 +74,13 @@ pub enum SpecialIdentifier {
 }
 
 /// Regular expression to match identifiers
-pub static PROVENANCE_RE: &Lazy<Regex> = regex!(r#"^[-_a-zA-Z0-9]+(?:@[-_a-zA-Z0-9]+)$"#);
+pub static PROVENANCE_RE: &Lazy<Regex> = regex!(r#"^[\._a-zA-Z0-9]+(?:@[\._a-zA-Z0-9]+)$"#);
 
 /// Provenance of an identifier
 ///
-/// To isolate symbols between compilation units, symbols can have
-/// an optional provenance as multiple `@` prefixed base64 string
+/// To isolate symbols between compilation units, symbols can have an optional
+/// provenance as multiple `@` prefixed base64 string (additional chars are `.`
+/// and `_`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Provenance(DefaultSymbol);
 
