@@ -74,7 +74,7 @@ pub enum SpecialIdentifier {
 }
 
 /// Regular expression to match identifiers
-pub static PROVENANCE_RE: &Lazy<Regex> = regex!(r#"^[\._a-zA-Z0-9]+(?:@[\._a-zA-Z0-9]+)$"#);
+pub static PROVENANCE_RE: &Lazy<Regex> = regex!(r#"^[\._a-zA-Z0-9]+(?:@[\._a-zA-Z0-9]+)*$"#);
 
 /// Provenance of an identifier
 ///
