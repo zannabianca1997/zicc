@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 zicc-compiler-ast.workspace = true
 zicc-compiler-lexer.workspace = true
+zicc-display.workspace = true
 
 chumsky.workspace = true
 string-interner.workspace = true

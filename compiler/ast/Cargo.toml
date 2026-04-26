@@ -5,3 +5,4 @@ edition.workspace = true
 
 [dependencies]
 zicc-compiler-lexer.workspace = true
+zicc-display.workspace = true

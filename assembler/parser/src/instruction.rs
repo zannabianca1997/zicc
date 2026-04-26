@@ -70,7 +70,7 @@ fn add<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
     just("ADD")
         .then_ignore(inline_whitespace().at_least(1))
         .ignore_then(rrw_params())
-        .map(|(a, b, c)| Add(a, b, c))
+        .map(|(a, b, c)| Instruction(Add(a, b, c)))
         .labelled("add instruction")
 }
 
@@ -78,7 +78,7 @@ fn mul<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
     just("MUL")
         .then_ignore(inline_whitespace().at_least(1))
         .ignore_then(rrw_params())
-        .map(|(a, b, c)| Mul(a, b, c))
+        .map(|(a, b, c)| Instruction(Mul(a, b, c)))
         .labelled("mul instruction")
 }
 
@@ -86,7 +86,7 @@ fn inp<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
     just("INP")
         .then_ignore(inline_whitespace().at_least(1))
         .ignore_then(write_param())
-        .map(Inp)
+        .map(|a| Instruction(Inp(a)))
         .labelled("inp instruction")
 }
 
@@ -94,7 +94,7 @@ fn out<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
     just("OUT")
         .then_ignore(inline_whitespace().at_least(1))
         .ignore_then(read_param())
-        .map(Out)
+        .map(|a| Instruction(Out(a)))
         .labelled("out instruction")
 }
 
@@ -102,7 +102,7 @@ fn jnz<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
     just("JNZ")
         .then_ignore(inline_whitespace().at_least(1))
         .ignore_then(rr_params())
-        .map(|(a, b)| Jnz(a, b))
+        .map(|(a, b)| Instruction(Jnz(a, b)))
         .labelled("jnz instruction")
 }
 
@@ -110,7 +110,7 @@ fn jez<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
     just("JEZ")
         .then_ignore(inline_whitespace().at_least(1))
         .ignore_then(rr_params())
-        .map(|(a, b)| Jez(a, b))
+        .map(|(a, b)| Instruction(Jez(a, b)))
         .labelled("jez instruction")
 }
 
@@ -118,7 +118,7 @@ fn slt<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
     just("SLT")
         .then_ignore(inline_whitespace().at_least(1))
         .ignore_then(rrw_params())
-        .map(|(a, b, c)| Slt(a, b, c))
+        .map(|(a, b, c)| Instruction(Slt(a, b, c)))
         .labelled("slt instruction")
 }
 
@@ -126,7 +126,7 @@ fn seq<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
     just("SEQ")
         .then_ignore(inline_whitespace().at_least(1))
         .ignore_then(rrw_params())
-        .map(|(a, b, c)| Seq(a, b, c))
+        .map(|(a, b, c)| Instruction(Seq(a, b, c)))
         .labelled("seq instruction")
 }
 
@@ -134,10 +134,10 @@ fn inb<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
     just("INB")
         .then_ignore(inline_whitespace().at_least(1))
         .ignore_then(read_param())
-        .map(Inb)
+        .map(|a| Instruction(Inb(a)))
         .labelled("inb instruction")
 }
 
 fn hlt<'s>() -> impl Parser<'s, &'s str, Instruction, ParserExtra<'s>> {
-    just("HLT").to(Hlt).labelled("hlt instruction")
+    just("HLT").to(Instruction(Hlt)).labelled("hlt instruction")
 }

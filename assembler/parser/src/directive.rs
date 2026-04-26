@@ -13,7 +13,6 @@ fn data<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
         .ignore_then(
             labelled(expr())
                 .separated_by(inline_whitespace().at_least(1))
-                .at_least(1)
                 .collect(),
         )
         .map(Directive::Data)

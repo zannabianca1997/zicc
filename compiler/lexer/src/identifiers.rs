@@ -16,7 +16,7 @@ pub static RE: &Lazy<Regex> = regex!(r#"^(?:[\w&&[^\d_]]\w*|_+[\w&&[^_]]\w*)$"#)
 
 /// An identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Identifier(pub(crate) Symbol);
+pub struct Identifier(Symbol);
 
 impl Identifier {
     /// Create a new identifier

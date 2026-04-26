@@ -1,0 +1,20 @@
+[package]
+name = "zicc-assembler-program"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+zicc-assembler-ast.workspace = true
+zicc-assembler-parser.workspace = true
+zicc-display.workspace = true
+zicc-frontmatter.workspace = true
+zicc-intcode.workspace = true
+zicc-limits.workspace = true
+
+derive_more.workspace = true
+itertools.workspace = true
+lazy-regex.workspace = true
+serde.workspace = true
+snafu.workspace = true
+string-interner.workspace = true
+toml = "1.1.2"

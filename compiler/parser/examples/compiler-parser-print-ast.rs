@@ -9,8 +9,8 @@ use std::{
 };
 use string_interner::StringInterner;
 use zicc_compiler_lexer::InvalidToken;
-use zicc_compiler_lexer::display::DisplayWith;
 use zicc_compiler_parser::parse;
+use zicc_display::DisplayWith;
 
 /// Parse a file and print the resulting AST
 #[derive(Debug, Parser)]

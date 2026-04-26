@@ -917,9 +917,11 @@ dependencies = [
 name = "zicc-assembler-ast"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "lazy-regex",
  "string-interner",
  "zicc-compiler-lexer",
+ "zicc-display",
  "zicc-intcode",
 ]
 
@@ -946,6 +948,7 @@ dependencies = [
  "toml",
  "zicc-assembler-ast",
  "zicc-assembler-parser",
+ "zicc-display",
  "zicc-frontmatter",
  "zicc-intcode",
  "zicc-limits",
@@ -960,6 +963,7 @@ name = "zicc-compiler-ast"
 version = "0.1.0"
 dependencies = [
  "zicc-compiler-lexer",
+ "zicc-display",
 ]
 
 [[package]]
@@ -988,6 +992,7 @@ dependencies = [
  "string-interner",
  "zicc-compiler-ast",
  "zicc-compiler-lexer",
+ "zicc-display",
 ]
 
 [[package]]

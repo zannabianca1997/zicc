@@ -5,7 +5,9 @@ edition.workspace = true
 
 [dependencies]
 zicc-compiler-lexer.workspace = true
+zicc-display.workspace = true
 zicc-intcode.workspace = true
 
+derive_more.workspace = true
 lazy-regex.workspace = true
 string-interner.workspace = true

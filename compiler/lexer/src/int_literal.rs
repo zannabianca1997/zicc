@@ -20,6 +20,10 @@ impl IntLiteral {
     pub fn parse(value: &str) -> Result<Self, ParseValueError> {
         value.parse().map(Self)
     }
+
+    pub fn is_negative(&self) -> bool {
+        self.0 < Value::ZERO
+    }
 }
 
 impl Display for IntLiteral {
