@@ -14,7 +14,7 @@ pub enum Line {
     Directive(directive::Directive),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct File {
     pub lines: Vec<Labelled<Line>>,
     pub trailing: Labelled<()>,

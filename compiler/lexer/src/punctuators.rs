@@ -2,7 +2,6 @@
 //!
 //! Punctuators definitions
 
-use crate::display::Displayable;
 use std::fmt::Display;
 
 use paste::paste;
@@ -65,7 +64,7 @@ macro_rules! punctuators {
                     write!(f, "{}", self.as_str())
                 }
             }
-            impl Displayable for Punctuator {}
+
 
             $(
                 #[doc="The `" $value "` punctuator"]
@@ -84,7 +83,7 @@ macro_rules! punctuators {
                         write!(f, "{}", $value)
                     }
                 }
-                impl Displayable for $name {}
+
 
                 impl From<$name> for Punctuator {
                     fn from(value: $name) -> Self {

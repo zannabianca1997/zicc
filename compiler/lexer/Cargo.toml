@@ -9,6 +9,7 @@ logos = "0.16.1"
 macro_rules_attribute = "0.2.2"
 paste = "1.0.15"
 string-interner.workspace = true
+zicc-display.workspace = true
 zicc-limits.workspace = true
 
 [dev-dependencies]

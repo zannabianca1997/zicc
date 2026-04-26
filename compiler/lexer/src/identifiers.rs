@@ -1,9 +1,13 @@
-use std::hash::BuildHasher;
+use std::{
+    fmt::{Formatter, Pointer},
+    hash::BuildHasher,
+};
 
 use lazy_regex::{Lazy, Regex, regex};
-use string_interner::{DefaultSymbol, StringInterner};
+use string_interner::{DefaultStringInterner, DefaultSymbol, StringInterner};
+use zicc_display::DisplayWith;
 
-use crate::{Token, display::Displayable};
+use crate::Token;
 
 type Symbol = DefaultSymbol;
 
@@ -30,7 +34,6 @@ impl Identifier {
         Some(Self(interner.get_or_intern(value)))
     }
 }
-impl Displayable for Identifier {}
 
 impl TryFrom<Token> for Identifier {
     type Error = Token;
@@ -39,6 +42,19 @@ impl TryFrom<Token> for Identifier {
             Ok(value)
         } else {
             Err(value)
+        }
+    }
+}
+
+impl DisplayWith for Identifier {
+    fn fmt_with(
+        &self,
+        f: &mut Formatter<'_>,
+        interner: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        match interner.resolve(self.0) {
+            Some(s) => s.fmt(f),
+            None => Err(std::fmt::Error),
         }
     }
 }

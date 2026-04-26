@@ -934,6 +934,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "zicc-assembler-program"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "itertools",
+ "lazy-regex",
+ "serde",
+ "snafu",
+ "string-interner",
+ "toml",
+ "zicc-assembler-ast",
+ "zicc-assembler-parser",
+ "zicc-frontmatter",
+ "zicc-intcode",
+ "zicc-limits",
+]
+
+[[package]]
 name = "zicc-compiler"
 version = "0.1.0"
 
@@ -956,6 +974,7 @@ dependencies = [
  "macro_rules_attribute",
  "paste",
  "string-interner",
+ "zicc-display",
  "zicc-limits",
 ]
 
@@ -977,6 +996,13 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "zicc-limits",
+]
+
+[[package]]
+name = "zicc-display"
+version = "0.1.0"
+dependencies = [
+ "string-interner",
 ]
 
 [[package]]

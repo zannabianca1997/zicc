@@ -1,0 +1,7 @@
+[package]
+name = "zicc-display"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+string-interner.workspace = true

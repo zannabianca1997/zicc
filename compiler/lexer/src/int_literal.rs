@@ -3,7 +3,7 @@ use std::{fmt::Display, ops::Neg, str::FromStr};
 use lazy_regex::{Lazy, Regex, regex};
 use zicc_limits::{ParseValueError, Value};
 
-use crate::{Token, display::Displayable};
+use crate::Token;
 
 /// Regular expression to match integer literals
 pub static RE: &Lazy<Regex> = regex!(r#"^(?:-|\+)?\d+$"#);
@@ -27,8 +27,6 @@ impl Display for IntLiteral {
         self.0.fmt(f)
     }
 }
-
-impl Displayable for IntLiteral {}
 
 impl FromStr for IntLiteral {
     type Err = ParseValueError;

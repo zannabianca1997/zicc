@@ -9,13 +9,13 @@ resolver = "3"
 members = [
   "assembler/ast",
   "assembler/parser",
+  "assembler/program",
   "compiler",
   "compiler/ast",
   "compiler/lexer",
   "compiler/parser",
   "compiler/types",
   "utils/*",
-  "utils/test_crawler",
   "vm",
   "vm/program",
   "vm/stream"
@@ -27,26 +27,26 @@ edition = "2024"
 
 [workspace.dependencies]
 zicc-assembler-ast = { path = "assembler/ast" }
+zicc-assembler-parser = { path = "assembler/parser" }
+zicc-assembler-program = { path = "assembler/program" }
 zicc-compiler-ast = { path = "compiler/ast" }
 zicc-compiler-lexer = { path = "compiler/lexer" }
+zicc-display = { path = "utils/display" }
 zicc-frontmatter = { path = "utils/frontmatter" }
 zicc-intcode = { path = "utils/intcode" }
 zicc-limits = { path = "utils/limits" }
+zicc-test-crawler = { path = "utils/test_crawler" }
 zicc-value = { path = "utils/value" }
 zicc-vm = { path = "vm" }
 zicc-vm-program = { path = "vm/program" }
 zicc-vm-stream = { path = "vm/stream" }
-zicc-test-crawler = { path = "utils/test_crawler" }
 
 ariadne = "0.6.0"
-
 chumsky = "1.0.0-alpha.8"
 clap = { version = "4.6.1", features = ["derive"] }
-
 derive_more = { version = "2.1.1", features = ["full"] }
-
+itertools = "0.14.0"
 lazy-regex = "3.6.0"
-
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 snafu = "0.9.0"
 string-interner = "0.19.0"

@@ -8,7 +8,8 @@ use std::{
     path::{Path, PathBuf},
 };
 use string_interner::StringInterner;
-use zicc_compiler_lexer::{InvalidToken, display::Displayable};
+use zicc_compiler_lexer::InvalidToken;
+use zicc_compiler_lexer::display::DisplayWith;
 use zicc_compiler_parser::parse;
 
 /// Parse a file and print the resulting AST

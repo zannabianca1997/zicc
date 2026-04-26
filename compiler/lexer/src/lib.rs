@@ -1,4 +1,7 @@
-use std::cell::RefCell;
+use std::{
+    cell::RefCell,
+    fmt::{Formatter, Pointer},
+};
 
 use keywords::logos_keywords;
 use logos::{Logos, SpannedIter};
@@ -8,10 +11,8 @@ use string_interner::DefaultStringInterner;
 
 use identifiers::Identifier;
 use int_literal::IntLiteral;
+use zicc_display::DisplayWith;
 
-use crate::display::Displayable;
-
-pub mod display;
 pub mod identifiers;
 pub mod int_literal;
 pub mod keywords;
@@ -31,10 +32,23 @@ pub enum Token {
     IntLiteral(IntLiteral),
 }
 
-impl Displayable for Token {}
-
 pub struct LexerExtras<'i> {
     pub interner: &'i RefCell<DefaultStringInterner>,
+}
+
+impl DisplayWith for Token {
+    fn fmt_with(
+        &self,
+        f: &mut Formatter<'_>,
+        interner: &DefaultStringInterner,
+    ) -> std::fmt::Result {
+        match self {
+            Token::Identifier(ident) => DisplayWith::fmt_with(ident, f, interner),
+            Token::IntLiteral(lit) => lit.fmt(f),
+            Token::Punctuator(p) => p.fmt(f),
+            Token::Keyword(kw) => kw.fmt(f),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
