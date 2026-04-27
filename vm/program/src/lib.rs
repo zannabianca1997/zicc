@@ -2,18 +2,17 @@ use std::{
     borrow::{Borrow, Cow},
     collections::BTreeMap,
     io,
-    str::Utf8Error,
+    str::{FromStr, Utf8Error},
 };
 
 use derive_more::IsVariant;
 use itertools::Itertools;
-use lazy_regex::regex_captures_iter;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use toml::Table;
 use zicc_frontmatter::FrontMatter;
 use zicc_intcode::OpCode;
-use zicc_limits::Value;
+use zicc_limits::{ParseValueError, Value};
 use zicc_vm_stream::std_io::Format as StreamFormat;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -82,9 +81,10 @@ impl Program {
         };
 
         let content = match format {
-            Format::Ascii => regex_captures_iter!(r"(\+|\-)?\d+", str::from_utf8(&content)?)
-                .map(|c| c.get_match().as_str().parse().unwrap())
-                .collect(),
+            Format::Ascii => str::from_utf8(&content)?
+                .split(',')
+                .map(|v| Value::from_str(v.trim()))
+                .collect::<Result<_, _>>()?,
         };
 
         Ok(Self { info, content })
@@ -163,4 +163,7 @@ pub enum ParseError {
 
     #[snafu(transparent)]
     NotUtf8 { source: Utf8Error },
+
+    #[snafu(transparent)]
+    InvalidValue { source: ParseValueError },
 }

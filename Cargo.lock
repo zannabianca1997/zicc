@@ -1101,7 +1101,6 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "itertools",
- "lazy-regex",
  "serde",
  "snafu",
  "toml",
