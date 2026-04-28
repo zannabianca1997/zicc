@@ -11,3 +11,4 @@ zicc-intcode.workspace = true
 derive_more.workspace = true
 lazy-regex.workspace = true
 string-interner.workspace = true
+base64 = "0.22.1"

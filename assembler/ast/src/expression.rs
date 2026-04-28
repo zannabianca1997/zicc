@@ -1,4 +1,4 @@
-use std::fmt::Pointer;
+use std::fmt::{Display as _, Pointer};
 
 pub use zicc_compiler_lexer::int_literal::IntLiteral;
 use zicc_display::DisplayWith;
@@ -24,7 +24,7 @@ impl DisplayWith for Expr {
         interner: &string_interner::DefaultStringInterner,
     ) -> std::fmt::Result {
         match self {
-            Expr::Constant { value } => value.fmt(f),
+            Expr::Constant { value } => (*value).fmt(f),
             Expr::Offset { label, offset } => {
                 label.fmt_with(f, interner)?;
                 if !offset.is_zero() {

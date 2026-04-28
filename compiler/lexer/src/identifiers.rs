@@ -1,7 +1,4 @@
-use std::{
-    fmt::{Formatter, Pointer},
-    hash::BuildHasher,
-};
+use std::{fmt::Formatter, hash::BuildHasher};
 
 use lazy_regex::{Lazy, Regex, regex};
 use string_interner::{DefaultStringInterner, DefaultSymbol, StringInterner};
@@ -53,7 +50,7 @@ impl DisplayWith for Identifier {
         interner: &DefaultStringInterner,
     ) -> std::fmt::Result {
         match interner.resolve(self.0) {
-            Some(s) => s.fmt(f),
+            Some(s) => f.write_str(s),
             None => Err(std::fmt::Error),
         }
     }

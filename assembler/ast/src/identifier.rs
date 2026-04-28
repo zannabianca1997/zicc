@@ -5,6 +5,12 @@ use std::{
     hash::BuildHasher,
 };
 
+use base64::{
+    Engine,
+    alphabet::Alphabet,
+    engine::{GeneralPurpose, general_purpose::NO_PAD},
+    prelude::BASE64_STANDARD,
+};
 use derive_more::Display;
 use lazy_regex::{Lazy, Regex, regex};
 use string_interner::{DefaultSymbol, StringInterner};
@@ -99,7 +105,51 @@ impl Provenance {
         }
         Some(Self(interner.get_or_intern(value)))
     }
+
+    /// Decode the provenance into multiple byte strings
+    pub fn decode<B, H>(self, interner: &StringInterner<B, H>) -> impl Iterator<Item = Vec<u8>>
+    where
+        B: string_interner::backend::Backend<Symbol = Symbol>,
+        H: BuildHasher,
+    {
+        interner.resolve(self.0).unwrap().split('@').map(|value| {
+            BASE64_PROVENANCE
+                .decode(value)
+                .expect("The regex should ensure decodability")
+        })
+    }
+
+    /// Add a namespace to the provenance
+    pub fn namespaced_to<B, H>(
+        self,
+        interner: &mut StringInterner<B, H>,
+        namespace: impl AsRef<[u8]>,
+    ) -> Self
+    where
+        B: string_interner::backend::Backend<Symbol = Symbol>,
+        H: BuildHasher,
+    {
+        let mut current = interner.resolve(self.0).unwrap().to_owned();
+        current.push('@');
+        BASE64_PROVENANCE.encode_string(namespace, &mut current);
+        Self(interner.get_or_intern(current))
+    }
 }
+
+/// Base64 with alphabet using `.` and `_` as last chars
+///
+/// Both standard and url safe uses `-` and `+` that might confuse simpler parsers.
+const BASE64_PROVENANCE: GeneralPurpose = GeneralPurpose::new(
+    &{
+        let Ok(alphabet) =
+            Alphabet::new("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._")
+        else {
+            unreachable!()
+        };
+        alphabet
+    },
+    NO_PAD,
+);
 
 impl DisplayWith for Provenance {
     fn fmt_with(

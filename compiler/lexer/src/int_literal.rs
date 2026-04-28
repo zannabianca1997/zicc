@@ -1,5 +1,9 @@
-use std::{fmt::Display, ops::Neg, str::FromStr};
+use std::{
+    ops::{AddAssign, Neg, SubAssign},
+    str::FromStr,
+};
 
+use derive_more::Display;
 use lazy_regex::{Lazy, Regex, regex};
 use zicc_limits::{ParseValueError, Value};
 
@@ -9,7 +13,7 @@ use crate::Token;
 pub static RE: &Lazy<Regex> = regex!(r#"^(?:-|\+)?\d+$"#);
 
 /// An integer literal
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
 pub struct IntLiteral(Value);
 
 impl IntLiteral {
@@ -30,12 +34,6 @@ impl IntLiteral {
     }
 
     pub const ZERO: Self = Self(Value::ZERO);
-}
-
-impl Display for IntLiteral {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
 }
 
 impl FromStr for IntLiteral {
@@ -62,6 +60,24 @@ impl Neg for IntLiteral {
 
     fn neg(self) -> Self::Output {
         Self(-self.0)
+    }
+}
+
+impl<Rhs> AddAssign<Rhs> for IntLiteral
+where
+    Value: AddAssign<Rhs>,
+{
+    fn add_assign(&mut self, rhs: Rhs) {
+        self.0 += rhs
+    }
+}
+
+impl<Rhs> SubAssign<Rhs> for IntLiteral
+where
+    Value: SubAssign<Rhs>,
+{
+    fn sub_assign(&mut self, rhs: Rhs) {
+        self.0 -= rhs
     }
 }
 

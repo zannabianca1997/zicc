@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+derive_more.workspace = true
 lazy-regex.workspace = true
 logos = "0.16.1"
 macro_rules_attribute = "0.2.2"

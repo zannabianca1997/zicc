@@ -15,6 +15,7 @@ members = [
   "compiler/lexer",
   "compiler/parser",
   "compiler/types",
+  "linker",
   "linker/program",
   "utils/*",
   "vm",
@@ -36,6 +37,8 @@ zicc-display = { path = "utils/display" }
 zicc-frontmatter = { path = "utils/frontmatter" }
 zicc-intcode = { path = "utils/intcode" }
 zicc-limits = { path = "utils/limits" }
+zicc-linker = { path = "linker" }
+zicc-linker-program = { path = "linker/program" }
 zicc-test-crawler = { path = "utils/test_crawler" }
 zicc-value = { path = "utils/value" }
 zicc-vm = { path = "vm" }
@@ -45,6 +48,7 @@ zicc-vm-stream = { path = "vm/stream" }
 ariadne = "0.6.0"
 chumsky = "1.0.0-alpha.8"
 clap = { version = "4.6.1", features = ["derive"] }
+clap-stdin = "0.8.1"
 derive_more = { version = "2.1.1", features = ["full"] }
 itertools = "0.14.0"
 lazy-regex = "3.6.0"
@@ -54,6 +58,7 @@ string-interner = "0.19.0"
 toml = "1.1.2"
 
 [dependencies]
+zicc-linker.workspace = true
 zicc-vm.workspace = true
 
 clap.workspace = true

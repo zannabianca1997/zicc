@@ -11,7 +11,7 @@ zicc-vm-program.workspace = true
 zicc-vm-stream.workspace = true
 
 clap.workspace = true
-clap-stdin = "0.8.1"
+clap-stdin.workspace = true
 derive_more.workspace = true
 serde.workspace = true
 snafu.workspace = true

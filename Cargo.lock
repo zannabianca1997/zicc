@@ -99,6 +99,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
 name = "cargo-emit"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -910,6 +916,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "snafu",
+ "zicc-linker",
  "zicc-vm",
 ]
 
@@ -917,6 +924,7 @@ dependencies = [
 name = "zicc-assembler-ast"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "derive_more",
  "lazy-regex",
  "string-interner",
@@ -976,6 +984,7 @@ dependencies = [
  "ariadne",
  "assert_matches",
  "clap",
+ "derive_more",
  "lazy-regex",
  "logos",
  "macro_rules_attribute",
@@ -1037,6 +1046,21 @@ name = "zicc-limits"
 version = "0.1.0"
 dependencies = [
  "zicc-value",
+]
+
+[[package]]
+name = "zicc-linker"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "clap-stdin",
+ "itertools",
+ "snafu",
+ "string-interner",
+ "zicc-assembler-ast",
+ "zicc-linker-program",
+ "zicc-value",
+ "zicc-vm-program",
 ]
 
 [[package]]

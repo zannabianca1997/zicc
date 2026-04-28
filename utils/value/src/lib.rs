@@ -1,5 +1,5 @@
 use std::{
-    ops::{Add, AddAssign, Mul, Neg},
+    ops::{Add, AddAssign, Mul, Neg, Sub, SubAssign},
     str::FromStr,
     sync::Arc,
 };
@@ -102,6 +102,15 @@ impl_int_conversions! {
 macro_rules! impl_try_from_value {
     ($($ty:ty => $method:ident),* $(,)?) => {
         $(
+            impl From<$ty> for Value {
+                fn from(n: $ty) -> Self {
+                    match i64::try_from(n) {
+                        Ok(small) => Value(Inner::Small(small)),
+                        Err(_) => Value(Inner::Big(Arc::new(num::BigInt::from(n)))),
+                    }
+                }
+            }
+
             impl TryFrom<Value> for $ty {
                 type Error = CastValueToIntError;
 
@@ -210,6 +219,29 @@ impl Add<&Value> for &Value {
     }
 }
 
+impl Sub<&Value> for &Value {
+    type Output = Value;
+
+    fn sub(self, other: &Value) -> Value {
+        match (&self.0, &other.0) {
+            (Inner::Small(a), Inner::Small(b)) => match a.checked_sub(*b) {
+                Some(sum) => Value(Inner::Small(sum)),
+                None => {
+                    let big = num::BigInt::from(*a) - num::BigInt::from(*b);
+                    Value(Inner::Big(Arc::new(big)))
+                }
+            },
+            (Inner::Small(a), Inner::Big(b)) => {
+                Value(Inner::Big(Arc::new(num::BigInt::from(*a) - b.as_ref())))
+            }
+            (Inner::Big(a), Inner::Small(b)) => {
+                Value(Inner::Big(Arc::new(a.as_ref() - num::BigInt::from(*b))))
+            }
+            (Inner::Big(a), Inner::Big(b)) => Value(Inner::Big(Arc::new(a.as_ref() - b.as_ref()))),
+        }
+    }
+}
+
 impl Mul<&Value> for &Value {
     type Output = Value;
 
@@ -236,6 +268,13 @@ impl Mul<&Value> for &Value {
 impl AddAssign<&Value> for Value {
     fn add_assign(&mut self, other: &Value) {
         let result = &*self + other;
+        *self = result;
+    }
+}
+
+impl SubAssign<&Value> for Value {
+    fn sub_assign(&mut self, other: &Value) {
+        let result = &*self - other;
         *self = result;
     }
 }

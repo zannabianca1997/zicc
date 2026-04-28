@@ -1,0 +1,17 @@
+[package]
+name = "zicc-linker"
+version.workspace = true
+edition.workspace = true
+description = "Link multiple IntCodeObjects into a single source, and make it executable"
+
+[dependencies]
+zicc-assembler-ast.workspace = true
+zicc-linker-program.workspace = true
+zicc-value.workspace = true
+zicc-vm-program.workspace = true
+
+clap.workspace = true
+clap-stdin.workspace = true
+itertools.workspace = true
+snafu.workspace = true
+string-interner.workspace = true

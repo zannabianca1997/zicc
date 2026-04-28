@@ -1,0 +1,11 @@
++++
+name="One to ten"
++++
+4,counter,
+1001,counter,1,counter,
+8,counter,end,eq_result,
+1006,eq_result,0,
+99,
+eq_result: -1,
+counter: 1,
+end: 11
