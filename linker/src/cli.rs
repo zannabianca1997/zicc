@@ -10,10 +10,10 @@ use zicc_linker_program::{ParseError, Program};
 
 use crate::{LinkError, MakeExecutableError, make_executable};
 
-/// ZICC linker
+/// Links objects files
 ///
-/// Link multiple intcode object files together to produce an executable. Can
-/// also produce a joined intcode object file that can further be linked with
+/// Link multiple intcode objects files together to produce an executable. Can
+/// also produce a joined intcode objects file that can further be linked with
 /// other files.
 #[derive(Debug, Clone, Parser)]
 #[clap(version)]

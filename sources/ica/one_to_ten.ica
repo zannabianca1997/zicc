@@ -1,0 +1,13 @@
++++
+name="Hello World"
++++
+
+main:
+    $1:
+    OUT counter@a
+    ADD counter@a   #1      counter@a
+    SEQ counter@a   end@a   eq_result@a
+    JEZ eq_result@a # $1
+    JEZ #0  @-1
+
+DATA eq_result@a: -1 counter@a: 1 end@a: 11

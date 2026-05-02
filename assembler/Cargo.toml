@@ -1,0 +1,16 @@
+[package]
+name = "zicc-assembler"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+zicc-assembler-ast.workspace = true
+zicc-assembler-program.workspace = true
+zicc-intcode.workspace = true
+zicc-linker-program.workspace = true
+zicc-value.workspace = true
+
+clap.workspace = true
+clap-stdin.workspace = true
+snafu.workspace = true
+string-interner.workspace = true

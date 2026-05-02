@@ -7,6 +7,7 @@ description = "Zanna's IntCode Compiler"
 [workspace]
 resolver = "3"
 members = [
+  "assembler",
   "assembler/ast",
   "assembler/parser",
   "assembler/program",
@@ -28,6 +29,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+zicc-assembler = { path = "assembler" }
 zicc-assembler-ast = { path = "assembler/ast" }
 zicc-assembler-parser = { path = "assembler/parser" }
 zicc-assembler-program = { path = "assembler/program" }
@@ -58,6 +60,7 @@ string-interner = "0.19.0"
 toml = "1.1.2"
 
 [dependencies]
+zicc-assembler.workspace = true
 zicc-linker.workspace = true
 zicc-vm.workspace = true
 

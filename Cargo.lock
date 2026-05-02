@@ -916,8 +916,24 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "snafu",
+ "zicc-assembler",
  "zicc-linker",
  "zicc-vm",
+]
+
+[[package]]
+name = "zicc-assembler"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "clap-stdin",
+ "snafu",
+ "string-interner",
+ "zicc-assembler-ast",
+ "zicc-assembler-program",
+ "zicc-intcode",
+ "zicc-linker-program",
+ "zicc-value",
 ]
 
 [[package]]

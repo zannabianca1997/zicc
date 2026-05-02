@@ -9,12 +9,12 @@ use zicc_vm_stream::std_io::{Format, IoReader, IoWriter};
 
 use crate::{DriveError, Vm};
 
-/// Intcode virtual machine
+/// Execute IntCode programs
 ///
 /// Execute a program in IntCode. Input and output can be specified in program
 /// frontmatter.
 #[derive(Debug, Clone, Parser)]
-#[clap(version, about, long_about)]
+#[clap(version)]
 pub struct Cli {
     /// Program to execute
     pub program: PathBuf,

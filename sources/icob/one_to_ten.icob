@@ -2,10 +2,10 @@
 name="One to ten"
 +++
 main:
-4,counter@a,
+$1: 4,counter@a,
 1001,counter@a,1,counter@a,
 8,counter@a,end@a,eq_result@a,
-1006,eq_result@a,0,
+1006,eq_result@a,$1,
 2106,0,-1,
 eq_result@a: -1,
 counter@a: 1,

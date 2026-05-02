@@ -1,9 +1,9 @@
 use std::{
-    ops::{AddAssign, Neg, SubAssign},
+    ops::{AddAssign, SubAssign},
     str::FromStr,
 };
 
-use derive_more::Display;
+use derive_more::{Display, From, Into, Neg};
 use lazy_regex::{Lazy, Regex, regex};
 use zicc_limits::{ParseValueError, Value};
 
@@ -13,7 +13,7 @@ use crate::Token;
 pub static RE: &Lazy<Regex> = regex!(r#"^(?:-|\+)?\d+$"#);
 
 /// An integer literal
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display, From, Into, Neg)]
 pub struct IntLiteral(Value);
 
 impl IntLiteral {
@@ -44,12 +44,6 @@ impl FromStr for IntLiteral {
     }
 }
 
-impl From<IntLiteral> for Value {
-    fn from(value: IntLiteral) -> Self {
-        value.0
-    }
-}
-
 impl TryFrom<Token> for IntLiteral {
     type Error = Token;
     fn try_from(value: Token) -> Result<Self, Token> {
@@ -58,14 +52,6 @@ impl TryFrom<Token> for IntLiteral {
         } else {
             Err(value)
         }
-    }
-}
-
-impl Neg for IntLiteral {
-    type Output = IntLiteral;
-
-    fn neg(self) -> Self::Output {
-        Self(-self.0)
     }
 }
 
