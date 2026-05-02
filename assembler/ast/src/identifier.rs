@@ -1,7 +1,7 @@
 //! Identifiers
 
 use std::{
-    fmt::{self, Display as _},
+    fmt::{self, Display as _, Write},
     hash::BuildHasher,
 };
 
@@ -9,7 +9,6 @@ use base64::{
     Engine,
     alphabet::Alphabet,
     engine::{GeneralPurpose, general_purpose::NO_PAD},
-    prelude::BASE64_STANDARD,
 };
 use derive_more::Display;
 use lazy_regex::{Lazy, Regex, regex};
@@ -51,6 +50,7 @@ impl DisplayWith for Identifier {
             Identifier::Named { name, provenance } => {
                 name.fmt_with(f, interner)?;
                 if let Some(provenance) = provenance {
+                    f.write_char('@')?;
                     provenance.fmt_with(f, interner)?;
                 }
                 Ok(())
@@ -69,7 +69,7 @@ pub enum SpecialIdentifier {
     #[display("$start")]
     Start,
     /// `$end`: point to the end of the code, and the start of the stack
-    #[display("$start")]
+    #[display("$end")]
     End,
     /// `$unit_start`: point to the start of the current compilation unit
     #[display("$unit_start")]

@@ -1,11 +1,12 @@
 +++
 name="One to ten"
 +++
-4,counter,
-1001,counter,1,counter,
-8,counter,end,eq_result,
-1006,eq_result,0,
-99,
-eq_result: -1,
-counter: 1,
-end: 11
+main:
+4,counter@a,
+1001,counter@a,1,counter@a,
+8,counter@a,end@a,eq_result@a,
+1006,eq_result@a,0,
+2106,0,-1,
+eq_result@a: -1,
+counter@a: 1,
+end@a: 11

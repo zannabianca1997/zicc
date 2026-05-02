@@ -44,6 +44,12 @@ impl FromStr for IntLiteral {
     }
 }
 
+impl From<IntLiteral> for Value {
+    fn from(value: IntLiteral) -> Self {
+        value.0
+    }
+}
+
 impl TryFrom<Token> for IntLiteral {
     type Error = Token;
     fn try_from(value: Token) -> Result<Self, Token> {

@@ -1,4 +1,4 @@
-use std::fmt::{Display as _, Pointer};
+use std::fmt::Display as _;
 
 pub use zicc_compiler_lexer::int_literal::IntLiteral;
 use zicc_display::DisplayWith;
