@@ -34,6 +34,7 @@ impl IntLiteral {
     }
 
     pub const ZERO: Self = Self(Value::ZERO);
+    pub const ONE: Self = Self(Value::ONE);
 }
 
 impl FromStr for IntLiteral {

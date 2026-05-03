@@ -21,6 +21,7 @@ enum Inner {
 
 impl Value {
     pub const ZERO: Value = Value(Inner::Small(0));
+    pub const ONE: Value = Value(Inner::Small(1));
 }
 
 #[derive(Debug, Snafu)]

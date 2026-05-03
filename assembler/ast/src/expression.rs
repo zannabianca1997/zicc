@@ -38,3 +38,18 @@ impl DisplayWith for Expr {
         }
     }
 }
+
+impl From<IntLiteral> for Expr {
+    fn from(value: IntLiteral) -> Self {
+        Self::Constant { value }
+    }
+}
+
+impl From<Identifier> for Expr {
+    fn from(value: Identifier) -> Self {
+        Self::Offset {
+            label: value,
+            offset: IntLiteral::ZERO,
+        }
+    }
+}

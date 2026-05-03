@@ -93,7 +93,15 @@ line_sep  ::= [ ';' { non_newline } ] newline ;
 line      ::= { label ':' } [ instr | directive ] ;
 
 directive ::= 'DATA' labelled_expr { labelled_expr }
-            | 'ZEROS' uint ;
+            | 'ZEROS' uint
+            | 'JMP' rp                           (* unconditional jump *)
+            | 'INC' rp                           (* increment by 1 *)
+            | 'DEC' rp                           (* decrement by 1 *)
+            | 'MOV' rp rp                        (* copy value *)
+            | 'PUSH' rp                          (* push to stack *)
+            | 'POP' [ rp ]                       (* pop from stack *)
+            | 'CALL' rp                          (* call procedure *)
+            | 'RET' ;                            (* return from procedure *)
 
 instr     ::= 'ADD' rp rp wp   (* 01 *)
             | 'MUL' rp rp wp   (* 02 *)
