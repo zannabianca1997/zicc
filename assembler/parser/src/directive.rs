@@ -1,5 +1,6 @@
 use chumsky::{IterParser, Parser, error::Rich, prelude::just, text::inline_whitespace};
 use zicc_assembler_ast::directive::Directive;
+use zicc_intcode::ReadParamMode;
 
 use crate::{
     ParserExtra,
@@ -101,8 +102,16 @@ fn pop<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
 fn call<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
     just("CALL")
         .then_ignore(inline_whitespace().at_least(1))
-        .ignore_then(read_param())
-        .map(Directive::Call)
+        .ignore_then(read_param().try_map(|(mode, labelled), span| {
+            if mode == ReadParamMode::Relative && labelled.is_labelled() {
+                Err(Rich::custom(
+                    span,
+                    "CALL with relative parameter cannot be labelled",
+                ))
+            } else {
+                Ok(Directive::Call((mode, labelled)))
+            }
+        }))
         .labelled("call directive")
 }
 

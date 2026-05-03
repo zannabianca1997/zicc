@@ -333,6 +333,28 @@ fn write_directive(
                 next_free,
             );
 
+            // For relative mode, correct the target by -1 to account for
+            // the RB increment that already happened in PUSH (INB #1)
+            let target = if mode == ReadParamMode::Relative {
+                target.map(|expr| match expr {
+                    Expr::Constant { value } => {
+                        let v: Value = value.into();
+                        Expr::Constant {
+                            value: (&v - &Value::ONE).into(),
+                        }
+                    }
+                    Expr::Offset { label, offset } => {
+                        let v: Value = offset.into();
+                        Expr::Offset {
+                            label,
+                            offset: (&v - &Value::ONE).into(),
+                        }
+                    }
+                })
+            } else {
+                target
+            };
+
             // JMP <target>
             write_directive(Directive::Jmp((mode, target)), line_content, next_free);
 
