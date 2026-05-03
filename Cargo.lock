@@ -925,11 +925,13 @@ dependencies = [
 name = "zicc-assembler"
 version = "0.1.0"
 dependencies = [
+ "ariadne",
  "clap",
  "clap-stdin",
  "snafu",
  "string-interner",
  "zicc-assembler-ast",
+ "zicc-assembler-parser",
  "zicc-assembler-program",
  "zicc-intcode",
  "zicc-linker-program",

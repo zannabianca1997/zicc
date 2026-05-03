@@ -2,6 +2,7 @@ use std::{
     borrow::{Borrow, Cow},
     collections::BTreeMap,
     io,
+    ops::Range,
     str::Utf8Error,
 };
 
@@ -60,11 +61,11 @@ impl Program {
     pub fn parse<'s>(
         source: &'s [u8],
         interner: &mut DefaultStringInterner,
-        mut error_handler: impl FnMut(ParserError<'_>),
+        mut error_handler: impl ErrorHandler,
     ) -> Result<Self, ParseError> {
-        let FrontMatter {
+        let file_content @ FrontMatter {
             frontmatter:
-                info @ ProgramInfo {
+                ProgramInfo {
                     format,
                     compression,
                     ..
@@ -84,13 +85,16 @@ impl Program {
                 let content = str::from_utf8(&content)?;
                 let (content, errors) = parse(content, interner).into_output_errors();
                 for error in errors {
-                    error_handler(error)
+                    error_handler.handle(error, |span| file_content.map_content_span(span))
                 }
                 content.context(ParsingFailedSnafu)?
             }
         };
 
-        Ok(Self { info, content })
+        Ok(Self {
+            info: file_content.frontmatter,
+            content,
+        })
     }
 
     /// Dump the program to a writer
@@ -154,4 +158,8 @@ pub enum ParseError {
     },
 
     ParsingFailed,
+}
+
+pub trait ErrorHandler {
+    fn handle(&mut self, err: ParserError<'_>, span_mapper: impl Fn(Range<usize>) -> Range<usize>);
 }
