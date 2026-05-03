@@ -39,8 +39,11 @@ pub(crate) fn expr<'s>() -> impl Parser<'s, &'s str, Expr, ParserExtra<'s>> {
         .map(|value| Expr::Constant { value })
         .labelled("constant")
         .or(identifier()
-            .then_ignore(inline_whitespace())
-            .then(int_literal_with_sign().or_not())
+            .then(
+                inline_whitespace()
+                    .ignore_then(int_literal_with_sign())
+                    .or_not(),
+            )
             .map(|(label, offset)| Expr::Offset {
                 label,
                 offset: offset.unwrap_or_else(|| IntLiteral::ZERO),
