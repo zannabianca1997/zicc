@@ -119,6 +119,14 @@ fn rewrite_directive(directive: &mut Directive, map_code: &mut impl FnMut(u32) -
         }
         Directive::Call((_, target)) => rewrite_labelled(target, map_code),
         Directive::Ret => {}
+        Directive::Load((_, ptr), (_, dest)) => {
+            rewrite_labelled(ptr, map_code);
+            rewrite_labelled(dest, map_code);
+        }
+        Directive::Store((_, src), (_, ptr)) => {
+            rewrite_labelled(src, map_code);
+            rewrite_labelled(ptr, map_code);
+        }
     }
 }
 
@@ -372,6 +380,72 @@ fn write_directive(
                     ReadParamMode::Relative,
                     Labelled::unlabelled((-IntLiteral::ONE).into()),
                 )),
+                line_content,
+                next_free,
+            );
+        }
+        Directive::Load((ptr_mode, ptr), (dest_mode, dest)) => {
+            let temp_label = *next_free;
+            *next_free += 1;
+
+            // MOV {ptr} $temp_label
+            write_directive(
+                Directive::Mov(
+                    (ptr_mode, ptr),
+                    (
+                        WriteParamMode::Absolute,
+                        Labelled::unlabelled(Identifier::Unnamed { code: temp_label }.into()),
+                    ),
+                ),
+                line_content,
+                next_free,
+            );
+
+            // MOV $temp_label:0 {dest}
+            write_directive(
+                Directive::Mov(
+                    (
+                        ReadParamMode::Absolute,
+                        Labelled::unlabelled(Expr::Offset {
+                            label: Identifier::Unnamed { code: temp_label },
+                            offset: IntLiteral::ZERO,
+                        }),
+                    ),
+                    (dest_mode, dest),
+                ),
+                line_content,
+                next_free,
+            );
+        }
+        Directive::Store((src_mode, src), (ptr_mode, ptr)) => {
+            let temp_label = *next_free;
+            *next_free += 1;
+
+            // MOV {ptr} $temp_label
+            write_directive(
+                Directive::Mov(
+                    (ptr_mode, ptr),
+                    (
+                        WriteParamMode::Absolute,
+                        Labelled::unlabelled(Identifier::Unnamed { code: temp_label }.into()),
+                    ),
+                ),
+                line_content,
+                next_free,
+            );
+
+            // MOV {src} $temp_label:0
+            write_directive(
+                Directive::Mov(
+                    (src_mode, src),
+                    (
+                        WriteParamMode::Absolute,
+                        Labelled::unlabelled(Expr::Offset {
+                            label: Identifier::Unnamed { code: temp_label },
+                            offset: IntLiteral::ZERO,
+                        }),
+                    ),
+                ),
                 line_content,
                 next_free,
             );

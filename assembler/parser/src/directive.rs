@@ -121,6 +121,26 @@ fn ret<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
         .labelled("ret directive")
 }
 
+fn load<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
+    just("LOAD")
+        .then_ignore(inline_whitespace().at_least(1))
+        .ignore_then(read_param())
+        .then_ignore(inline_whitespace().at_least(1))
+        .then(write_param())
+        .map(|(ptr, dst)| Directive::Load(ptr, dst))
+        .labelled("load directive")
+}
+
+fn store<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
+    just("STORE")
+        .then_ignore(inline_whitespace().at_least(1))
+        .ignore_then(read_param())
+        .then_ignore(inline_whitespace().at_least(1))
+        .then(read_param())
+        .map(|(src, ptr)| Directive::Store(src, ptr))
+        .labelled("store directive")
+}
+
 /// A single directive
 pub(crate) fn directive<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
     data()
@@ -133,5 +153,7 @@ pub(crate) fn directive<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra
         .or(pop())
         .or(call())
         .or(ret())
+        .or(load())
+        .or(store())
         .labelled("directive")
 }

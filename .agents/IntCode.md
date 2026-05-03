@@ -102,6 +102,8 @@ directive ::= 'DATA' labelled_expr { labelled_expr }
             | 'POP' [ rp ]                       (* pop from stack *)
             | 'CALL' rp                          (* call procedure *)
             | 'RET' ;                            (* return from procedure *)
+            | 'LOAD' rp wp                       (* load from pointer *)
+            | 'STORE' rp rp ;                    (* store to pointer *)
 
 instr     ::= 'ADD' rp rp wp   (* 01 *)
             | 'MUL' rp rp wp   (* 02 *)

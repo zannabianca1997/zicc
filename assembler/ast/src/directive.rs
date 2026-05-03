@@ -31,6 +31,16 @@ pub enum Directive {
     Call((ReadParamMode, Labelled<Expr>)),
     /// Return from procedure: `RET` → `JMP @-1`
     Ret,
+    /// Load from pointer: `LOAD {ptr} {dest}` → `MOV {ptr} $1; MOV $1:0 {dest}`
+    Load(
+        (ReadParamMode, Labelled<Expr>),
+        (WriteParamMode, Labelled<Expr>),
+    ),
+    /// Store to pointer: `STORE {src} {ptr}` → `MOV {ptr} $1; MOV {src} $1:0`
+    Store(
+        (ReadParamMode, Labelled<Expr>),
+        (ReadParamMode, Labelled<Expr>),
+    ),
 }
 
 fn fmt_param<M: Into<ReadParamMode> + Copy>(
@@ -96,6 +106,18 @@ impl DisplayWith for Directive {
                 fmt_param(*mode, target, f, interner)?;
             }
             Directive::Ret => write!(f, "RET")?,
+            Directive::Load((ptr_mode, ptr), (dst_mode, dst)) => {
+                write!(f, "LOAD ")?;
+                fmt_param(*ptr_mode, ptr, f, interner)?;
+                write!(f, " ")?;
+                fmt_param(*dst_mode, dst, f, interner)?;
+            }
+            Directive::Store((src_mode, src), (ptr_mode, ptr)) => {
+                write!(f, "STORE ")?;
+                fmt_param(*src_mode, src, f, interner)?;
+                write!(f, " ")?;
+                fmt_param(*ptr_mode, ptr, f, interner)?;
+            }
         };
 
         Ok(())
