@@ -1,6 +1,10 @@
 #![doc = include_str!("../README.md")]
 
-use std::{collections::BTreeMap, iter::repeat_n, mem};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    iter::repeat_n,
+    mem,
+};
 
 use snafu::Snafu;
 use zicc_assembler_ast::{
@@ -406,10 +410,10 @@ fn write_directive(
                 Directive::Mov(
                     (
                         ReadParamMode::Absolute,
-                        Labelled::unlabelled(Expr::Offset {
-                            label: Identifier::Unnamed { code: temp_label },
-                            offset: IntLiteral::ZERO,
-                        }),
+                        Labelled {
+                            labels: BTreeSet::from_iter([Identifier::Unnamed { code: temp_label }]),
+                            item: IntLiteral::ZERO.into(),
+                        },
                     ),
                     (dest_mode, dest),
                 ),
@@ -440,10 +444,10 @@ fn write_directive(
                     (src_mode, src),
                     (
                         WriteParamMode::Absolute,
-                        Labelled::unlabelled(Expr::Offset {
-                            label: Identifier::Unnamed { code: temp_label },
-                            offset: IntLiteral::ZERO,
-                        }),
+                        Labelled {
+                            labels: BTreeSet::from_iter([Identifier::Unnamed { code: temp_label }]),
+                            item: IntLiteral::ZERO.into(),
+                        },
                     ),
                 ),
                 line_content,

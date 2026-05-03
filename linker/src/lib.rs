@@ -135,7 +135,8 @@ pub fn link(
     interner: &mut DefaultStringInterner,
 ) -> Result<Program, LinkError> {
     // Resolve identifier collisions
-    let mut next_anonymous = 0;
+    // Leave 1 free for the prelude
+    let mut next_anonymous = 1;
     for (i, unit) in units.iter_mut().enumerate() {
         // Namespace all private identifiers
         namespace_provenances(unit, &i.to_be_bytes(), interner);
@@ -186,19 +187,19 @@ fn prelude(interner: &mut DefaultStringInterner) -> Program {
     // ```
     // that assembles to:
     // ```
-    //     INB #$end + 1           ; put RB at the start of the stack plus 1
-    //     ADD #$4294967295 #0 @-1 ; put return address on the stack
-    //     JEZ #0 #main            ; jump to main
-    // $4294967295: HLT            ; halt
+    //     INB  #$end + 1       ; put RB at the start of the stack plus 1
+    //     ADD  #$1 #0  @-1     ; put return address on the stack
+    //     JEZ  #0  #main       ; jump to main
+    // $1: HLT                  ; halt
     //```
     // using `u32::MAX` as the anonymous label, as they where rewritten and it
     // would crash way before reaching that number
     Program::parse(
         b"
-                         109, $end+1,
-                       21101, $4294967295,    0, -1,
-                        1106, 0,           main,
-           $4294967295:   99
+                 109, $end+1,
+               21101,     $0,      0,  -1,
+                1106,      0,   main,
+           $0:    99
         ",
         interner,
     )
