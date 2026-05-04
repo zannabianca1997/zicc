@@ -1,0 +1,56 @@
++++
+name = "Fibonacci"
++++
+
+main:
+    ; Read and push on the stack
+    INP @0
+    INB #2
+
+    CALL #fibo
+
+    ; Pop and write out result
+    INB #-2
+    OUT @1
+
+    RET
+
+fibo:
+    ; If the parameter is 0, return 1
+    JNZ @-3 #not_zero
+    MOV #1 @-2
+    RET
+    not_zero:
+
+    ; Decrease it. If zero, return 1
+    DEC @-3
+    JNZ @-3 #not_one
+    MOV #1 @-2
+    RET
+    not_one:
+
+    ; recursive case
+
+    ; Load n-1 (decreased before) and move the stack frame
+    MOV @-3 @0
+    INB #2
+
+    ; recurse
+    CALL #fibo
+
+    ; take the result and place it in the result slot
+    INB #-2
+    MOV @1 @-2
+
+    ; subtract one, load and move the stack frame
+    ADD @-3 #-1 @0
+    INB #2
+
+    ; recurse
+    CALL #fibo
+
+    ; take the result and add it to the result slot
+    INB #-2
+    ADD @1 @-2 @-2
+
+    RET
