@@ -17,17 +17,17 @@ main:
 
 fibo:
     ; If the parameter is 0, return 1
-    JNZ @-3 #not_zero
+    JNZ @-3 #not_zero@fibo
     MOV #1 @-2
     RET
-    not_zero:
+    not_zero@fibo:
 
     ; Decrease it. If zero, return 1
     DEC @-3
-    JNZ @-3 #not_one
+    JNZ @-3 #not_one@fibo
     MOV #1 @-2
     RET
-    not_one:
+    not_one@fibo:
 
     ; recursive case
 

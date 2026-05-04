@@ -1,0 +1,39 @@
++++
+name="Quicksort"
++++
+
+; 100 is the call stack size. The call frame is about 3, so it should amount to a
+; recursion depth of 30. Quicksort should then handle any lenght.
+DATA input_start: $end+100  input_end: $end+100
+
+main:
+    CALL #read_list
+
+    ; calling the sort function
+    PUSH input_start    ; first parameter
+    PUSH input_end      ; second parameter
+    CALL #qsort
+    INB  #-2            ; pop parameters
+
+    CALL #print_list
+
+    RET
+
+qsort:
+    ; TODO
+    RET
+
+read_list:
+    read:   INP @0              ; Read a value
+    JEZ @0  #read_list_end     ; If zero has been written, exit
+
+    STORE   @0  input_end       ; Store the input value
+    INC input_end               ; Increase the input end pointer
+
+    JMP #read                   ; Read next char
+
+    read_list_end: RET         ; Return
+
+print_list:
+    ; TODO
+    RET
