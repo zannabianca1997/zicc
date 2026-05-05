@@ -75,17 +75,18 @@ qsort:
     STORE @5 @1         ; *pivot_pos = pivot (was at *(end - 1))
 
     ; recurse left: qsort(start, pivot_pos)
-    PUSH @-3            ; push start
-    PUSH @1             ; push pivot_pos
+    ; Copy params before frame shift
+    MOV @-3 @0         ; @0 = start
+    INB #2             ; make room
     CALL #qsort
-    INB #-2             ; pop params
+    INB #-2
 
     ; recurse right: qsort(pivot_pos + 1, end)
-    ADD @1 #1 @0        ; @0 = pivot_pos + 1
-    PUSH @0             ; push pivot_pos + 1
-    PUSH @-2            ; push end
+    ADD @1 #1 @0      ; @0 = pivot_pos + 1
+    MOV @-2 @1        ; @1 = end
+    INB #2
     CALL #qsort
-    INB #-2             ; pop params
+    INB #-2
 
     return@qsort:
     RET

@@ -184,6 +184,31 @@ This works for the hull painting robot introduced on [day 11](https://adventofco
 1101,0,11111,0,3,1,102,-1,1,1,101,1,1,1,4,1,4,1,101,-1,2,2,1005,2,4,99
 ```
 
+## Gotchas
+
+### `PUSH` shifts all `@N` references
+
+`PUSH` expands to `INB #1; MOV <value> @-1`. The `INB #1` changes the relative base,
+so after the `PUSH`, every `@N` refers to a different cell than before.
+
+For example, inside a function with `@-3` = first param and `@-2` = second param,
+`PUSH @-3` does **not** push the first param:
+
+```
+PUSH @-3  →  INB #1    ; rb += 1
+             MOV @-3 @-1  ; @-3 now points to old @-2 (= second param!)
+```
+
+To push function parameters, copy them to `@0`, `@1` (above the frame) first,
+then `INB #2`, then `CALL`. The copies survive the shift:
+
+```asm
+MOV @-3 @0        ; copy param to safe area
+INB #2             ; room for 2 params — copies now at @-2, @-1
+CALL #target       ; copies now at @-3, @-2 inside callee
+INB #-2
+```
+
 ## Computational Class
 
 With the addition of control flow on day 5, Intcode is powerful enough to be Turing-complete.
