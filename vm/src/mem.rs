@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use zicc_intcode::{Instruction, InvalidCodeError, ReadParamMode, WriteParamMode};
@@ -46,14 +48,16 @@ impl Memory {
     }
 
     /// Read an instruction at the current instruction pointer
-    pub fn read_instruction(&self) -> Result<Instruction<usize>, ReadInstructionError> {
+    pub fn read_instruction(
+        &self,
+    ) -> Result<(Range<usize>, Instruction<usize>), ReadInstructionError> {
         use Instruction::*;
 
         let opcode = self.get(self.ip);
 
         let [a, b, c] = [self.ip + 1, self.ip + 2, self.ip + 3];
 
-        Ok(match Instruction::decode(opcode)? {
+        let instr = match Instruction::decode(opcode)? {
             Add((ma, ()), (mb, ()), (mc, ())) => Add((ma, a), (mb, b), (mc, c)),
             Mul((ma, ()), (mb, ()), (mc, ())) => Mul((ma, a), (mb, b), (mc, c)),
             Inp((ma, ())) => Inp((ma, a)),
@@ -64,7 +68,9 @@ impl Memory {
             Seq((ma, ()), (mb, ()), (mc, ())) => Seq((ma, a), (mb, b), (mc, c)),
             Inb((ma, ())) => Inb((ma, a)),
             Hlt => Hlt,
-        })
+        };
+
+        Ok((self.ip..(self.ip + instr.len()), instr))
     }
 
     /// Advance over an instruction
@@ -150,6 +156,18 @@ impl Memory {
             pos: pos.clone(),
             relative: relative.then_some(self.rb.clone()),
         })
+    }
+
+    pub fn ip(&self) -> usize {
+        self.ip
+    }
+
+    pub fn rb(&self) -> &Value {
+        &self.rb
+    }
+
+    pub fn content(&self) -> &[Value] {
+        &self.content
     }
 
     pub fn increase_relative_base(&mut self, a: &Value) {

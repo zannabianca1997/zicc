@@ -118,6 +118,10 @@ impl<P> Instruction<P> {
             Hlt => HLT,
         }
     }
+
+    pub fn len(&self) -> usize {
+        1 + self.opcode().param_count()
+    }
 }
 
 impl Instruction<()> {

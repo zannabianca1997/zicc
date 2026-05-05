@@ -6,17 +6,23 @@ use zicc_limits::Value;
 use zicc_vm_program::Program;
 use zicc_vm_stream::{Reader, Writer};
 
-use crate::mem::{IndexError, JumpedOutOfMemError, Memory, ReadInstructionError};
+use crate::{
+    hooks::Hooks,
+    mem::{IndexError, JumpedOutOfMemError, Memory, ReadInstructionError},
+};
 
 pub mod cli;
 pub mod mem;
+pub mod hooks;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Vm {
+pub struct Vm<Hooks: ?Sized = ()> {
     program: Program,
     memory: Memory,
 
     input: Option<Value>,
+
+    hooks: Hooks,
 }
 
 impl Vm {
@@ -29,6 +35,26 @@ impl Vm {
             program,
             memory,
             input: None,
+            hooks: (),
+        }
+    }
+}
+
+impl<H> Vm<H> {
+    /// Create a new vm to run the given program, adding hooks to the runtime
+    pub fn new_with_hooks(program: Program, hooks: H) -> Self {
+        let Vm {
+            program,
+            memory,
+            input,
+            hooks: (),
+        } = Vm::new(program);
+
+        Self {
+            program,
+            memory,
+            input,
+            hooks,
         }
     }
 
@@ -55,7 +81,10 @@ impl Vm {
     ///
     /// Run the vm until a stop state is reached - meaning some sort of
     /// interaction is required to continue operating.
-    pub fn run(&mut self) -> Result<StopState, RuntimeError> {
+    pub fn run(&mut self) -> Result<StopState, RuntimeError>
+    where
+        H: Hooks,
+    {
         loop {
             if let State::StopState(stop_state) = self.step()? {
                 return Ok(stop_state);
@@ -74,6 +103,7 @@ impl Vm {
     where
         R: Reader,
         W: Writer,
+        H: Hooks,
     {
         loop {
             match self.run()? {
@@ -94,11 +124,18 @@ impl Vm {
     }
 
     /// Advance the vm monotonically
-    pub fn step(&mut self) -> Result<State, RuntimeError> {
-        let instruction = self
+    pub fn step(&mut self) -> Result<State, RuntimeError>
+    where
+        H: Hooks,
+    {
+        let (pos, instruction) = self
             .memory
             .read_instruction()
             .context(ReadInstructionSnafu)?;
+
+        self.hooks
+            .before_instruction(&instruction, pos.clone(), &self.memory);
+
         match instruction {
             zicc_intcode::Instruction::Add(a, b, c) => {
                 let a = self.memory.read(a).context(ReadMemorySnafu)?;
