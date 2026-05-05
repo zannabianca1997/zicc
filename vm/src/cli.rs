@@ -1,4 +1,6 @@
 //! Cli harness to the vm
+pub mod tui;
+
 use std::{fs, io, path::PathBuf};
 
 use clap::Parser;
@@ -40,6 +42,13 @@ pub struct Cli {
     /// or defaults to `ints`.
     #[clap(long)]
     pub output_format: Option<Format>,
+
+    /// Activate the TUI debug display
+    #[arg(long)]
+    pub debug: bool,
+
+    #[command(flatten)]
+    pub tui: tui::TuiArgs,
 }
 
 #[derive(Debug, Snafu)]
@@ -69,6 +78,8 @@ pub fn main(
         input_format,
         output,
         output_format,
+        debug,
+        tui,
     }: Cli,
 ) -> Result<(), Error> {
     let program =
@@ -84,7 +95,7 @@ pub fn main(
         output.into_writer().context(OutputSnafu)?,
     );
 
-    let mut vm = Vm::new(program);
+    let mut vm = Vm::new_with_hooks(program, debug.then(|| tui::Tui::from(tui)));
 
     vm.drive(input, output).context(RuntimeSnafu)?;
 

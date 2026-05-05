@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use zicc_intcode::{Instruction, OpCode};
+use zicc_intcode::Instruction;
 
 use crate::mem::Memory;
 
