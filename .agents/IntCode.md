@@ -150,7 +150,8 @@ Notes:
   predefined, read-only symbols that cannot be redefined or used as label
   targets.
 
-`.ints` could be a good standard file extension for Intcode assembly.
+`.ints` is the extension for intcode programs. `.ica` are intcode assembly,
+while `.icob` are intcode object files. `.ic` is the extension for ZICC sources.
 
 ## Example Programs
 
