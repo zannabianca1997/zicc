@@ -1,13 +1,14 @@
-use std::io::Write;
-use std::io::stderr;
+use std::borrow::Cow;
+use std::io::{self, stderr};
 use std::ops::Range;
+use std::usize;
 
 use clap::Args;
-use crossterm::style::{Attribute, Color, ContentStyle, Stylize};
+use crossterm::style::{Attributes, ContentStyle};
 use crossterm::tty::IsTty;
 use derive_more::Constructor;
-
-use zicc_intcode::{Instruction, ReadParamMode, WriteParamMode};
+use itertools::Itertools;
+use zicc_intcode::{Instruction, OpCode, ReadParamMode};
 use zicc_limits::Value;
 
 use crate::hooks::Hooks;
@@ -19,15 +20,19 @@ pub mod colors {
     use crossterm::style::Color;
 
     pub const IP_LABEL: Color = Color::Cyan;
-    pub const IP_VALUE: Color = Color::Cyan;
+    pub const IP_VALUE: Color = IP_LABEL;
+
     pub const RB_LABEL: Color = Color::Yellow;
-    pub const RB_VALUE: Color = Color::Yellow;
-    pub const OPCODE_RAW: Color = Color::Cyan;
-    pub const OPCODE_MNEMONIC: Color = Color::Cyan;
+    pub const RB_VALUE: Color = RB_LABEL;
+
+    pub const OPCODE: Color = Color::Cyan;
+
+    pub const ABSOLUTE: Color = Color::Grey;
     pub const IMMEDIATE: Color = Color::Green;
     pub const RELATIVE: Color = Color::Magenta;
-    pub const ABSOLUTE: Color = Color::DarkGrey;
-    pub const ELLIPSIS: Color = Color::DarkGrey;
+
+    pub const ELLIPSIS: Color = Color::Grey;
+
     pub const MEMORY_VALUE: Color = Color::White;
 }
 
@@ -37,7 +42,7 @@ pub(super) struct Tui {
     pub fallback_width: u16,
 }
 
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Clone, Args, Default)]
 pub struct TuiArgs {
     /// Force color output in the TUI
     #[arg(long, conflicts_with("debug_no_color"))]
@@ -54,496 +59,415 @@ pub struct TuiArgs {
 
 impl Default for Tui {
     fn default() -> Self {
-        Self {
-            colored: stderr().is_tty(),
-            fallback_width: 80,
-        }
+        Self::from(TuiArgs::default())
     }
 }
 
 impl From<TuiArgs> for Tui {
     fn from(cli: TuiArgs) -> Self {
-        let colored = if cli.debug_color {
-            true
-        } else if cli.debug_no_color {
-            false
-        } else {
-            stderr().is_tty()
-        };
-
         Self {
-            colored,
+            colored: if cli.debug_color {
+                true
+            } else if cli.debug_no_color {
+                false
+            } else {
+                stderr().is_tty()
+            },
             fallback_width: cli.debug_term_size.unwrap_or(80),
         }
     }
 }
 
-// ── MemWindow ──────────────────────────────────────────────────────
-
-struct MemWindow {
-    start: usize,
-    end: usize,
-    cell_width: usize,
-    has_left: bool,
-    has_right: bool,
-}
-
-fn compute_window(
-    center: usize,
-    content_len: usize,
-    prefix_len: usize,
-    width: usize,
-    content: &[Value],
-) -> MemWindow {
-    let cell_width: usize = 5;
-    let cell_slop: usize = 8;
-
-    let available = width.saturating_sub(prefix_len);
-    let cells = if available <= cell_slop {
-        0
-    } else {
-        (available - cell_slop) / cell_width
-    };
-
-    if cells == 0 {
-        return MemWindow {
-            start: 0,
-            end: 0,
-            cell_width,
-            has_left: false,
-            has_right: false,
-        };
-    }
-
-    let half = cells / 2;
-    let start = center.saturating_sub(half);
-    let end = (start + cells).min(content_len.max(start));
-
-    let has_left = start > 0
-        && content[..start.min(content_len)]
-            .iter()
-            .any(|v| v != &Value::ZERO);
-    let has_right = end < content_len
-        && content[end..]
-            .iter()
-            .any(|v| v != &Value::ZERO);
-
-    MemWindow {
-        start,
-        end,
-        cell_width,
-        has_left,
-        has_right,
-    }
-}
-
-fn prefix_len(label_val: &str) -> usize {
-    4 + label_val.len() + 3 // "{label}:" + val + "   "  (label is 2 chars: IP/RB)
-}
-
-// ── Memory line rendering (shared by IP and RB) ────────────────────
-
-struct MemLineColors {
-    label: Color,
-    value: Color,
-    highlight: Color,
-    highlight_bold: bool,
-    memory: Color,
-    ellipsis: Color,
-}
-
-const IP_COLORS: MemLineColors = MemLineColors {
-    label: colors::IP_LABEL,
-    value: colors::IP_VALUE,
-    highlight: colors::OPCODE_RAW,
-    highlight_bold: true,
-    memory: colors::MEMORY_VALUE,
-    ellipsis: colors::ELLIPSIS,
-};
-
-const RB_COLORS: MemLineColors = MemLineColors {
-    label: colors::RB_LABEL,
-    value: colors::RB_VALUE,
-    highlight: colors::RB_VALUE,
-    highlight_bold: true,
-    memory: colors::MEMORY_VALUE,
-    ellipsis: colors::ELLIPSIS,
-};
-
-fn render_memory_line(
-    label: &str,
-    label_val_str: &str,
-    win: &MemWindow,
-    content: &[Value],
-    highlight_idx: usize,
-    c: &MemLineColors,
-    width: usize,
-) -> (String, Vec<(Range<usize>, Color, bool)>) {
-    let mut text = String::new();
-    let mut styles = Vec::new();
-
-    // prefix
-    styles.push((0..4, c.label, false));
-    text.push_str(label);
-    text.push_str(": ");
-    let ps = text.len();
-    text.push_str(label_val_str);
-    styles.push((ps..text.len(), c.value, false));
-    text.push_str("   ");
-
-    if win.end == win.start || win.start >= win.end {
-        // no cells fit, just pad and return
-        if text.len() < width {
-            text.push_str(&" ".repeat(width - text.len()));
-        }
-        return (text, styles);
-    }
-
-    // left ellipsis
-    if win.has_left {
-        let es = text.len();
-        text.push_str("... ");
-        styles.push((es..text.len(), c.ellipsis, false));
-    }
-
-    // cells
-    for i in win.start..win.end {
-        let val = content.get(i).cloned().unwrap_or(Value::ZERO);
-        let cell = format!("{:>4} ", val);
-        let cs = text.len();
-        text.push_str(&cell);
-        if i == highlight_idx {
-            styles.push((cs..text.len(), c.highlight, c.highlight_bold));
-        } else {
-            styles.push((cs..text.len(), c.memory, false));
-        }
-    }
-
-    // right ellipsis
-    if win.has_right {
-        let es = text.len();
-        text.push_str(" ...");
-        styles.push((es..text.len(), c.ellipsis, false));
-    }
-
-    // pad
-    if text.len() < width {
-        text.push_str(&" ".repeat(width - text.len()));
-    }
-
-    (text, styles)
-}
-
-// ── Column helpers ──────────────────────────────────────────────────
-
-/// Column where the cell at the given index starts (beginning of the 5-char cell).
-fn value_cell_column(win: &MemWindow, prefix_len: usize, index: usize) -> usize {
-    let cell_index = index.saturating_sub(win.start);
-    let n_cells = win.end.saturating_sub(win.start);
-    if cell_index >= n_cells {
-        return prefix_len;
-    }
-    prefix_len
-        + if win.has_left { 4 } else { 0 }
-        + cell_index * win.cell_width
-}
-
-/// Column where the value *text* starts within its cell (after the leading space for right-alignment).
-fn value_text_column(win: &MemWindow, prefix_len: usize, index: usize, val_str: &str) -> Option<usize> {
-    let cell_index = index.saturating_sub(win.start);
-    let n_cells = win.end.saturating_sub(win.start);
-    if cell_index >= n_cells {
-        return None;
-    }
-    let cell_col = value_cell_column(win, prefix_len, index);
-    Some(cell_col + (4usize.saturating_sub(val_str.len())))
-}
-
-// ── Instruction line (line 2) ──────────────────────────────────────
-
-fn build_instruction_line(
-    instruction: &Instruction<usize>,
-    content: &[Value],
-    indent_col: usize,
-    width: usize,
-) -> (String, Vec<(Range<usize>, Color, bool)>) {
-    let instr_parts = format_instr(instruction, content);
-    let indent = " ".repeat(indent_col);
-
-    let mut text = String::new();
-    let mut styles = Vec::new();
-
-    // indentation (unstyled)
-    text.push_str(&indent);
-
-    // instruction parts
-    for (part_text, color, bold) in &instr_parts {
-        let ps = text.len();
-        text.push_str(part_text);
-        styles.push((ps..text.len(), *color, *bold));
-    }
-
-    // pad
-    if text.len() < width {
-        text.push_str(&" ".repeat(width - text.len()));
-    }
-
-    (text, styles)
-}
-
-// ── Caret line (line 4) ────────────────────────────────────────────
-
-fn render<W: Write>(
-    out: &mut W,
-    plain: &str,
-    styles: &[(Range<usize>, Color, bool)],
-    colored: bool,
-) {
-    if !colored {
-        let _ = write!(out, "{}", plain);
-        return;
-    }
-
-    let mut pos = 0;
-    for (range, color, bold) in styles {
-        if pos < range.start {
-            let _ = write!(out, "{}", &plain[pos..range.start]);
-        }
-        let mut cs = ContentStyle::new().with(*color);
-        if *bold {
-            cs = cs.attribute(Attribute::Bold);
-        }
-        let _ = write!(out, "{}", cs.apply(&plain[range.start..range.end]));
-        pos = range.end;
-    }
-    if pos < plain.len() {
-        let _ = write!(out, "{}", &plain[pos..]);
-    }
-}
-
-fn build_caret_line(
-    win: &MemWindow,
-    prefix_len: usize,
-    highlight_idx: usize,
-    highlight_str: &str,
-    color: Color,
-    width: usize,
-) -> (String, Vec<(Range<usize>, Color, bool)>) {
-    let col = match value_text_column(win, prefix_len, highlight_idx, highlight_str) {
-        Some(c) => c,
-        None => 0,
-    };
-
-    let caret = "^".repeat(highlight_str.len());
-    let indent = " ".repeat(col);
-
-    let mut text = String::new();
-    let mut styles = Vec::new();
-    text.push_str(&indent);
-    let cs = text.len();
-    text.push_str(&caret);
-    styles.push((cs..text.len(), color, false));
-
-    // pad
-    if text.len() < width {
-        text.push_str(&" ".repeat(width - text.len()));
-    }
-
-    (text, styles)
-}
-
-// ── Hooks implementation ───────────────────────────────────────────
-
 impl Hooks for Tui {
     fn before_instruction(
         &mut self,
         instruction: &Instruction<usize>,
-        _pos: Range<usize>,
+        pos: Range<usize>,
         memory: &Memory,
     ) {
         let width = crossterm::terminal::size()
-            .map(|(w, _)| w)
-            .unwrap_or(self.fallback_width) as usize;
+            .ok()
+            .map_or(self.fallback_width, |(w, _)| w) as usize;
 
-        let ip = memory.ip();
-        let content = memory.content();
-        let rb = memory.rb();
+        let ip_row = TuiRow::new(
+            TuiRowHeader::new_for_ip(memory),
+            memory,
+            pos.start,
+            instruction_cells(instruction, pos.start, memory),
+            width,
+        );
 
-        // ── Line 1: IP memory line ──
-        let ip_str = format!("{}", ip);
-        let ip_prefix = prefix_len(&ip_str);
-        let ip_win = compute_window(ip, content.len(), ip_prefix, width, content);
-        let (line1, styles1) = render_memory_line("IP", &ip_str, &ip_win, content, ip, &IP_COLORS, width);
+        let rb_header = TuiRowHeader::new_for_rb(memory);
+        let rb_window_width = width.saturating_sub(rb_header.width());
+        let rb_window = match usize::try_from(memory.rb()) {
+            Ok(pos) => TuiMemoryWindow::new(
+                memory,
+                pos,
+                vec![TuiCell::for_rb_value(memory.get(pos))],
+                rb_window_width,
+            ),
+            Err(_) => {
+                let mut w = TuiMemoryWindow::new(memory, 0, vec![], rb_window_width);
+                w.start_marker = StartMarker::NegativeOverflow;
+                w
+            }
+        };
+        let rb_row = TuiRow {
+            header: rb_header,
+            window: rb_window,
+        };
 
-        // ── Line 2: instruction aligned to opcode value ──
-        let opcode_val = content.get(ip).cloned().unwrap_or(Value::ZERO);
-        let opcode_str = format!("{}", opcode_val);
-        let instr_col = value_text_column(&ip_win, ip_prefix, ip, &opcode_str).unwrap_or(ip_prefix);
-        let (line2, styles2) = build_instruction_line(instruction, content, instr_col, width);
-
-        // ── Line 3: RB memory line centered at address rb ──
-        let rb_str = format!("{}", rb);
-        let rb_prefix = prefix_len(&rb_str);
-        let rb_addr = usize::try_from(rb).unwrap_or(0);
-        let rb_win = compute_window(rb_addr, content.len(), rb_prefix, width, content);
-        let (line3, styles3) = render_memory_line("RB", &rb_str, &rb_win, content, rb_addr, &RB_COLORS, width);
-
-        // ── Line 4: carets under the value at address rb ──
-        let rb_val = content.get(rb_addr).cloned().unwrap_or(Value::ZERO);
-        let rb_val_str = format!("{}", rb_val);
-        let (line4, styles4) = build_caret_line(&rb_win, rb_prefix, rb_addr, &rb_val_str, colors::RB_VALUE, width);
-
-        // ── Render ──
         let mut out = stderr();
-        render(&mut out, &line1, &styles1, self.colored);
-        let _ = writeln!(out);
-        render(&mut out, &line2, &styles2, self.colored);
-        let _ = writeln!(out);
-        render(&mut out, &line3, &styles3, self.colored);
-        let _ = writeln!(out);
-        render(&mut out, &line4, &styles4, self.colored);
-        let _ = writeln!(out);
+
+        if self.colored {
+            let _ = ip_row.print::<true>(&mut out);
+            let _ = rb_row.print::<true>(&mut out);
+        } else {
+            let _ = ip_row.print::<false>(&mut out);
+            let _ = rb_row.print::<false>(&mut out);
+        }
     }
 }
 
-fn format_instr(instruction: &Instruction<usize>, content: &[Value]) -> Vec<(String, Color, bool)> {
+fn instruction_cells(
+    instruction: &Instruction<usize>,
+    pos: usize,
+    memory: &Memory,
+) -> Vec<TuiCell<2>> {
+    let mut cells = Vec::with_capacity(instruction.len());
+
+    cells.push(TuiCell::for_opcode(memory.get(pos), instruction.opcode()));
+
     use Instruction::*;
 
-    let val = |pos: usize| content.get(pos).cloned().unwrap_or(Value::ZERO);
-
     match instruction {
-        Add((am, ap), (bm, bp), (cm, cp)) => {
-            let av = val(*ap);
-            let bv = val(*bp);
-            let cv = val(*cp);
-            vec![
-                (format!("ADD"), colors::OPCODE_MNEMONIC, true),
-                (format!("  "), colors::ABSOLUTE, false),
-                (param_read(*am, &av), color_read(*am), false),
-                (format!(" "), colors::ABSOLUTE, false),
-                (param_read(*bm, &bv), color_read(*bm), false),
-                (format!(" "), colors::ABSOLUTE, false),
-                (param_write(*cm, &cv), color_write(*cm), false),
-            ]
+        Add(a, b, c) | Mul(a, b, c) | Slt(a, b, c) | Seq(a, b, c) => {
+            cells.push(TuiCell::for_param(a.0, memory.get(a.1)));
+            cells.push(TuiCell::for_param(b.0, memory.get(b.1)));
+            cells.push(TuiCell::for_param(c.0.into(), memory.get(c.1)));
         }
-        Mul((am, ap), (bm, bp), (cm, cp)) => {
-            let av = val(*ap);
-            let bv = val(*bp);
-            let cv = val(*cp);
-            vec![
-                (format!("MUL"), colors::OPCODE_MNEMONIC, true),
-                (format!("  "), colors::ABSOLUTE, false),
-                (param_read(*am, &av), color_read(*am), false),
-                (format!(" "), colors::ABSOLUTE, false),
-                (param_read(*bm, &bv), color_read(*bm), false),
-                (format!(" "), colors::ABSOLUTE, false),
-                (param_write(*cm, &cv), color_write(*cm), false),
-            ]
+        Jnz(a, b) | Jez(a, b) => {
+            cells.push(TuiCell::for_param(a.0, memory.get(a.1)));
+            cells.push(TuiCell::for_param(b.0, memory.get(b.1)));
         }
-        Inp((wm, wp)) => {
-            let wv = val(*wp);
-            vec![
-                (format!("INP"), colors::OPCODE_MNEMONIC, true),
-                (format!("  "), colors::ABSOLUTE, false),
-                (param_write(*wm, &wv), color_write(*wm), false),
-            ]
+        Inp(a) => {
+            cells.push(TuiCell::for_param(a.0.into(), memory.get(a.1)));
         }
-        Out((rm, rp)) => {
-            let rv = val(*rp);
-            vec![
-                (format!("OUT"), colors::OPCODE_MNEMONIC, true),
-                (format!("  "), colors::ABSOLUTE, false),
-                (param_read(*rm, &rv), color_read(*rm), false),
-            ]
+        Out(a) | Inb(a) => {
+            cells.push(TuiCell::for_param(a.0, memory.get(a.1)));
         }
-        Jnz((am, ap), (bm, bp)) => {
-            let av = val(*ap);
-            let bv = val(*bp);
-            vec![
-                (format!("JNZ"), colors::OPCODE_MNEMONIC, true),
-                (format!("  "), colors::ABSOLUTE, false),
-                (param_read(*am, &av), color_read(*am), false),
-                (format!(" "), colors::ABSOLUTE, false),
-                (param_read(*bm, &bv), color_read(*bm), false),
-            ]
+        Hlt => {}
+    }
+
+    cells
+}
+
+#[derive(Debug, Clone)]
+struct TuiCell<const HEIGHT: usize> {
+    style: ContentStyle,
+    lines: [Cow<'static, str>; HEIGHT],
+}
+
+const CELL_SEPARATOR: &str = " ";
+
+impl<const H: usize> TuiCell<H> {
+    fn width(&self) -> usize {
+        self.lines.iter().map(|l| l.len()).max().unwrap_or(0)
+    }
+
+    fn print<const STYLE: bool>(&self, out: &mut impl io::Write, row: usize) -> io::Result<()> {
+        let width = self.width();
+        let content = format!("{:width$}", &self.lines[row]);
+
+        if STYLE {
+            write!(out, "{}", self.style.apply(content))
+        } else {
+            write!(out, "{content}")
         }
-        Jez((am, ap), (bm, bp)) => {
-            let av = val(*ap);
-            let bv = val(*bp);
-            vec![
-                (format!("JEZ"), colors::OPCODE_MNEMONIC, true),
-                (format!("  "), colors::ABSOLUTE, false),
-                (param_read(*am, &av), color_read(*am), false),
-                (format!(" "), colors::ABSOLUTE, false),
-                (param_read(*bm, &bv), color_read(*bm), false),
-            ]
-        }
-        Slt((am, ap), (bm, bp), (cm, cp)) => {
-            let av = val(*ap);
-            let bv = val(*bp);
-            let cv = val(*cp);
-            vec![
-                (format!("SLT"), colors::OPCODE_MNEMONIC, true),
-                (format!("  "), colors::ABSOLUTE, false),
-                (param_read(*am, &av), color_read(*am), false),
-                (format!(" "), colors::ABSOLUTE, false),
-                (param_read(*bm, &bv), color_read(*bm), false),
-                (format!(" "), colors::ABSOLUTE, false),
-                (param_write(*cm, &cv), color_write(*cm), false),
-            ]
-        }
-        Seq((am, ap), (bm, bp), (cm, cp)) => {
-            let av = val(*ap);
-            let bv = val(*bp);
-            let cv = val(*cp);
-            vec![
-                (format!("SEQ"), colors::OPCODE_MNEMONIC, true),
-                (format!("  "), colors::ABSOLUTE, false),
-                (param_read(*am, &av), color_read(*am), false),
-                (format!(" "), colors::ABSOLUTE, false),
-                (param_read(*bm, &bv), color_read(*bm), false),
-                (format!(" "), colors::ABSOLUTE, false),
-                (param_write(*cm, &cv), color_write(*cm), false),
-            ]
-        }
-        Inb((rm, rp)) => {
-            let rv = val(*rp);
-            vec![
-                (format!("INB"), colors::OPCODE_MNEMONIC, true),
-                (format!("  "), colors::ABSOLUTE, false),
-                (param_read(*rm, &rv), color_read(*rm), false),
-            ]
-        }
-        Hlt => vec![(format!("HLT"), colors::OPCODE_MNEMONIC, true)],
     }
 }
 
-fn param_read(mode: ReadParamMode, val: &Value) -> String {
-    match mode {
-        ReadParamMode::Absolute => format!("{}", val),
-        ReadParamMode::Immediate => format!("#{}", val),
-        ReadParamMode::Relative => format!("@{}", val),
+impl TuiCell<2> {
+    fn for_memory_value(value: &Value) -> Self {
+        Self {
+            style: ContentStyle {
+                foreground_color: Some(colors::MEMORY_VALUE),
+                ..Default::default()
+            },
+            lines: [Cow::Owned(value.to_string()), Cow::Borrowed("")],
+        }
+    }
+
+    fn for_rb_value(value: &Value) -> Self {
+        let value = value.to_string();
+        let carets = "^".repeat(value.len());
+        Self {
+            style: ContentStyle {
+                foreground_color: Some(colors::RB_VALUE),
+                ..Default::default()
+            },
+            lines: [Cow::Owned(value), Cow::Owned(carets)],
+        }
+    }
+
+    fn for_opcode(value: &Value, opcode: OpCode) -> Self {
+        Self {
+            style: ContentStyle {
+                foreground_color: Some(colors::OPCODE),
+                ..Default::default()
+            },
+            lines: [
+                Cow::Owned(value.to_string()),
+                Cow::Owned(opcode.to_string()),
+            ],
+        }
+    }
+    fn for_param(mode: ReadParamMode, value: &Value) -> Self {
+        let value = value.to_string();
+        let param = match mode {
+            ReadParamMode::Absolute => value.clone(),
+            ReadParamMode::Immediate => format!("#{value}"),
+            ReadParamMode::Relative => format!("@{value}"),
+        };
+        Self {
+            style: ContentStyle {
+                foreground_color: Some(match mode {
+                    ReadParamMode::Absolute => colors::ABSOLUTE,
+                    ReadParamMode::Immediate => colors::IMMEDIATE,
+                    ReadParamMode::Relative => colors::RELATIVE,
+                }),
+                ..Default::default()
+            },
+            lines: [Cow::Owned(value), Cow::Owned(param)],
+        }
     }
 }
 
-fn param_write(mode: WriteParamMode, val: &Value) -> String {
-    match mode {
-        WriteParamMode::Absolute => format!("{}", val),
-        WriteParamMode::Relative => format!("@{}", val),
+#[derive(Debug, Clone)]
+struct TuiRowHeader<const HEIGHT: usize> {
+    labels: TuiCell<HEIGHT>,
+    values: TuiCell<HEIGHT>,
+}
+
+impl<const H: usize> TuiRowHeader<H> {
+    fn width(&self) -> usize {
+        self.labels.width() + CELL_SEPARATOR.len() + self.values.width()
+    }
+
+    fn print<const STYLE: bool>(&self, out: &mut impl io::Write, row: usize) -> io::Result<()> {
+        self.labels.print::<STYLE>(out, row)?;
+        write!(out, "{CELL_SEPARATOR}")?;
+        self.values.print::<STYLE>(out, row)?;
+        Ok(())
     }
 }
 
-fn color_read(mode: ReadParamMode) -> Color {
-    match mode {
-        ReadParamMode::Absolute => colors::ABSOLUTE,
-        ReadParamMode::Immediate => colors::IMMEDIATE,
-        ReadParamMode::Relative => colors::RELATIVE,
+impl TuiRowHeader<2> {
+    fn new_for_ip(mem: &Memory) -> Self {
+        Self {
+            labels: IP_HEADER_LABELS,
+            values: TuiCell {
+                style: ContentStyle {
+                    foreground_color: Some(colors::IP_VALUE),
+                    ..Default::default()
+                },
+                lines: [Cow::Owned(mem.ip().to_string()), Cow::Borrowed("")],
+            },
+        }
+    }
+    fn new_for_rb(mem: &Memory) -> Self {
+        Self {
+            labels: RB_HEADER,
+            values: TuiCell {
+                style: ContentStyle {
+                    foreground_color: Some(colors::RB_VALUE),
+                    ..Default::default()
+                },
+                lines: [Cow::Owned(mem.rb().to_string()), Cow::Borrowed("")],
+            },
+        }
     }
 }
 
-fn color_write(mode: WriteParamMode) -> Color {
-    match mode {
-        WriteParamMode::Absolute => colors::ABSOLUTE,
-        WriteParamMode::Relative => colors::RELATIVE,
+const ELLIPSE_HEADER: TuiCell<2> = TuiCell {
+    style: ContentStyle {
+        foreground_color: Some(colors::ELLIPSIS),
+        background_color: None,
+        underline_color: None,
+        attributes: Attributes::none(),
+    },
+    lines: [Cow::Borrowed("..."), Cow::Borrowed("")],
+};
+const NEG_OVERFLOW_HEADER: TuiCell<2> = TuiCell {
+    style: ContentStyle {
+        foreground_color: Some(colors::ELLIPSIS),
+        background_color: None,
+        underline_color: None,
+        attributes: Attributes::none(),
+    },
+    lines: [Cow::Borrowed("<<<"), Cow::Borrowed("")],
+};
+const IP_HEADER_LABELS: TuiCell<2> = TuiCell {
+    style: ContentStyle {
+        foreground_color: Some(colors::IP_LABEL),
+        background_color: None,
+        underline_color: None,
+        attributes: Attributes::none(),
+    },
+    lines: [Cow::Borrowed("IP:"), Cow::Borrowed("")],
+};
+const RB_HEADER: TuiCell<2> = TuiCell {
+    style: ContentStyle {
+        foreground_color: Some(colors::RB_LABEL),
+        background_color: None,
+        underline_color: None,
+        attributes: Attributes::none(),
+    },
+    lines: [Cow::Borrowed("RB:"), Cow::Borrowed("")],
+};
+
+#[derive(Debug, Clone, Copy)]
+enum StartMarker {
+    None,
+    Ellipsis,
+    NegativeOverflow,
+}
+
+#[derive(Debug, Clone)]
+struct TuiMemoryWindow {
+    cells: Vec<TuiCell<2>>,
+    start_marker: StartMarker,
+    ellipse_end: bool,
+}
+
+impl TuiMemoryWindow {
+    fn new(memory: &Memory, pos: usize, center: Vec<TuiCell<2>>, width: usize) -> Self {
+        let center_len = center.len();
+        let mem_len = memory.non_zero_length();
+
+        let mut window_start = pos;
+        let mut window_end = pos + center_len;
+
+        let mut window = Self {
+            cells: center,
+            start_marker: if window_start > 0 {
+                StartMarker::Ellipsis
+            } else {
+                StartMarker::None
+            },
+            ellipse_end: window_end < mem_len,
+        };
+
+        loop {
+            let can_add_before = window_start > 0;
+            let can_add_after = window_end < mem_len;
+
+            if !can_add_before && !can_add_after {
+                break;
+            }
+
+            if can_add_before {
+                let new_idx = window_start - 1;
+                window
+                    .cells
+                    .insert(0, TuiCell::for_memory_value(memory.get(new_idx)));
+                window_start = new_idx;
+                window.start_marker = if new_idx > 0 {
+                    StartMarker::Ellipsis
+                } else {
+                    StartMarker::None
+                };
+
+                if window.width() >= width {
+                    window.cells.remove(0);
+                    window_start = new_idx + 1;
+                    window.start_marker = if window_start > 0 {
+                        StartMarker::Ellipsis
+                    } else {
+                        StartMarker::None
+                    };
+                    break;
+                }
+            }
+
+            if can_add_after {
+                let new_idx = window_end;
+                window
+                    .cells
+                    .push(TuiCell::for_memory_value(memory.get(new_idx)));
+                window_end = new_idx + 1;
+                window.ellipse_end = window_end < mem_len;
+
+                if window.width() >= width {
+                    window.cells.pop();
+                    window_end = new_idx;
+                    window.ellipse_end = window_end < mem_len;
+                    break;
+                }
+            }
+        }
+
+        window
+    }
+
+    fn width(&self) -> usize {
+        let start_width = match self.start_marker {
+            StartMarker::None => None,
+            StartMarker::Ellipsis => Some(ELLIPSE_HEADER.width()),
+            StartMarker::NegativeOverflow => Some(NEG_OVERFLOW_HEADER.width()),
+        };
+
+        let cells_widths = start_width
+            .into_iter()
+            .chain(self.cells.iter().map(TuiCell::width))
+            .chain(self.ellipse_end.then_some(ELLIPSE_HEADER.width()));
+
+        Itertools::intersperse(cells_widths, 1).sum::<usize>()
+    }
+
+    fn print<const STYLE: bool>(&self, mut out: &mut impl io::Write, row: usize) -> io::Result<()> {
+        let start_cell: Option<&TuiCell<2>> = match self.start_marker {
+            StartMarker::None => None,
+            StartMarker::Ellipsis => Some(&ELLIPSE_HEADER),
+            StartMarker::NegativeOverflow => Some(&NEG_OVERFLOW_HEADER),
+        };
+        start_cell
+            .into_iter()
+            .chain(&self.cells)
+            .chain(self.ellipse_end.then_some(&ELLIPSE_HEADER))
+            .map(|cell| {
+                write!(out, "{CELL_SEPARATOR}")?;
+                cell.print::<STYLE>(&mut out, row)
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TuiRow {
+    header: TuiRowHeader<2>,
+    window: TuiMemoryWindow,
+}
+impl TuiRow {
+    fn new(
+        header: TuiRowHeader<2>,
+        memory: &Memory,
+        pos: usize,
+        center: Vec<TuiCell<2>>,
+        width: usize,
+    ) -> Self {
+        let window =
+            TuiMemoryWindow::new(memory, pos, center, width.saturating_sub(header.width()));
+        Self { header, window }
+    }
+
+    fn print<const STYLE: bool>(&self, out: &mut impl io::Write) -> io::Result<()> {
+        self.header.print::<STYLE>(out, 0)?;
+        self.window.print::<STYLE>(out, 0)?;
+        writeln!(out)?;
+        self.header.print::<STYLE>(out, 1)?;
+        self.window.print::<STYLE>(out, 1)?;
+        writeln!(out)?;
+        Ok(())
     }
 }

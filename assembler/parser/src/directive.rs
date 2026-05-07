@@ -40,15 +40,13 @@ fn jmp<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
 fn inc<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
     just("INC")
         .then_ignore(inline_whitespace().at_least(1))
-        .ignore_then(
-            write_param().try_map(|(mode, labelled), span| {
-                if labelled.is_labelled() {
-                    Err(Rich::custom(span, "value cannot be labelled"))
-                } else {
-                    Ok((mode, labelled.item))
-                }
-            }),
-        )
+        .ignore_then(write_param().try_map(|(mode, labelled), span| {
+            if labelled.is_labelled() {
+                Err(Rich::custom(span, "value cannot be labelled"))
+            } else {
+                Ok((mode, labelled.item))
+            }
+        }))
         .map(Directive::Inc)
         .labelled("inc directive")
 }
@@ -56,15 +54,13 @@ fn inc<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
 fn dec<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
     just("DEC")
         .then_ignore(inline_whitespace().at_least(1))
-        .ignore_then(
-            write_param().try_map(|(mode, labelled), span| {
-                if labelled.is_labelled() {
-                    Err(Rich::custom(span, "value cannot be labelled"))
-                } else {
-                    Ok((mode, labelled.item))
-                }
-            }),
-        )
+        .ignore_then(write_param().try_map(|(mode, labelled), span| {
+            if labelled.is_labelled() {
+                Err(Rich::custom(span, "value cannot be labelled"))
+            } else {
+                Ok((mode, labelled.item))
+            }
+        }))
         .map(Directive::Dec)
         .labelled("dec directive")
 }
@@ -116,9 +112,7 @@ fn call<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
 }
 
 fn ret<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {
-    just("RET")
-        .to(Directive::Ret)
-        .labelled("ret directive")
+    just("RET").to(Directive::Ret).labelled("ret directive")
 }
 
 fn load<'s>() -> impl Parser<'s, &'s str, Directive, ParserExtra<'s>> {

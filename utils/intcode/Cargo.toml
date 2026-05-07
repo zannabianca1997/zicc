@@ -9,3 +9,4 @@ zicc-limits.workspace = true
 num-derive = "0.4.2"
 num-traits = "0.2.19"
 snafu.workspace = true
+derive_more.workspace = true

@@ -106,7 +106,7 @@ impl Memory {
         Ok(self.get(index))
     }
 
-    fn get(&self, index: usize) -> &Value {
+    pub fn get(&self, index: usize) -> &Value {
         self.content.get(index).unwrap_or(&DEFAULT_OVER_MEMORY)
     }
 
@@ -166,8 +166,8 @@ impl Memory {
         &self.rb
     }
 
-    pub fn content(&self) -> &[Value] {
-        &self.content
+    pub fn non_zero_length(&self) -> usize {
+        self.content.len()
     }
 
     pub fn increase_relative_base(&mut self, a: &Value) {

@@ -78,7 +78,8 @@ impl<T: Hooks, const N: usize> Hooks for [T; N] {
         pos: Range<usize>,
         memory: &Memory,
     ) {
-        self.as_mut_slice().before_instruction(instruction, pos, memory);
+        self.as_mut_slice()
+            .before_instruction(instruction, pos, memory);
     }
 }
 

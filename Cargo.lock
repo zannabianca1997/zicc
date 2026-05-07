@@ -1260,6 +1260,7 @@ dependencies = [
 name = "zicc-intcode"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "num-derive",
  "num-traits",
  "snafu",
@@ -1336,6 +1337,7 @@ dependencies = [
  "crossterm",
  "derive_more",
  "either",
+ "itertools",
  "serde",
  "snafu",
  "zicc-intcode",

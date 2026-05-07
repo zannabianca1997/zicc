@@ -16,6 +16,7 @@ derive_more.workspace = true
 serde.workspace = true
 snafu.workspace = true
 crossterm = "0.29.0"
+itertools.workspace = true
 
 [dev-dependencies]
 either = { version = "1.15.0", features = ["serde"] }

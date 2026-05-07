@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+use derive_more::Display;
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::FromPrimitive;
 use snafu::{OptionExt, Snafu};
@@ -40,7 +41,7 @@ pub enum Instruction<Param> {
 }
 
 /// An IntCode opcode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive, ToPrimitive, Display)]
 #[repr(u8)]
 pub enum OpCode {
     ADD = 01,

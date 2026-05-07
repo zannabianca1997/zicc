@@ -12,8 +12,8 @@ use crate::{
 };
 
 pub mod cli;
-pub mod mem;
 pub mod hooks;
+pub mod mem;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Vm<Hooks: ?Sized = ()> {
