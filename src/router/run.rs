@@ -6,7 +6,7 @@ use clap_stdin::FileOrStdout;
 use snafu::{ResultExt, Snafu};
 use string_interner::DefaultStringInterner;
 use zicc_vm::Vm;
-use zicc_vm_stream::std_io::{Format, IoReader, IoWriter};
+use zicc_vm_stream::std_io::{IoReader, IoWriter};
 
 #[derive(Debug, Snafu)]
 pub enum RunError {
@@ -16,8 +16,7 @@ pub enum RunError {
     VmParse { source: zicc_vm_program::ParseError },
     #[snafu(transparent)]
     VmDrive {
-        source:
-            zicc_vm::DriveError<zicc_vm_stream::std_io::Error, zicc_vm_stream::std_io::Error>,
+        source: zicc_vm::DriveError<zicc_vm_stream::std_io::Error, zicc_vm_stream::std_io::Error>,
     },
 }
 
@@ -39,8 +38,8 @@ pub fn write_executable(
 }
 
 pub fn run(program: zicc_vm_program::Program) -> Result<(), RunError> {
-    let input = IoReader::new(Format::Ints, io::stdin().lock());
-    let output = IoWriter::new(Format::Ints, io::stdout().lock());
+    let input = IoReader::new(program.info.input, io::stdin().lock());
+    let output = IoWriter::new(program.info.output, io::stdout().lock());
     let mut vm = Vm::new(program);
     Ok(vm.drive(input, output)?)
 }

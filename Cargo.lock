@@ -1128,7 +1128,7 @@ dependencies = [
  "string-interner",
  "zicc-assembler",
  "zicc-assembler-program",
- "zicc-compiler-parser",
+ "zicc-compiler-program",
  "zicc-linker",
  "zicc-linker-program",
  "zicc-vm",
@@ -1238,6 +1238,16 @@ dependencies = [
  "zicc-compiler-ast",
  "zicc-compiler-lexer",
  "zicc-display",
+]
+
+[[package]]
+name = "zicc-compiler-program"
+version = "0.1.0"
+dependencies = [
+ "snafu",
+ "string-interner",
+ "zicc-compiler-ast",
+ "zicc-compiler-parser",
 ]
 
 [[package]]

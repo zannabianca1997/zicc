@@ -1,0 +1,11 @@
+[package]
+name = "zicc-compiler-program"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+zicc-compiler-ast.workspace = true
+zicc-compiler-parser.workspace = true
+
+snafu.workspace = true
+string-interner.workspace = true

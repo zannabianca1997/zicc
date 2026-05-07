@@ -15,6 +15,7 @@ members = [
   "compiler/ast",
   "compiler/lexer",
   "compiler/parser",
+  "compiler/program",
   "compiler/types",
   "linker",
   "linker/program",
@@ -36,6 +37,7 @@ zicc-assembler-program = { path = "assembler/program" }
 zicc-compiler-ast = { path = "compiler/ast" }
 zicc-compiler-lexer = { path = "compiler/lexer" }
 zicc-compiler-parser = { path = "compiler/parser" }
+zicc-compiler-program = { path = "compiler/program" }
 zicc-display = { path = "utils/display" }
 zicc-frontmatter = { path = "utils/frontmatter" }
 zicc-intcode = { path = "utils/intcode" }
@@ -63,7 +65,7 @@ toml = "1.1.2"
 [dependencies]
 zicc-assembler.workspace = true
 zicc-assembler-program.workspace = true
-zicc-compiler-parser.workspace = true
+zicc-compiler-program.workspace = true
 zicc-linker.workspace = true
 zicc-linker-program.workspace = true
 zicc-vm.workspace = true
