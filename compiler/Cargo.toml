@@ -4,3 +4,11 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+zicc-assembler-program.workspace = true
+zicc-compiler-program.workspace = true
+
+ariadne.workspace = true
+clap.workspace = true
+clap-stdin.workspace = true
+snafu.workspace = true
+string-interner.workspace = true

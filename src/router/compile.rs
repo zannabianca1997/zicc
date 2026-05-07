@@ -1,53 +1,27 @@
 use std::cell::RefCell;
-use std::ops::Range;
 use std::path::Path;
 
-use ariadne::{Color, Label, Report, ReportKind, Source};
+use ariadne::Source;
 use snafu::{ResultExt, Snafu};
 use string_interner::DefaultStringInterner;
-use zicc_compiler_program::{ErrorHandler, ParseError};
+use zicc_compiler::cli::AriadneErrorHandler;
+use zicc_compiler_program::ParseError;
 
 #[derive(Debug, Snafu)]
-pub enum CompileError {
+pub enum CompilePhaseError {
     #[snafu(display("IO error reading source file"))]
     Io { source: std::io::Error },
     #[snafu(transparent)]
     Parse { source: ParseError },
-    #[snafu(display("Compilation of `.ic` sources is not yet implemented"))]
-    NotYetImplemented,
-}
-
-struct AriadneErrorHandler<'a> {
-    source_name: &'a str,
-    source: &'a Source,
-}
-
-impl<'a> ErrorHandler for AriadneErrorHandler<'a> {
-    fn handle(
-        &mut self,
-        err: zicc_compiler_program::ParserError<'_>,
-        span_mapper: impl Fn(Range<usize>) -> Range<usize>,
-    ) {
-        let span = span_mapper(err.span().clone().into());
-        let msg = format!("{:?}", err.reason());
-        Report::build(ReportKind::Error, (self.source_name, span.start..span.end))
-            .with_message(format!("Parse error in {}", self.source_name))
-            .with_label(
-                Label::new((self.source_name, span.start..span.end))
-                    .with_message(msg)
-                    .with_color(Color::Red),
-            )
-            .finish()
-            .print((self.source_name, self.source))
-            .unwrap();
-    }
+    #[snafu(transparent)]
+    Compile { source: zicc_compiler::CompileError },
 }
 
 pub fn compile(
     files: &[&Path],
     interner: &RefCell<DefaultStringInterner>,
-) -> Result<Vec<zicc_assembler_program::Program>, CompileError> {
-    let results = Vec::with_capacity(files.len());
+) -> Result<Vec<zicc_assembler_program::Program>, CompilePhaseError> {
+    let mut results = Vec::with_capacity(files.len());
 
     for file in files {
         let source = std::fs::read(file).context(IoSnafu)?;
@@ -59,9 +33,8 @@ pub fn compile(
             source: &ariadne_source,
         };
 
-        let _ast = zicc_compiler_program::Program::parse(&source, interner, error_handler)?;
-
-        return Err(CompileError::NotYetImplemented);
+        let program = zicc_compiler_program::Program::parse(&source, interner, error_handler)?;
+        results.push(zicc_compiler::compile(program, interner)?);
     }
 
     Ok(results)

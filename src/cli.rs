@@ -19,6 +19,7 @@ pub struct Cli {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
+    Compiler(zicc_compiler::cli::Cli),
     Assembler(zicc_assembler::cli::Cli),
     Linker(zicc_linker::cli::Cli),
     Vm(zicc_vm::cli::Cli),
@@ -44,6 +45,8 @@ pub struct RouterArgs {
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(transparent)]
+    Compiler { source: zicc_compiler::cli::Error },
+    #[snafu(transparent)]
     Assembler { source: zicc_assembler::cli::Error },
     #[snafu(transparent)]
     Linker { source: zicc_linker::cli::Error },
@@ -59,6 +62,7 @@ pub fn main(cli: Cli) -> Result<(), Error> {
             router_args: None,
             command: Some(command),
         } => match command {
+            Command::Compiler(cli) => zicc_compiler::cli::main(cli)?,
             Command::Assembler(cli) => zicc_assembler::cli::main(cli)?,
             Command::Linker(cli) => zicc_linker::cli::main(cli)?,
             Command::Vm(cli) => zicc_vm::cli::main(cli)?,

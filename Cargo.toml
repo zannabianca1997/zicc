@@ -34,6 +34,7 @@ zicc-assembler = { path = "assembler" }
 zicc-assembler-ast = { path = "assembler/ast" }
 zicc-assembler-parser = { path = "assembler/parser" }
 zicc-assembler-program = { path = "assembler/program" }
+zicc-compiler = { path = "compiler" }
 zicc-compiler-ast = { path = "compiler/ast" }
 zicc-compiler-lexer = { path = "compiler/lexer" }
 zicc-compiler-parser = { path = "compiler/parser" }
@@ -65,6 +66,7 @@ toml = "1.1.2"
 [dependencies]
 zicc-assembler.workspace = true
 zicc-assembler-program.workspace = true
+zicc-compiler.workspace = true
 zicc-compiler-program.workspace = true
 zicc-linker.workspace = true
 zicc-linker-program.workspace = true

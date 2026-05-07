@@ -17,7 +17,7 @@ pub enum Error {
     #[snafu(transparent)]
     Classify { source: classify::ClassifyError },
     #[snafu(transparent)]
-    Compile { source: compile::CompileError },
+    Compile { source: compile::CompilePhaseError },
     #[snafu(transparent)]
     Assemble {
         source: assemble::AssemblePhaseError,
