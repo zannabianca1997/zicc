@@ -1,4 +1,7 @@
+use std::path::PathBuf;
+
 use clap::{Args, Parser, Subcommand};
+use clap_stdin::FileOrStdout;
 use snafu::Snafu;
 
 /// Zanna's IntCode Compiler
@@ -22,7 +25,21 @@ pub enum Command {
 }
 
 #[derive(Debug, Clone, Args)]
-pub struct RouterArgs {}
+pub struct RouterArgs {
+    /// Input files to compile, assemble, link or run
+    #[arg(num_args = 1.., required = true)]
+    pub inputs: Vec<PathBuf>,
+
+    /// Output file; if omitted, run the program.
+    ///
+    /// The flag alone or with `-` defaults to writing to stdout.
+    #[arg(short, long, num_args = 0..=1, default_missing_value = "-")]
+    pub output: Option<FileOrStdout>,
+
+    /// Only link the sources, do not produce an executable
+    #[arg(short = 'L', long)]
+    pub link_only: bool,
+}
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -33,7 +50,7 @@ pub enum Error {
     #[snafu(transparent)]
     Vm { source: zicc_vm::cli::Error },
     #[snafu(transparent)]
-    Router { source: super::Error },
+    Router { source: crate::router::Error },
 }
 
 pub fn main(cli: Cli) -> Result<(), Error> {
@@ -47,9 +64,16 @@ pub fn main(cli: Cli) -> Result<(), Error> {
             Command::Vm(cli) => zicc_vm::cli::main(cli)?,
         },
         Cli {
-            router_args: Some(RouterArgs {}),
+            router_args: Some(router_args),
             command: None,
-        } => crate::router()?,
+        } => {
+            let RouterArgs {
+                inputs,
+                output,
+                link_only,
+            } = router_args;
+            crate::router::route(inputs, output, link_only)?
+        }
         _ => unreachable!(
             "`clap` parsing should guarantee that either common args or router args are given"
         ),

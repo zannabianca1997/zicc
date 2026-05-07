@@ -46,9 +46,9 @@ pub enum Error {
     },
 }
 
-struct AriadneErrorHandler<'a> {
-    source_name: &'a str,
-    source: &'a Source,
+pub struct AriadneErrorHandler<'a> {
+    pub source_name: &'a str,
+    pub source: &'a Source,
 }
 
 impl<'a> ErrorHandler for AriadneErrorHandler<'a> {

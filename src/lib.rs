@@ -1,13 +1,8 @@
-use snafu::Snafu;
+#![doc=include_str!("../README.md")]
 
 pub mod cli;
+pub mod router;
 
-#[derive(Debug, Snafu)]
-pub enum Error {}
-
-/// Router function
-///
-/// Auto deduce the action to take
-pub fn router() -> Result<(), Error> {
-    todo!()
-}
+pub use zicc_assembler as assembler;
+pub use zicc_linker as linker;
+pub use zicc_vm as vm;

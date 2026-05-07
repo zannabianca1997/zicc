@@ -35,6 +35,7 @@ zicc-assembler-parser = { path = "assembler/parser" }
 zicc-assembler-program = { path = "assembler/program" }
 zicc-compiler-ast = { path = "compiler/ast" }
 zicc-compiler-lexer = { path = "compiler/lexer" }
+zicc-compiler-parser = { path = "compiler/parser" }
 zicc-display = { path = "utils/display" }
 zicc-frontmatter = { path = "utils/frontmatter" }
 zicc-intcode = { path = "utils/intcode" }
@@ -61,8 +62,16 @@ toml = "1.1.2"
 
 [dependencies]
 zicc-assembler.workspace = true
+zicc-assembler-program.workspace = true
+zicc-compiler-parser.workspace = true
 zicc-linker.workspace = true
+zicc-linker-program.workspace = true
 zicc-vm.workspace = true
+zicc-vm-program.workspace = true
+zicc-vm-stream.workspace = true
 
+ariadne.workspace = true
 clap.workspace = true
+clap-stdin.workspace = true
 snafu.workspace = true
+string-interner.workspace = true
