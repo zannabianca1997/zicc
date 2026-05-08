@@ -8,6 +8,7 @@ use snafu::Snafu;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stage {
+    Assembly,
     Link,
     MakeExecutable,
     Run,
@@ -31,8 +32,12 @@ pub enum ClassifyError {
     CannotMixExecutable,
     #[snafu(display("Cannot produce output for an already-linked `.ints` executable"))]
     CannotRecompileExecutable,
-    #[snafu(display("Cannot output `.ica` assembly — use the linker to join files"))]
-    CannotOutputAssembly,
+    #[snafu(display(
+        "Cannot emit `.ica` assembly from multiple inputs — linking would be required"
+    ))]
+    MultipleAssemblyInputs,
+    #[snafu(display("Cannot emit `.ica` assembly from a `.icob` object file"))]
+    CannotAssembleObject,
     #[snafu(display("Can only run a single `.ints` executable"))]
     MultipleExecutables,
 }
@@ -57,7 +62,7 @@ fn classify_path(path: &Path) -> Result<InputKind, ClassifyError> {
 
 fn target_from_ext(ext: &OsStr) -> Result<Stage, ClassifyError> {
     match ext.to_str() {
-        Some("ica") => Err(ClassifyError::CannotOutputAssembly),
+        Some("ica") => Ok(Stage::Assembly),
         Some("icob") => Ok(Stage::Link),
         Some("ints") => Ok(Stage::MakeExecutable),
         _ => Err(ClassifyError::UnknownOutputExtension {
@@ -107,6 +112,15 @@ pub fn classify(
 
     if has_executable && kinds.len() > 1 {
         return Err(ClassifyError::MultipleExecutables);
+    }
+
+    if target == Stage::Assembly {
+        if kinds.len() != 1 {
+            return Err(ClassifyError::MultipleAssemblyInputs);
+        }
+        if kinds[0] == InputKind::Object {
+            return Err(ClassifyError::CannotAssembleObject);
+        }
     }
 
     Ok((kinds, target))

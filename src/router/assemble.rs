@@ -15,6 +15,25 @@ pub enum AssemblePhaseError {
     Assemble { source: zicc_assembler::AssembleError },
 }
 
+pub fn parse_ica(
+    path: &Path,
+    interner: &mut DefaultStringInterner,
+) -> Result<zicc_assembler_program::Program, AssemblePhaseError> {
+    let source = std::fs::read(path).context(IoSnafu)?;
+    let source_name = path.to_string_lossy().to_string();
+    let source_text = String::from_utf8_lossy(&source).into_owned();
+    let ariadne_source = Source::from(source_text);
+    let error_handler = AriadneErrorHandler {
+        source_name: &source_name,
+        source: &ariadne_source,
+    };
+    Ok(zicc_assembler_program::Program::parse(
+        &source,
+        interner,
+        error_handler,
+    )?)
+}
+
 pub fn assemble(
     ica_files: &[&Path],
     compiled_asm: Vec<zicc_assembler_program::Program>,
@@ -23,17 +42,7 @@ pub fn assemble(
     let mut programs = Vec::with_capacity(ica_files.len() + compiled_asm.len());
 
     for path in ica_files {
-        let source = std::fs::read(path).context(IoSnafu)?;
-        let source_name = path.to_string_lossy().to_string();
-        let source_text = String::from_utf8_lossy(&source).into_owned();
-        let ariadne_source = Source::from(source_text);
-        let error_handler = AriadneErrorHandler {
-            source_name: &source_name,
-            source: &ariadne_source,
-        };
-        let program =
-            zicc_assembler_program::Program::parse(&source, interner, error_handler)?;
-        programs.push(zicc_assembler::assemble(program)?);
+        programs.push(zicc_assembler::assemble(parse_ica(path, interner)?)?);
     }
 
     for program in compiled_asm {

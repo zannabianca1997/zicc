@@ -20,6 +20,15 @@ pub enum RunError {
     },
 }
 
+pub fn write_assembly(
+    program: &zicc_assembler_program::Program,
+    output: FileOrStdout,
+    interner: &DefaultStringInterner,
+) -> Result<(), RunError> {
+    let mut dest = output.into_writer().context(IoSnafu)?;
+    program.dump(&mut dest, interner).context(IoSnafu)
+}
+
 pub fn write_object(
     program: &zicc_linker_program::Program,
     output: FileOrStdout,

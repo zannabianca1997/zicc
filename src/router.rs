@@ -70,13 +70,31 @@ pub fn route(
     let ic_files = find_kinds(&inputs, &kinds, classify::InputKind::Source);
     let compiled_asm = compile::compile(&ic_files, &interner)?;
 
+    if target == classify::Stage::Assembly {
+        let program = match kinds[0] {
+            classify::InputKind::Source => compiled_asm.into_iter().next().unwrap(),
+            classify::InputKind::AsmSource => {
+                assemble::parse_ica(&inputs[0], &mut interner.borrow_mut())?
+            }
+            _ => unreachable!(),
+        };
+        return Ok(run::write_assembly(
+            &program,
+            effective_output
+                .expect("output should be set at Assembly stage")
+                .clone(),
+            &interner.borrow(),
+        )?);
+    }
+
     let ica_files = find_kinds(&inputs, &kinds, classify::InputKind::AsmSource);
     let assembled = assemble::assemble(&ica_files, compiled_asm, &mut interner.borrow_mut())?;
 
     let icob_files = find_kinds(&inputs, &kinds, classify::InputKind::Object);
-    let linked = link::load_and_link(&icob_files, assembled, &mut interner.borrow_mut())?;
+    let linked = link::link(&icob_files, assembled, &mut interner.borrow_mut())?;
 
     match target {
+        classify::Stage::Assembly => unreachable!("handled above"),
         classify::Stage::Link => {
             run::write_object(
                 &linked,

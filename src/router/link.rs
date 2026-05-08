@@ -19,7 +19,7 @@ pub enum LinkPhaseError {
     },
 }
 
-pub fn load_and_link(
+pub fn link(
     icob_files: &[&Path],
     mut assembled: Vec<zicc_linker_program::Program>,
     interner: &mut DefaultStringInterner,
