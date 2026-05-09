@@ -39,6 +39,7 @@ zicc-compiler-ast = { path = "compiler/ast" }
 zicc-compiler-lexer = { path = "compiler/lexer" }
 zicc-compiler-parser = { path = "compiler/parser" }
 zicc-compiler-program = { path = "compiler/program" }
+zicc-compiler-types = { path = "compiler/types" }
 zicc-display = { path = "utils/display" }
 zicc-frontmatter = { path = "utils/frontmatter" }
 zicc-intcode = { path = "utils/intcode" }

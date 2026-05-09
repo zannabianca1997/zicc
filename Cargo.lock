@@ -1209,7 +1209,11 @@ dependencies = [
  "snafu",
  "string-interner",
  "zicc-assembler-program",
+ "zicc-compiler-ast",
+ "zicc-compiler-lexer",
  "zicc-compiler-program",
+ "zicc-compiler-types",
+ "zicc-limits",
 ]
 
 [[package]]

@@ -5,7 +5,11 @@ edition.workspace = true
 
 [dependencies]
 zicc-assembler-program.workspace = true
+zicc-compiler-ast.workspace = true
+zicc-compiler-lexer.workspace = true
 zicc-compiler-program.workspace = true
+zicc-compiler-types.workspace = true
+zicc-limits.workspace = true
 
 ariadne.workspace = true
 clap.workspace = true
