@@ -11,6 +11,8 @@
     "s",
     "serde",
     "rsplit",
-    "itertools"
+    "itertools",
+    "punct",
+    "foldl"
   ]
 }

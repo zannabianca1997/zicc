@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-use crate::type_def::ItemTypeDef;
+use crate::{function::ItemFunction, type_def::ItemTypeDef};
 
 pub mod function;
 pub mod punctuated;
@@ -14,4 +14,5 @@ pub struct File {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Item {
     TypeDef(ItemTypeDef),
+    Function(ItemFunction),
 }

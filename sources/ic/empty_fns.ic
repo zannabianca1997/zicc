@@ -1,0 +1,4 @@
+fn main() {}
+fn add(a: int, b: int) -> int {}
+fn greet(name: &int) {}
+fn constant() -> int {}

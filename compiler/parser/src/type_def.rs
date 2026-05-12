@@ -11,10 +11,10 @@ use crate::{
 };
 
 /// Parse a type definition item
-pub(crate) fn item_type_def<
-    's,
+pub(crate) fn item_type_def<'s, I>() -> impl Parser<'s, I, ItemTypeDef, ParserExtra<'s>>
+where
     I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>,
->() -> impl Parser<'s, I, ItemTypeDef, ParserExtra<'s>> {
+{
     keyword()
         .then(identifier())
         .then(punctuator())
@@ -30,10 +30,10 @@ pub(crate) fn item_type_def<
 }
 
 /// Parse a type definition
-pub(crate) fn type_def<
-    's,
+pub(crate) fn type_def<'s, I>() -> impl Parser<'s, I, TypeDef, ParserExtra<'s>> + Clone
+where
     I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>,
->() -> impl Parser<'s, I, TypeDef, ParserExtra<'s>> {
+{
     recursive(|type_def| {
         named_type_def()
             .map(TypeDef::Named)
@@ -44,25 +44,28 @@ pub(crate) fn type_def<
     })
 }
 
-pub(crate) fn named_type_def<
-    's,
+pub(crate) fn named_type_def<'s, I>() -> impl Parser<'s, I, NamedTypeDef, ParserExtra<'s>> + Clone
+where
     I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>,
->() -> impl Parser<'s, I, NamedTypeDef, ParserExtra<'s>> + Clone {
+{
     identifier()
         .map(|name| NamedTypeDef { name })
         .labelled("named type")
 }
 
-pub(crate) fn int_type_def<
-    's,
+pub(crate) fn int_type_def<'s, I>() -> impl Parser<'s, I, IntTypeDef, ParserExtra<'s>> + Clone
+where
     I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>,
->() -> impl Parser<'s, I, IntTypeDef, ParserExtra<'s>> + Clone {
+{
     keyword().map(|k_int| IntTypeDef { k_int })
 }
 
-fn array_type_def<'s, I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>>(
+fn array_type_def<'s, I>(
     type_def: impl Parser<'s, I, TypeDef, ParserExtra<'s>> + Clone,
-) -> impl Parser<'s, I, ArrayTypeDef, ParserExtra<'s>> + Clone {
+) -> impl Parser<'s, I, ArrayTypeDef, ParserExtra<'s>> + Clone
+where
+    I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>,
+{
     punctuator()
         .then(type_def)
         .then(punctuator())
@@ -79,28 +82,29 @@ fn array_type_def<'s, I: ValueInput<'s, Token = Result<Token, InvalidToken>, Spa
         )
         .labelled("array type")
 }
-pub(crate) fn unknown_type_def<
-    's,
+pub(crate) fn unknown_type_def<'s, I>()
+-> impl Parser<'s, I, UnknownTypeDef, ParserExtra<'s>> + Clone
+where
     I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>,
->() -> impl Parser<'s, I, UnknownTypeDef, ParserExtra<'s>> + Clone {
+{
     punctuator().map(|p_underscore| UnknownTypeDef { p_underscore })
 }
-fn pointer_type_def<
-    's,
-    I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>,
->(
+fn pointer_type_def<'s, I>(
     type_def: impl Parser<'s, I, TypeDef, ParserExtra<'s>> + Clone,
-) -> impl Parser<'s, I, PointerTypeDef, ParserExtra<'s>> + Clone {
+) -> impl Parser<'s, I, PointerTypeDef, ParserExtra<'s>> + Clone
+where
+    I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>,
+{
     pointer_kind_def()
         .then(type_def)
         .map(|(kind, pointed)| PointerTypeDef { kind, pointed })
         .labelled("pointer type")
 }
 
-fn pointer_kind_def<
-    's,
+fn pointer_kind_def<'s, I>() -> impl Parser<'s, I, PointerKindDef, ParserExtra<'s>> + Clone
+where
     I: ValueInput<'s, Token = Result<Token, InvalidToken>, Span = SimpleSpan>,
->() -> impl Parser<'s, I, PointerKindDef, ParserExtra<'s>> + Clone {
+{
     punctuator()
         .map(|p_at| PointerKindDef::Relative { p_at })
         .or(punctuator().map(|p_ampersand| PointerKindDef::Absolute { p_ampersand }))
