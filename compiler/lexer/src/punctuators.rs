@@ -148,6 +148,7 @@ punctuators! {
     Ampersand("&"),
     At("@"),
     Dot("."),
+    RightArrow("->"),
 
     // Math
     Plus("+"),

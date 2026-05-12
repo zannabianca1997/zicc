@@ -10,9 +10,13 @@ pub enum AssemblePhaseError {
     #[snafu(display("IO error reading assembly file"))]
     Io { source: std::io::Error },
     #[snafu(transparent)]
-    Parse { source: zicc_assembler_program::ParseError },
+    Parse {
+        source: zicc_assembler_program::ParseError,
+    },
     #[snafu(transparent)]
-    Assemble { source: zicc_assembler::AssembleError },
+    Assemble {
+        source: zicc_assembler::AssembleError,
+    },
 }
 
 pub fn parse_ica(

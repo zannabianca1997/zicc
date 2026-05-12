@@ -41,7 +41,9 @@ pub enum Instruction<Param> {
 }
 
 /// An IntCode opcode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive, ToPrimitive, Display)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive, ToPrimitive, Display,
+)]
 #[repr(u8)]
 pub enum OpCode {
     ADD = 01,

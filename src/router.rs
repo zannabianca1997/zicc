@@ -59,8 +59,7 @@ pub fn route(
 
     let (kinds, target) = classify::classify(&inputs, &effective_output, link_only)?;
 
-    if kinds.iter().all(|k| *k == classify::InputKind::Executable)
-        && target == classify::Stage::Run
+    if kinds.iter().all(|k| *k == classify::InputKind::Executable) && target == classify::Stage::Run
     {
         return Ok(run::run_file(&inputs[0])?);
     }
